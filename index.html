@@ -2,22 +2,30 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal em Construção</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="blob-container">
+    <div class="light-layer">
         <div class="blob b1"></div>
         <div class="blob b2"></div>
+        <div class="blob b3"></div>
     </div>
-    
-    <div class="content-wrapper">
-        <div class="logo-placeholder">
+
+    <main class="content">
+        <div class="logo-box">
             <img src="logo.png" alt="Logo" onerror="this.style.display='none'">
         </div>
-        <h1>Portal em Construção</h1>
-        <p>Em breve novidades exclusivas.</p>
-    </div>
+        <h1>Portal em Evolução</h1>
+        <p>Estamos refinando a experiência definitiva.</p>
+        
+        <div class="progress-container">
+            <div class="progress-bar" id="pb"></div>
+        </div>
+        <span id="percent">0%</span>
+    </main>
+
     <script src="script.js"></script>
 </body>
 </html>
