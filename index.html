@@ -3,26 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Em Obras | Portal</title>
+    <title>Portal em Obras</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="background-overlay"></div>
-    <div class="construction-elements">
-        <div class="crane"></div>
-        <div class="cone"></div>
-    </div>
+    <div class="glow-overlay"></div>
     
-    <div class="container">
-        <div class="status-box">
-            <h1>Portal em Desenvolvimento</h1>
-            <p>Estamos estruturando a fundação da sua nova experiência.</p>
-            <div class="progress-bar">
-                <div class="progress-fill"></div>
-            </div>
-            <p class="small-text">Em breve: Loja, Jogos e Downloads exclusivos.</p>
+    <div class="content-wrapper">
+        <!-- Espaço para a logo -->
+        <div class="logo-placeholder">
+            <img src="logo.png" alt="Sua Logo" onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='block';">
+            <div id="logo-fallback" style="display:none; font-size: 2rem; color: #555;">Logo Aqui</div>
+        </div>
+
+        <h1>Estamos Construindo</h1>
+        <p>Novidades, exclusividades e muito mais em breve.</p>
+        
+        <div class="construction-bar">
+            <div class="bar"></div>
         </div>
     </div>
+
     <script src="script.js"></script>
 </body>
 </html>
