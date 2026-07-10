@@ -1,0 +1,261 @@
+<!DOCTYPE html><html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube Playlist → videos.json</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+    }body {
+  background: #101820;
+  color: white;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.container {
+  width: 100%;
+  max-width: 900px;
+  background: #1b2633;
+  border-radius: 16px;
+  padding: 25px;
+  box-shadow: 0 0 25px rgba(0,0,0,0.4);
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 20px;
+  font-size: 28px;
+}
+
+p {
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+input {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  background: #2d3c4f;
+  color: white;
+  font-size: 15px;
+}
+
+button {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  background: #ff0033;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: 0.2s;
+}
+
+button:hover {
+  background: #ff335c;
+}
+
+textarea {
+  width: 100%;
+  height: 350px;
+  margin-top: 20px;
+  padding: 15px;
+  border-radius: 10px;
+  border: none;
+  resize: vertical;
+  background: #0f1720;
+  color: #00ff95;
+  font-family: Consolas, monospace;
+  font-size: 14px;
+}
+
+.copy-btn {
+  margin-top: 10px;
+  background: #00aa66;
+}
+
+.copy-btn:hover {
+  background: #00c777;
+}
+
+.status {
+  margin-top: 15px;
+  font-size: 14px;
+  color: #ffd166;
+  line-height: 1.5;
+}
+
+.example {
+  margin-top: 15px;
+  padding: 15px;
+  background: #12202e;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+code {
+  color: #00ff95;
+}
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>YouTube Playlist → videos.json</h1><p>Cole a URL da playlist do YouTube e gere automaticamente o conteúdo do arquivo <strong>videos.json</strong>.</p>
+
+
+
+<input type="text" id="playlistUrl" placeholder="Cole aqui o link da playlist do YouTube" />
+
+<input type="text" id="categoria" placeholder="Digite a categoria" />
+
+<input type="text" id="subcategoria" placeholder="Digite a subcategoria (ex: futebol, filmes, jogos...)" />
+
+<button onclick="generateJson()">Gerar videos.json</button>
+
+<div class="status" id="status"></div>
+
+<textarea id="output" placeholder="O JSON aparecerá aqui..."></textarea>
+
+<button class="copy-btn" onclick="copyJson()">Copiar JSON</button>
+
+<div class="example">
+  <p><strong>Como pegar uma API Key gratuita:</strong></p>
+  <p>
+    1. Acesse o Google Cloud Console<br>
+    2. Crie um projeto<br>
+    3. Ative a <strong>YouTube Data API v3</strong><br>
+    4. Gere uma API Key<br>
+  </p>
+</div>
+
+  </div>  <script>
+    function extractPlaylistId(url) {
+      try {
+        const parsed = new URL(url);
+        return parsed.searchParams.get('list');
+      } catch {
+        return null;
+      }
+    }
+
+    
+
+    async function getPlaylistVideos(apiKey, playlistId) {
+      let nextPageToken = '';
+      const videos = [];
+
+      do {
+        const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&pageToken=${nextPageToken}&playlistId=${playlistId}&key=${apiKey}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.error.message);
+        }
+
+        data.items.forEach(item => {
+          const snippet = item.snippet;
+
+          if (!snippet.resourceId || !snippet.resourceId.videoId) return;
+
+          const videoId = snippet.resourceId.videoId;
+
+          videos.push({
+            título: snippet.title,
+            capa: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+            link: `https://www.youtube.com/embed/${videoId}`
+          });
+        });
+
+        nextPageToken = data.nextPageToken || '';
+      } while (nextPageToken);
+
+      return videos;
+    }
+
+    async function generateJson() {
+      const apiKey = 'AIzaSyDHkLh2vGgxUJpVo11o1kKqtH1DQ5Toeu4';
+      const playlistUrl = document.getElementById('playlistUrl').value.trim();
+      const categoria = document.getElementById('categoria').value.trim();
+      const subcategoria = document.getElementById('subcategoria').value.trim();
+      const output = document.getElementById('output');
+      const status = document.getElementById('status');
+
+      output.value = '';
+
+      
+
+      if (!playlistUrl) {
+        status.innerHTML = 'Cole uma URL de playlist válida.';
+        return;
+      }
+
+      const playlistId = extractPlaylistId(playlistUrl);
+
+      if (!playlistId) {
+        status.innerHTML = 'Não foi possível identificar o ID da playlist.';
+        return;
+      }
+
+      status.innerHTML = 'Buscando vídeos da playlist...';
+
+      try {
+        
+        const videos = await getPlaylistVideos(apiKey, playlistId);
+
+        const finalJson = videos.map(video => ({
+          subcategoria: subcategoria,
+          título: video.título,
+          capa: video.capa,
+          link: video.link,
+          categoria: categoria
+        }));
+
+        output.value = JSON.stringify(finalJson, null, 2);
+
+        status.innerHTML = `Concluído! ${videos.length} vídeos encontrados.`;
+      } catch (error) {
+        console.error(error);
+        status.innerHTML = 'Erro: ' + error.message;
+      }
+    }
+
+    async function copyJson() {
+      const output = document.getElementById('output');
+
+      if (!output.value.trim()) return;
+
+      await navigator.clipboard.writeText(output.value);
+
+      alert('JSON copiado!');
+    }
+          document.addEventListener('contextmenu', event => {
+      event.preventDefault();
+    });
+
+    document.addEventListener('keydown', event => {
+      if (
+        event.key === 'F12' ||
+        (event.ctrlKey && event.shiftKey && ['I', 'J', 'C'].includes(event.key.toUpperCase())) ||
+        (event.ctrlKey && event.key.toUpperCase() === 'U')
+      ) {
+        event.preventDefault();
+      }
+    });
+
+  </script></body>
+</html>
