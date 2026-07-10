@@ -1,4 +1,4 @@
-const bar = document.getElementById('pb');
+const bar = document.getElementById('pb'); 
 const pct = document.getElementById('percent');
 let val = 0;
 
