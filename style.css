@@ -34,8 +34,12 @@ body {
     width: 320px;
 }
 
-.logo-box { width: 280px; height: 280px; margin-bottom: 20px; }
-.logo-box img { width: 100%; height: 100%; object-fit: contain; }
+.logo-box { 
+    width: 280px;  /* Largura: altere este número para o tamanho que desejar */
+    height: 280px; /* Altura: mantenha igual à largura para ficar quadrada */
+    margin: 0 auto 20px; /* Isso centraliza a logo horizontalmente */
+}
+
 
 .progress-wrapper { width: 100%; height: 4px; background: #333; border-radius: 2px; overflow: hidden; }
 .progress-bar { height: 100%; width: 0%; background: white; transition: width 0.1s linear; }
