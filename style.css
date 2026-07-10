@@ -1,59 +1,42 @@
-:root { --logo-size: 280px; }
+:root { --accent: #4f46e5; --accent-alt: #db2777; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
-body {
-    background: #000;
-    color: #fff;
-    font-family: 'Inter', sans-serif;
-    height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    overflow: hidden;
+body { 
+    background: #020202; 
+    height: 100vh; 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    overflow: hidden; 
+    font-family: 'Segoe UI', sans-serif;
+    color: white;
 }
 
-/* Camada de Luzes em Movimento */
-.mesh-gradient {
-    position: absolute;
-    width: 100vw;
-    height: 100vh;
-    z-index: 0;
-    overflow: hidden;
-    filter: blur(120px);
+.dynamic-background {
+    position: absolute; width: 100%; height: 100%; z-index: -1;
+    background: radial-gradient(circle at 0% 0%, var(--accent), transparent 50%),
+                radial-gradient(circle at 100% 100%, var(--accent-alt), transparent 50%);
+    animation: rotate-bg 15s infinite linear;
 }
 
-.blob {
-    position: absolute;
-    border-radius: 50%;
-    animation: move 20s infinite ease-in-out;
+@keyframes rotate-bg {
+    0% { filter: hue-rotate(0deg) blur(80px); }
+    100% { filter: hue-rotate(360deg) blur(80px); }
 }
 
-.b1 { width: 600px; height: 600px; background: #3b82f6; top: -100px; left: -100px; }
-.b2 { width: 500px; height: 500px; background: #8b5cf6; bottom: -100px; right: -100px; animation-delay: -5s; }
-.b3 { width: 400px; height: 400px; background: #ec4899; top: 40%; left: 40%; animation-delay: -10s; }
-
-@keyframes move {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(150px, 100px) scale(1.2); }
-}
-
-/* Conteúdo */
-.content-box {
-    z-index: 1;
+.main-container {
     text-align: center;
-    padding: 2rem;
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(20px);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 3rem;
+    border-radius: 20px;
+    backdrop-filter: blur(15px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 40px;
-    width: 90%;
-    max-width: 500px;
+    width: 320px;
 }
 
-.logo-wrapper { width: var(--logo-size); height: var(--logo-size); margin: 0 auto 2rem; }
-.logo-wrapper img { width: 100%; height: 100%; object-fit: contain; }
+.logo-box { width: 280px; height: 280px; margin-bottom: 20px; }
+.logo-box img { width: 100%; height: 100%; object-fit: contain; }
 
-.progress-track { width: 100%; height: 6px; background: #222; border-radius: 10px; margin-top: 20px; overflow: hidden; }
-.progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #3b82f6, #ec4899); transition: width 0.1s; }
-
-@media (max-width: 600px) { :root { --logo-size: 180px; } }
+.progress-wrapper { width: 100%; height: 4px; background: #333; border-radius: 2px; overflow: hidden; }
+.progress-bar { height: 100%; width: 0%; background: white; transition: width 0.1s linear; }
+#percent { margin-top: 10px; font-size: 0.9rem; opacity: 0.8; }
