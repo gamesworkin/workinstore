@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Workin' | Gerador Profissional</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="background-blobs"></div>
+    <main class="glass-container">
+        <header>
+            <h1>QR Workin<span>'</span></h1>
+        </header>
+        <section class="generator-grid">
+            <div class="config-side">
+                <div class="input-group">
+                    <label>Tipo de Conteúdo</label>
+                    <select id="qrType">
+                        <option value="url">Link / Texto Livre</option>
+                        <option value="wifi">Rede Wi-Fi</option>
+                        <option value="vcard">Cartão de Visita (vCard)</option>
+                        <option value="whatsapp">WhatsApp Direct</option>
+                        <option value="location">Localização (GPS)</option>
+                    </select>
+                </div>
+                <div id="dynamicInputs" class="dynamic-inputs"></div>
+                <div class="style-options">
+                    <label>Configurações de Exportação</label>
+                    <div class="grid-controls">
+                        <input type="color" id="dotColor" value="#4f46e5">
+                        <select id="dotStyle">
+                            <option value="extra-rounded">Extra Redondo</option>
+                            <option value="rounded">Arredondado</option>
+                            <option value="dots">Pontos</option>
+                            <option value="square">Quadrado</option>
+                        </select>
+                    </div>
+                    <select id="resSelect">
+                        <option value="500">500x500 (Padrão)</option>
+                        <option value="800">800x800 (HD)</option>
+                        <option value="1000">1000x1000 (Alta Qualidade)</option>
+                        <option value="2000">2000x2000 (Ultra Qualidade)</option>
+                    </select>
+                    <label for="logoUpload" class="custom-file-upload">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Adicionar Logo
+                    </label>
+                    <input type="file" id="logoUpload" accept="image/*" style="display:none">
+                </div>
+            </div>
+            <div class="preview-side">
+                <div id="qrPreview" class="qr-canvas"></div>
+                <button id="generateBtn" class="btn-primary">Gerar Visualização</button>
+                <button id="downloadBtn" class="btn-success">Baixar PNG em Alta Resolução</button>
+                <p id="errorMessage" class="error-msg"></p>
+            </div>
+        </section>
+    </main>
+    <script src="https://unpkg.com/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
