@@ -24,8 +24,7 @@ body {
     100% { filter: hue-rotate(360deg) blur(80px); }
 }
 
-/* 1. Reset e Isolamento do container principal */
-/* Container maleável e responsivo */
+/* Container adaptável e inteligente */
 .main-container {
     text-align: center;
     background: rgba(255, 255, 255, 0.03);
@@ -34,15 +33,27 @@ body {
     backdrop-filter: blur(15px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     
-    /* Funcionalidade maleável */
-    width: 90%;             /* Ocupa a maior parte da tela em celulares */
-    max-width: 600px;       /* Expande até no máximo 600px em telas grandes */
-    min-width: 300px;       /* Garante que não fique pequeno demais */
+    /* Adaptabilidade fluida */
+    width: 90%;             
+    max-width: 600px;       
+    min-width: 280px;       
     
     display: flex;
     flex-direction: column;
     align-items: center;
+    
+    /* Isso garante que a transição de tamanho seja suave ao rotacionar */
+    transition: width 0.3s ease, padding 0.3s ease;
 }
+
+/* Ajuste específico para garantir que ele flua melhor em telas menores ou rotação */
+@media screen and (max-width: 480px) {
+    .main-container {
+        padding: 1.5rem; /* Reduz o padding para ganhar espaço em celulares */
+        width: 95%;      /* Aproveita mais a tela em modo retrato */
+    }
+}
+
 
 
 /* 2. Container da Logo - Agora com tratamento de isolamento */
