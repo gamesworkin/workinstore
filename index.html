@@ -7,7 +7,7 @@
     <link rel="icon" type="image/x-icon" href="fav.ico">
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body oncontextmenu="event.preventDefault()" onkeydown="return !(event.ctrlKey && event.keyCode == 85)">
     <div class="dynamic-background"></div>
 
     <main class="main-container">
