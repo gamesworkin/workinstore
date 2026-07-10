@@ -1,0 +1,69 @@
+<!DOCTYPE html> 
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guia de Inicialização - Sistema OPL & FMCB 1.8 (Funtuna)</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="download-container">
+        <button id="btn-pdf" class="btn-pdf">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+            </svg>
+            Baixar Manual em PDF
+        </button>
+    </div>
+
+    <div class="container">
+        <header class="main-header">
+            <h1>GUIA DE INICIALIZAÇÃO</h1>
+            <h2>Sistema OPL & FMCB 1.8 (Funtuna)</h2>
+        </header>
+
+        <section class="intro-box">
+            <p>Este manual mostra dois métodos para poder carregar seus jogos diretamente pelo OPL utilizando o sistema funtuna. Escolha o método que melhor se adapta à configuração de seu PS2.</p>
+        </section>
+
+        <div class="modes-container">
+            <article class="mode-card">
+                <h3>MODO 1: Inicialização direta pelo OPL (Slot 1)</h3>
+                <ol class="steps-list">
+                    <li>Insira o <strong>Memory Card</strong> preparado no <strong>Slot 1</strong> do seu PlayStation 2.</li>
+                    <li>Conecte o seu <strong>pendrive</strong> ou <strong>HD externo</strong> em uma das duas portas <strong>USB</strong> do seu PS2.</li>
+                    <li>Pressione e mantenha pressionado o botão <span class="btn-badge">R2</span> no controle.</li>
+                    <li>Ligue o PlayStation 2 mantendo o botão <span class="btn-badge">R2</span> pressionado até que a tela comece a piscar e o OPL apareça e abra completamente.</li>
+                </ol>
+                <div class="qr-container">
+                    <img src="qr/games_workin.png" alt="QR Code Games Workin'" class="qr-code no-context">
+                    <div class="qr-label">GAMES WORKIN'</div>
+                </div>
+            </article>
+
+            <article class="mode-card">
+                <h3>MODO 2: Inicialização manual pelo FreeMCBoot (Slot 1)</h3>
+                <ol class="steps-list">
+                    <li>Insira o <strong>Memory Card</strong> no <strong>Slot 1</strong> do seu PlayStation 2.</li>
+                    <li><strong class="alert-text">ATENÇÃO!</strong> Não conecte o pendrive neste momento.</li>
+                    <li>Pressione e mantenha pressionado o botão <span class="btn-badge">R1</span> no controle.</li>
+                    <li>Aguarde alguns instantes até que o <strong>MENU do FreeMCBoot</strong> carregue na tela.</li>
+                    <li>Agora, conecte o seu <strong>pendrive</strong>.</li>
+                    <li>Selecione a opção <strong>Open PS2 Loader (OPL)</strong> para iniciar a lista de jogos.</li>
+                </ol>
+                <div class="qr-container">
+                    <img src="qr/jogue_online.png" alt="QR Code Jogue Online" class="qr-code no-context">
+                    <div class="qr-label">JOGUE ONLINE</div>
+                </div>
+            </article>
+        </div>
+
+        <footer class="warning-footer">
+            <p><strong>AVISO IMPORTANTE!</strong> Nunca exclua ou modifique os arquivos identificados como <strong>"Dados corrompidos"</strong> ou <strong>"OPL"</strong> dentro do Memory Card. Eles são fundamentais para que os apps de desbloqueio funcionem corretamente. <span class="highlight-red">NÃO É RECOMENDÁVEL GRAVAR OS SAVES DOS JOGOS NESTE MEMORY CARD, POIS, O SISTEMA PODE DEIXAR DE FUNCIONAR. PARA ISSO EXISTEM MEMORY CARDS VIRTUAIS JÁ CONFIGURADOS EM SEU PENDRIVE.</span></p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
