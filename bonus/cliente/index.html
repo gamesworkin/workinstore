@@ -1,0 +1,168 @@
+<!DOCTYPE html> 
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workin'Store Games Bônus</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <canvas id="particleCanvas"></canvas>
+
+    <header>
+        <div class="logo">
+            <i class="fa-solid fa-gamepad"></i> <span>Workin'<span class="neon-text">Store</span></span>
+        </div>
+        
+        <button id="btnMenuToggle" class="btn-menu-toggle">
+            Categorias <i class="fa-solid fa-chevron-down"></i>
+        </button>
+
+        <nav id="navMenu">
+            <ul id="categoryMenu">
+                <li class="active" data-category="all">Todas as Categorias</li>
+            </ul>
+        </nav>
+        
+        <div class="admin-toggle">
+            <button id="btnHelp" class="btn-secondary" style="margin-right: 10px;"><i class="fa-solid fa-circle-question"></i> Ajuda</button>
+            <button id="btnToggleAdmin" class="btn-neon"><i class="fa-solid fa-lock"></i> Painel Admin</button>
+            <button id="btnLogout" class="btn-secondary hidden"><i class="fa-solid fa-right-from-bracket"></i> Sair</button>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="platform-filters" id="platformFiltersContainer"></div>
+
+        <section class="games-mosaic" id="gamesMosaic"></section>
+    </main>
+
+    <div class="modal" id="gameModal">
+        <div class="modal-content">
+            <span class="close-modal" id="btnCloseGameModal">&times;</span>
+            <div class="modal-body">
+                <div class="modal-cover-wrapper">
+                    <img id="modalCover" src="" alt="Capa do Jogo">
+                </div>
+                <div class="modal-info">
+                    <div>
+                        <h2 id="modalTitle">Título do Jogo</h2>
+                        <div id="modalBadgeContainer" style="margin-bottom: 15px;"></div>
+                        <p id="modalDescription">Descrição do Jogo...</p>
+                    </div>
+                    <a id="modalDownloadBtn" href="#" download class="btn-download">
+                        <i class="fa-solid fa-cloud-arrow-down"></i> BAIXAR AGORA
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="helpModal">
+        <div class="modal-content help-content">
+            <span class="close-modal" id="btnCloseHelpModal">&times;</span>
+            <h2 class="neon-text" style="font-family: 'Orbitron', sans-serif; margin-bottom: 20px;"><i class="fa-solid fa-circle-question"></i> Central de Ajuda</h2>
+            <div class="help-scroll-body" style="max-height: 60vh; overflow-y: auto; text-align: left;">
+                <h3 style="color: var(--accent-neon); margin-top: 15px;">💾 Como baixar os jogos?</h3>
+                <p style="color: #7e7e94; margin-top: 5px; line-height: 1.5;">Navegue pelas categorias superiores ou filtre pelas plataformas. Ao clicar no card do jogo desejado, as informações detalhadas se abrirão e você poderá clicar em "Baixar Agora" para iniciar o download direto instantaneamente. Após o download, extraia o jogo e ponha na pasta DVD do seu pen-drive para rodar no opl. E para as capas, atualize a sua pasta ART do pen-drive pela pasta ART que irá compactada com o jogo. OBS: Alguns jogos já virão em .ISO não sendo preciso nenhuma extração, apenas jogar na pasta DVD do pendrive.</p>
+                
+                <h3 style="color: var(--accent-neon); margin-top: 15px;">🕹️ E o PlayStation 1, como faço?</h3>
+                <p style="color: #7e7e94; margin-top: 5px; line-height: 1.5;">Para baixar os jogos de PlayStation 1, siga os mesmos passos do PlayStation 2, mas, atente-se de por o arquivo VCD (arquivo ROM) na pasta POPS do seu pen-drive, atualizar a pasta APPS do seu pendrive por a que vai no arquivo zipado, para capas da mesma forma, atualize sua pasta ART pela que vai no arquivo compactado.</p>
+
+                <h3 style="color: var(--accent-neon); margin-top: 15px;">🧑🏻‍💻 Eu posso fazer login nesta página?</h3>
+                <p style="color: #7e7e94; margin-top: 5px; line-height: 1.5;">Não. O login desta página serve exclusivamente para nossa equipe interna para adição e remoção de conteúdos como gerenciar categorias, capas e informações dos jogos e patches bônus dos clientes da Workin'Store.</p>
+
+                <h3 style="color: var(--accent-neon); margin-top: 15px;">💲 Os jogos são pagos?</h3>
+                <p style="color: #7e7e94; margin-top: 5px; line-height: 1.5;">Não. Antes ou depois de baixar os jogos aqui, o usuário NÃO IRÁ PAGAR nada, pois, os jogos aqui indexados são bônus cedidos aos clientes da Workin'Store para que possam turbinar ainda mais o seu Kit OPL! 🚀</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="loginModal">
+        <div class="modal-content login-content">
+            <span class="close-modal" id="btnCloseLoginModal">&times;</span>
+            <h2 class="neon-text" style="font-family: 'Orbitron', sans-serif; margin-bottom: 20px; text-align: center;">Painel de Controle</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label><i class="fa-solid fa-envelope"></i> E-mail Autenticado</label>
+                    <input type="email" id="loginEmail" required placeholder="seu-email@provedor.com">
+                </div>
+                <div class="form-group">
+                    <label><i class="fa-solid fa-key"></i> Senha</label>
+                    <input type="password" id="loginPassword" required placeholder="••••••••">
+                </div>
+                <button type="submit" id="btnLoginSubmit" class="btn-download" style="width: 100%; margin-top: 10px;">Acessar como ADMIN</button>
+            </form>
+        </div>
+    </div>
+
+    <section class="admin-panel hidden" id="adminPanel">
+        <div class="admin-header">
+            <h2><i class="fa-solid fa-folder-tree"></i> Gerenciador Total</h2>
+            <button id="btnCloseAdmin" class="btn-close-panel">&times;</button>
+        </div>
+        
+        <div class="admin-actions">
+            <button id="btnNewPatch" class="btn-neon"><i class="fa-solid fa-plus"></i> Novo Jogo</button>
+            <button id="btnExportJSON" class="btn-secondary"><i class="fa-solid fa-download"></i> Exportar Banco Completo</button>
+            <button id="btnImportJSON" class="btn-secondary"><i class="fa-solid fa-upload"></i> Importar JSON (.json)</button>
+            <input type="file" id="fileImport" accept=".json" style="display: none;">
+        </div>
+
+        <div id="patchFormContainer" class="form-container hidden">
+            <h3 id="formTitle" style="font-family: 'Orbitron', sans-serif; margin-bottom: 15px; color: var(--accent-neon);">Adicionar Novo Conteúdo</h3>
+            <form id="patchForm">
+                <input type="hidden" id="patchId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Título do Jogo</label>
+                        <input type="text" id="inputTitle" required placeholder="Ex: Pro Evolution Soccer 2026">
+                    </div>
+                </div>
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label>Plataforma</label>
+                        <input type="text" id="inputPlatform" required placeholder="Ex: PlayStation 2">
+                    </div>
+                    <div class="form-group">
+                        <label>Categoria</label>
+                        <input type="text" id="inputCategory" required placeholder="Ex: Futebol">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>URL da Capa</label>
+                    <input type="url" id="inputCover" required placeholder="https://...">
+                </div>
+                <div class="form-group">
+                    <label>Link de Download</label>
+                    <input type="url" id="inputDownload" required placeholder="https://...">
+                </div>
+                <div class="form-group">
+                    <label>Descrição do Jogo</label>
+                    <textarea id="inputDescription" rows="3" required placeholder="Descreva as modificações..."></textarea>
+                </div>
+                <div class="form-buttons">
+                    <button type="submit" class="btn-neon">Salvar Dados</button>
+                    <button type="button" id="btnCancelForm" class="btn-secondary">Cancelar</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="tree-manager" id="treeManager"></div>
+    </section>
+
+    <a id="whatsappBtn" href="#" target="_blank" class="whatsapp-float" title="Fale Conosco no WhatsApp">
+        <i class="fa-brands fa-whatsapp"></i>
+    </a>
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    
+    <script src="app.js"></script>
+</body>
+</html>
