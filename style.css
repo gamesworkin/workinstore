@@ -1,4 +1,4 @@
-:root { --logo-size: 280px; }
+:root { --logo-size: 280px; } 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { 
     background-color: #050505; 
