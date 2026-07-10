@@ -24,6 +24,7 @@ body {
     100% { filter: hue-rotate(360deg) blur(80px); }
 }
 
+/* 1. Reset e Isolamento do container principal */
 .main-container {
     text-align: center;
     background: rgba(255, 255, 255, 0.03);
@@ -32,27 +33,29 @@ body {
     backdrop-filter: blur(15px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     width: 320px;
+    display: flex;        /* Adicionado para garantir o alinhamento */
+    flex-direction: column; 
+    align-items: center;   /* Força tudo dentro do container a centralizar */
 }
 
-/* Container da Logo - Forçando centralização total */
+/* 2. Container da Logo - Agora com tratamento de isolamento */
 .logo-box { 
     width: 280px; 
     height: 280px; 
-    margin: 0 auto 20px auto; 
-    display: flex !important; /* !important força o alinhamento */
-    justify-content: center !important; 
-    align-items: center !important; 
-    border: none; /* Removido qualquer borda que pudesse causar deslocamento */
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: transparent; /* Removemos o fundo do container para sumir o "quadro" */
+    border: none;
 }
 
-/* Imagem da Logo - Garantindo que ela obedeça ao centro da caixa */
 .logo-box img { 
-    display: block;
     max-width: 100%; 
     max-height: 100%; 
     object-fit: contain;
-    margin: 0 auto; /* Reforça o alinhamento horizontal */
 }
+
 
 
 
