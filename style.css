@@ -25,6 +25,7 @@ body {
 }
 
 /* 1. Reset e Isolamento do container principal */
+/* Container maleável e responsivo */
 .main-container {
     text-align: center;
     background: rgba(255, 255, 255, 0.03);
@@ -32,11 +33,17 @@ body {
     border-radius: 20px;
     backdrop-filter: blur(15px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    width: 320px;
-    display: flex;        /* Adicionado para garantir o alinhamento */
-    flex-direction: column; 
-    align-items: center;   /* Força tudo dentro do container a centralizar */
+    
+    /* Funcionalidade maleável */
+    width: 90%;             /* Ocupa a maior parte da tela em celulares */
+    max-width: 600px;       /* Expande até no máximo 600px em telas grandes */
+    min-width: 300px;       /* Garante que não fique pequeno demais */
+    
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
+
 
 /* 2. Container da Logo - Agora com tratamento de isolamento */
 .logo-box { 
