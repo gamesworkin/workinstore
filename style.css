@@ -35,10 +35,21 @@ body {
 }
 
 .logo-box { 
-    width: 280px;  /* Largura: altere este número para o tamanho que desejar */
-    height: 280px; /* Altura: mantenha igual à largura para ficar quadrada */
-    margin: 0 auto 20px; /* Isso centraliza a logo horizontalmente */
+    width: 280px;  /* Largura do container */
+    height: 280px; /* Altura do container */
+    margin: 0 auto 20px auto; /* Centraliza a caixa horizontalmente */
+    display: flex; /* Ativa o modo flexbox */
+    justify-content: center; /* Centraliza horizontalmente o conteúdo da caixa */
+    align-items: center; /* Centraliza verticalmente o conteúdo da caixa */
+    overflow: hidden; /* Garante que nada saia da caixa */
 }
+
+.logo-box img { 
+    max-width: 100%; /* A imagem nunca será maior que a caixa */
+    max-height: 100%; /* A imagem nunca será mais alta que a caixa */
+    object-fit: contain; /* Mantém a proporção da imagem sem distorcer */
+}
+
 
 
 .progress-wrapper { width: 100%; height: 4px; background: #333; border-radius: 2px; overflow: hidden; }
