@@ -1,9 +1,6 @@
 
 :root {
-    /* Variáveis para fácil edição */ 
     --logo-size: 280px;
-    --primary-glow: #6366f1;
-    --secondary-glow: #a855f7;
     --bg-color: #050505;
 }
 
@@ -21,69 +18,63 @@ body {
     position: relative;
 }
 
-/* Fundo com efeito de luzes animadas (estilo "pensativo") */
-.glow-overlay {
+/* Container das Luzes */
+.blob-container {
     position: absolute;
-    width: 100%;
-    height: 100%;
-    background: radial-gradient(circle at 20% 30%, var(--primary-glow), transparent 40%),
-                radial-gradient(circle at 80% 70%, var(--secondary-glow), transparent 40%);
-    filter: blur(80px);
-    opacity: 0.3;
-    animation: moveGlow 10s infinite alternate ease-in-out;
+    top: 0; left: 0; width: 100%; height: 100%;
     z-index: 0;
+    filter: blur(100px);
 }
 
-@keyframes moveGlow {
-    0% { transform: scale(1); }
-    100% { transform: scale(1.2); }
+.blob {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.6;
+    animation: move 15s infinite alternate ease-in-out;
 }
 
+.b1 { width: 400px; height: 400px; background: #6366f1; top: -100px; left: -100px; }
+.b2 { width: 350px; height: 350px; background: #a855f7; bottom: -50px; right: -50px; animation-delay: -5s; }
+.b3 { width: 300px; height: 300px; background: #ec4899; top: 40%; left: 40%; animation-delay: -10s; }
+
+@keyframes move {
+    0% { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(100px, 50px) scale(1.2); }
+}
+
+/* Conteúdo */
 .content-wrapper {
     z-index: 1;
     text-align: center;
     display: flex;
     flex-direction: column;
     align-items: center;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 3rem;
+    border-radius: 30px;
+    backdrop-filter: blur(5px);
 }
 
-/* Logo Placeholder */
 .logo-placeholder {
     width: var(--logo-size);
     height: var(--logo-size);
     margin-bottom: 2rem;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 20px;
     display: flex;
     justify-content: center;
     align-items: center;
-    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.logo-placeholder img {
-    max-width: 100%;
-    height: auto;
-}
+.logo-placeholder img { max-width: 100%; height: auto; }
 
-h1 { font-size: 2.5rem; margin-bottom: 0.5rem; letter-spacing: -1px; }
+h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
 
-.construction-bar {
-    width: 200px;
-    height: 4px;
-    background: rgba(255,255,255,0.1);
+.status-loader {
+    width: 60px; height: 60px;
+    border: 4px solid rgba(255,255,255,0.1);
+    border-top: 4px solid #fff;
+    border-radius: 50%;
     margin-top: 2rem;
-    border-radius: 2px;
+    animation: spin 1s linear infinite;
 }
 
-.bar {
-    height: 100%;
-    width: 30%;
-    background: #fff;
-    animation: slide 2s infinite ease-in-out;
-}
-
-@keyframes slide {
-    0% { margin-left: 0; }
-    50% { margin-left: 70%; }
-    100% { margin-left: 0; }
-}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
