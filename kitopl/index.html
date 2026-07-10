@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kits OPL Workin'Store</title>
+    <link rel="icon" href="fav.ico" type="image/x-icon"> 
+    
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+    <header class="fixed-header">
+        <div class="logo">Workin'<span>Store</span></div>
+        
+        <button id="menu-toggle-btn" class="menu-toggle-btn" onclick="toggleResponsiveMenu()">
+            <i class="fa-solid fa-chevron-down"></i>
+        </button>
+
+        <nav id="nav-links" class="nav-links">
+            <a href="https://gamesworkin.blogspot.com" onclick="closeResponsiveMenu()" target="_blank"><i class="fa-solid fa-blog"></i> Games Workin'</a>
+            <a href="https://bombapatchworkin.blogspot.com" onclick="closeResponsiveMenu()" target="_blank"><i class="fa-solid fa-blog"></i> Bomba Patch Workin'</a>
+            <a href="https://wa.me/5588988470190?text=Olá! Estava navegando no site e tenho dúvidas sobre os produtos." onclick="closeResponsiveMenu()" target="_blank"><i class="fa-solid fa-envelope"></i> Contato</a>
+            <a href="https://gamesworkin.github.io/areadojogador" onclick="closeResponsiveMenu()" target="_blank"><i class="fa-solid fa-gamepad"></i> Área do Jogador</a>
+            
+            <button id="btn-open-login" class="nav-admin-btn" onclick="toggleModal('login-modal'); closeResponsiveMenu();"><i class="fa-solid fa-lock"></i> Admin</button>
+            <button id="btn-open-panel" class="nav-admin-btn admin-only" onclick="toggleModal('product-modal'); closeResponsiveMenu();"><i class="fa-solid fa-plus"></i> Novo Item</button>
+            <button id="btn-open-dashboard" class="nav-admin-btn admin-only" onclick="toggleModal('dashboard-modal'); closeResponsiveMenu();"><i class="fa-solid fa-chart-simple"></i> Painel Geral</button>
+            <button id="btn-logout" class="nav-logout-btn admin-only" onclick="logoutAdmin(); closeResponsiveMenu();"><i class="fa-solid fa-right-from-bracket"></i> Sair</button>
+        </nav>
+    </header>
+
+    <main class="main-content">
+        <div class="hero-banner">
+            <h1>TURBINE SEU PS2 AGORA!</h1>
+            <p>Ofertas exclusivas com os melhores preços!</p>
+        </div>
+        
+        <div id="products-grid" class="mosaic-grid">
+            </div>
+    </main>
+
+    <div id="login-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <button class="close-modal" onclick="toggleModal('login-modal')">&times;</button>
+            <h2><i class="fa-solid fa-shield-halved"></i> AUTENTICAÇÃO</h2>
+            <div id="login-form-container">
+                <div class="input-group">
+                    <input type="email" id="admin-email" placeholder="E-mail do Administrador" required>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="admin-password" placeholder="Senha de Acesso" required>
+                </div>
+                <button id="btn-submit-login" class="cyber-btn success" onclick="loginAdmin()">ENTRAR NO SISTEMA</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="product-modal" class="modal-overlay hidden">
+        <div class="modal-card wide">
+            <button class="close-modal" onclick="closeProductModal()">&times;</button>
+            <h2 id="modal-product-title"><i class="fa-solid fa-square-plus"></i> CADASTRAR NOVO ANÚNCIO</h2>
+            <form id="product-form">
+                <input type="hidden" id="prod-id">
+                
+                <input type="text" id="prod-title" placeholder="Título do Produto (ex: Teclado Mecânico RGB)" required>
+                <input type="url" id="prod-img" placeholder="URL da Imagem do Produto" required>
+                <textarea id="prod-desc" placeholder="Descrição curta do item e especificações..." required></textarea>
+                <input type="number" id="prod-price" step="0.01" placeholder="Preço (R$)" required>
+                <input type="url" id="prod-link" placeholder="Link Direto do Mercado Livre" required>
+                
+                <div class="trigger-selection">
+                    <label for="prod-trigger">Gatilho de Marketing Psicológico (FOMO):</label>
+                    <select id="prod-trigger">
+                        <option value="none">Sem Gatilho Especial</option>
+                        <option value="urgency">🔥 ÚLTIMAS UNIDADES NO ESTOQUE!</option>
+                        <option value="countdown">⏳ PROMOÇÃO EXPIRA EM POUCOS MINUTOS</option>
+                        <option value="exclusive">👑 97% DOS GAMERS RECOMENDAM ESTE ITEM</option>
+                    </select>
+                </div>
+
+                <button type="submit" id="btn-save-product" class="cyber-btn neon">PUBLICAR ANÚNCIO</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="dashboard-modal" class="modal-overlay hidden">
+        <div class="modal-card extra-wide">
+            <button class="close-modal" onclick="toggleModal('dashboard-modal')">&times;</button>
+            <h2><i class="fa-solid fa-folder-gear"></i> SISTEMA DE GERENCIAMENTO GERAL</h2>
+            
+            <div class="dashboard-actions">
+                <button class="action-btn export" onclick="exportDataJSON()"><i class="fa-solid fa-file-export"></i> Exportar JSON</button>
+                <label class="action-btn import" for="import-file">
+                    <i class="fa-solid fa-file-import"></i> Importar JSON
+                </label>
+                <input type="file" id="import-file" accept=".json" onchange="importDataJSON(event)" style="display: none;">
+            </div>
+
+            <div class="table-container">
+                <table class="cyber-table">
+                    <thead>
+                        <tr>
+                            <th>Imagem</th>
+                            <th>Título</th>
+                            <th>Preço</th>
+                            <th>Gatilho</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-table-body">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <a href="https://wa.me/5588988470190?text=Olá! Estava navegando no site e tenho dúvidas sobre os produtos." class="whatsapp-float" target="_blank" rel="noopener noreferrer">
+        <i class="fa-brands fa-whatsapp"></i>
+    </a>
+
+    <script src="app.js"></script>
+</body>
+</html>
