@@ -3,25 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portal em Obras</title>
+    <title>Portal em Desenvolvimento</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="glow-overlay"></div>
+    <div class="blob-container">
+        <div class="blob b1"></div>
+        <div class="blob b2"></div>
+        <div class="blob b3"></div>
+    </div>
     
     <div class="content-wrapper">
-        <!-- Espaço para a logo -->
         <div class="logo-placeholder">
-            <img src="logo.png" alt="Sua Logo" onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='block';">
-            <div id="logo-fallback" style="display:none; font-size: 2rem; color: #555;">Logo Aqui</div>
+            <img src="logo.png" alt="Logo" onerror="this.style.display='none';">
         </div>
-
         <h1>Estamos Construindo</h1>
         <p>Novidades, exclusividades e muito mais em breve.</p>
-        
-        <div class="construction-bar">
-            <div class="bar"></div>
-        </div>
+        <div class="status-loader"></div>
     </div>
 
     <script src="script.js"></script>
