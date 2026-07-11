@@ -8,32 +8,40 @@ const firebaseConfig = {
     appId: "1:803334158041:web:5ef4069e7ec3a5973970c8"
   };
 
-firebase.initializeApp(firebaseConfig);
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 
-function showTab(type) {
-    const area = document.getElementById('content-area');
-    if(type === 'header') {
-        area.innerHTML = `<h3>Header</h3><input id="t" placeholder="Título"><input id="u" placeholder="URL"><button onclick="add('header')">Adicionar</button><div id="list"></div>`;
-    } else {
-        area.innerHTML = `<h3>Serviços</h3><input id="t" placeholder="Título"><input id="d" placeholder="Desc"><input id="u" placeholder="URL"><input id="l" placeholder="Logo"><button onclick="add('servicos')">Salvar</button><div id="list"></div>`;
-    }
-    renderList(type === 'header' ? 'header' : 'servicos');
-}
-
-function add(path) {
-    const data = { title: document.getElementById('t').value, url: document.getElementById('u').value };
-    if(path === 'servicos') { data.desc = document.getElementById('d').value; data.logo = document.getElementById('l').value; }
-    firebase.database().ref(path).push(data);
-}
-
-function renderList(path) {
-    firebase.database().ref(path).on('value', snap => {
-        const list = document.getElementById('list'); list.innerHTML = '';
-        snap.forEach(c => {
-            list.innerHTML += `<div class="item-row">${c.val().title} <button style="width:auto;background:red" onclick="firebase.database().ref('${path}/${c.key}').remove()">X</button></div>`;
-        });
+// Lógica de Login
+const loginForm = document.getElementById('login-form');
+if (loginForm) {
+    loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const pass = document.getElementById('pass').value;
+        firebase.auth().signInWithEmailAndPassword(email, pass)
+            .then(() => window.location.href = "painel.html")
+            .catch(err => alert("Erro: " + err.message));
     });
 }
 
-function exportData() { firebase.database().ref().once('value', s => { const a = document.createElement('a'); a.href = 'data:text/json,'+encodeURIComponent(JSON.stringify(s.val())); a.download='backup.json'; a.click(); }); }
-function importData(e) { const r = new FileReader(); r.onload = (ev) => firebase.database().ref().set(JSON.parse(ev.target.result)); r.readAsText(e.target.files[0]); }
+// Lógica do Painel
+if (window.location.pathname.includes('painel.html')) {
+    firebase.auth().onAuthStateChanged(user => { if (!user) window.location.href = "index.html"; });
+    
+    window.add = (path) => {
+        const data = { title: document.getElementById('t').value, url: document.getElementById('u').value };
+        if(path === 'servicos') { data.desc = document.getElementById('d').value; data.logo = document.getElementById('l').value; }
+        firebase.database().ref(path).push(data).then(() => alert("Adicionado!"));
+    };
+
+    window.del = (p, k) => firebase.database().ref(p + '/' + k).remove();
+
+    window.render = (path) => {
+        firebase.database().ref(path).on('value', snap => {
+            const list = document.getElementById('list');
+            list.innerHTML = '';
+            snap.forEach(c => {
+                list.innerHTML += `<div class="item-row">${c.val().title} <button style="width:auto;background:red" onclick="del('${path}','${c.key}')">X</button></div>`;
+            });
+        });
+    };
+}
