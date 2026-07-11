@@ -9,25 +9,24 @@ const config = {
   };
 if (!firebase.apps.length) firebase.initializeApp(config);
 
+const db = firebase.database();
+
 window.add = (path) => {
-    const data = { title: document.getElementById('t').value, url: document.getElementById('u').value };
-    if(path === 'servicos') { data.desc = document.getElementById('d').value; }
-    firebase.database().ref(path).push(data).then(() => alert("Adicionado!"));
+    const t = document.getElementById('t').value, d = document.getElementById('d').value, u = document.getElementById('u').value;
+    db.ref(path).push({ title: t, desc: d, url: u }).then(() => alert("Adicionado!"));
 };
 
-// Exclusão corrigida: referencia direta
-window.del = (p, k) => {
-    firebase.database().ref(p + '/' + k).remove().then(() => alert("Apagado!"));
-};
+window.del = (p, k) => db.ref(p + '/' + k).remove().then(() => alert("Apagado!"));
 
-// Renderização única sem duplicação
-firebase.database().ref().on('value', snap => {
+// Renderiza Painel sem duplicação
+db.ref().on('value', snap => {
     const list = document.getElementById('list');
     if(!list) return;
     list.innerHTML = '';
     ['header', 'servicos'].forEach(path => {
         if(snap.val()[path]) Object.entries(snap.val()[path]).forEach(([k, v]) => {
-            list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; margin:10px;">${v.title} <button style="background:red" onclick="del('${path}','${k}')">APAGAR</button></div>`;
+            list.innerHTML += `<div class="card" style="margin:10px 0; display:flex; justify-content:space-between;">
+            ${v.title} <button style="width:auto; background:red" onclick="del('${path}','${k}')">APAGAR</button></div>`;
         });
     });
 });
