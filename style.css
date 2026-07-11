@@ -1,4 +1,4 @@
-:root { --bg: #020202; }
+:root { --bg: #020202; } 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; min-height: 100vh; overflow-x: hidden; }
 
