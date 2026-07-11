@@ -2,28 +2,18 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Workin'Store | Portal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workin'Store</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body oncontextmenu="event.preventDefault()" onkeydown="return !(event.ctrlKey && event.keyCode == 85)">
     <div class="dynamic-background"></div>
-
-    <header id="main-header">
-        <nav id="nav-menu">
-            <!-- Renderizado via JS -->
-        </nav>
-        <a href="admin/index.html" class="admin-link">Área Restrita</a>
-    </header>
-
-    <main class="content-wrapper">
-        <h1>Bem-vindo à Workin'Store</h1>
-        <div id="services-grid" class="grid">
-            <!-- Cards de serviços renderizados via JS -->
-        </div>
+    <main class="main-container">
+        <h1>Workin'Store</h1>
+        <nav id="nav-menu" style="margin: 20px 0;"></nav>
+        <a href="admin/" class="admin-link">Área Restrita</a>
     </main>
-
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
     <script src="main.js"></script>
 </body>
