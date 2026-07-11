@@ -8,7 +8,7 @@ const firebaseConfig = {
     appId: "1:803334158041:web:5ef4069e7ec3a5973970c8"
   };
 
-// Inicializa apenas se não estiver inicializado
+// Inicializa o Firebase
 if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
@@ -19,7 +19,7 @@ const grid = document.getElementById('grid');
 function loadPortal() {
     const dbRef = firebase.database().ref();
 
-    // Carrega o Cabeçalho
+    // 1. Carrega o Cabeçalho
     dbRef.child('header/').on('value', (snapshot) => {
         navHeader.innerHTML = '';
         const links = snapshot.val();
@@ -28,18 +28,18 @@ function loadPortal() {
                 const a = document.createElement('a');
                 a.href = item.url;
                 a.innerText = item.title;
-                a.style.margin = "0 15px";
+                a.style.margin = "0 10px";
                 a.style.color = "white";
                 a.style.textDecoration = "none";
-                a.style.fontSize = "1.1rem";
+                a.style.fontSize = "0.9rem";
                 navHeader.appendChild(a);
             });
         }
     });
 
-    // Carrega os Cards de Serviços (O FOR EACH QUE VOCÊ PEDIU)
+    // 2. Carrega os Cards de Serviços com Logo
     dbRef.child('servicos/').on('value', (snapshot) => {
-        grid.innerHTML = ''; // Limpa o grid para evitar duplicatas
+        grid.innerHTML = ''; 
         const servicos = snapshot.val();
         
         if (servicos) {
@@ -47,10 +47,16 @@ function loadPortal() {
                 const card = document.createElement('div');
                 card.className = 'card';
                 
+                // Verifica se existe logo, se não, não exibe a tag img
+                const logoHtml = servico.logo ? 
+                    `<img src="${servico.logo}" alt="Logo" style="width: 50px; height: 50px; object-fit: contain; margin-bottom: 10px; display: block;" onerror="this.style.display='none'">` 
+                    : '';
+
                 card.innerHTML = `
-                    <h3 style="margin-bottom: 10px;">${servico.title}</h3>
-                    <p style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 15px;">${servico.desc}</p>
-                    <a href="${servico.url}" style="display: block; background: var(--accent); padding: 10px; border-radius: 8px; text-decoration: none; color: white; font-weight: bold;">Acessar</a>
+                    ${logoHtml}
+                    <h3 style="margin-bottom: 8px;">${servico.title}</h3>
+                    <p style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 15px;">${servico.desc}</p>
+                    <a href="${servico.url}" style="display: block; background: #4f46e5; padding: 10px; border-radius: 8px; text-decoration: none; color: white; font-weight: bold; text-align: center;">Acessar</a>
                 `;
                 
                 grid.appendChild(card);
@@ -59,5 +65,5 @@ function loadPortal() {
     });
 }
 
-// Executa ao carregar a página
+// Inicia ao carregar a página
 document.addEventListener('DOMContentLoaded', loadPortal);
