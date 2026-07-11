@@ -1,22 +1,8 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <title>Login Admin</title>
-    <link rel="stylesheet" href="../style.css">
-</head>
-<body>
-    <div class="dynamic-background"></div>
-    <div class="main-container">
-        <h2>Login Administrativo</h2>
-        <form id="login-form">
-            <input type="email" id="email" placeholder="admin@admin.com" required>
-            <input type="password" id="pass" placeholder="Senha" required>
-            <button type="submit" id="login-btn">Autenticar</button>
-        </form>
-    </div>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
-    <script src="admin-logic.js"></script>
-</body>
-</html>
+<div class="main-container" style="max-width: 400px; margin-top: 100px;">
+    <h2>Login Admin</h2>
+    <form id="login-form">
+        <input type="email" id="email" placeholder="Email" required>
+        <input type="password" id="pass" placeholder="Senha" required>
+        <button type="submit" id="btn-login">Autenticar</button>
+    </form>
+</div>
