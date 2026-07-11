@@ -1,29 +1,30 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Workin'Store</title>
-    <link rel="icon" type="image/x-icon" href="fav.ico">
+    <title>Workin'Store | Portal</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body oncontextmenu="event.preventDefault()" onkeydown="return !(event.ctrlKey && event.keyCode == 85)">
     <div class="dynamic-background"></div>
 
-    <main class="main-container">
-        <div class="logo-box">
-            <img style="display: block; margin: auto;" src="logo.png" alt="Logo" onerror="this.style.display='none'">
-        </div>
-        <h1>Novidades em breve, aguarde...</h1><br/>
-        <div class="progress-wrapper">
-            <div class="progress-bar" id="pb"></div>
-        </div>
-        <p id="percent">0%</p>
-    </main>
-    <script src="script.js"></script>
-    <a href="https://wa.me/5588988470190" target="_blank" class="whatsapp-float">
-    <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="WhatsApp">
-</a>
+    <header id="main-header">
+        <nav id="nav-menu">
+            <!-- Renderizado via JS -->
+        </nav>
+        <a href="admin.html" class="admin-link">Área Restrita</a>
+    </header>
 
+    <main class="content-wrapper">
+        <h1>Bem-vindo à Workin'Store</h1>
+        <div id="services-grid" class="grid">
+            <!-- Cards de serviços renderizados via JS -->
+        </div>
+    </main>
+
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    <script src="main.js"></script>
 </body>
 </html>
