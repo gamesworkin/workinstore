@@ -1,17 +1,18 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Workin'Store</title>
-    <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workin'Store</title><link rel="stylesheet" href="style.css">
 </head>
-<body oncontextmenu="event.preventDefault()" onkeydown="return !(event.ctrlKey && event.keyCode == 85)">
+<body oncontextmenu="event.preventDefault()">
     <div class="dynamic-background"></div>
+    <header style="text-align: center; padding: 40px;">
+        <nav id="nav-header"></nav>
+        <a href="admin/" class="btn-admin">Área Restrita</a>
+    </header>
     <main class="main-container">
-        <h1>Workin'Store</h1>
-        <nav id="nav-menu" style="margin: 20px 0;"></nav>
-        <a href="admin/" class="admin-link">Área Restrita</a>
+        <h1>Nossos Serviços</h1>
+        <div id="grid" class="grid-servicos"></div>
     </main>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
