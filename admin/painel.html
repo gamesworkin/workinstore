@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Painel Admin | Workin'Store</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body oncontextmenu="event.preventDefault()" onkeydown="return !(event.ctrlKey && event.keyCode == 85)">
+    <div class="dynamic-background"></div>
+
+    <main class="main-container">
+        <h1>Gerenciador do Portal</h1>
+        
+        <div id="editor-section">
+            <input type="text" id="link-title" placeholder="Título do Menu (ex: Blogs)" style="width: 100%; padding: 10px; margin: 10px 0;">
+            <input type="text" id="link-url" placeholder="URL (ex: /blogs)" style="width: 100%; padding: 10px; margin: 10px 0;">
+            <button id="save-btn" style="width: 100%; padding: 10px; cursor: pointer;">Adicionar ao Cabeçalho</button>
+        </div>
+
+        <button id="logout-btn" style="margin-top: 20px; background: #db2777; border: none; padding: 10px; color: white; cursor: pointer;">Sair</button>
+    </main>
+
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    <script src="admin-logic.js"></script> <!-- Vamos atualizar este arquivo -->
+</body>
+</html>
