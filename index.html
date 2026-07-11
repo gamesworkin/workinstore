@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-br"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Workin'Store</title><link rel="stylesheet" href="style.css"></head>
-<body oncontextmenu="event.preventDefault()">
+<html lang="pt-br"><head><meta charset="UTF-8"><title>Workin'Store</title><link rel="stylesheet" href="style.css"></head>
+<body>
     <div class="dynamic-background"></div>
     <header><div id="nav-header"></div><a href="admin/" class="admin-btn">Admin</a></header>
-    <main class="main-container"><h1>Serviços</h1><div id="grid" class="grid-servicos"></div></main>
+    <main class="main-container"><div id="grid" style="display:grid; gap:10px"></div></main>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
     <script src="main.js"></script>
