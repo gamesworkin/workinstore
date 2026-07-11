@@ -8,7 +8,6 @@ const config = {
     appId: "1:803334158041:web:5ef4069e7ec3a5973970c8"
   };
 
-
 if (!firebase.apps.length) firebase.initializeApp(config);
 
 // Login com Feedback
