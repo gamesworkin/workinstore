@@ -2,21 +2,19 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Admin | Workin'Store</title>
-    <link rel="stylesheet" href="../style.css"> <!-- Referência ao CSS global -->
+    <title>Login Admin</title>
+    <link rel="stylesheet" href="../style.css">
 </head>
-<body oncontextmenu="event.preventDefault()" onkeydown="return !(event.ctrlKey && event.keyCode == 85)">
+<body>
     <div class="dynamic-background"></div>
-
-    <main class="main-container">
-        <h1>Autenticação Admin</h1>
+    <div class="main-container">
+        <h2>Login Administrativo</h2>
         <form id="login-form">
-            <input type="email" id="email" placeholder="Email" required style="width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: none;">
-            <input type="password" id="pass" placeholder="Senha" required style="width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: none;">
-            <button type="submit" id="login-btn" style="width: 100%; padding: 10px; margin-top: 10px; cursor: pointer;">Autenticar</button>
+            <input type="email" id="email" placeholder="admin@admin.com" required>
+            <input type="password" id="pass" placeholder="Senha" required>
+            <button type="submit" id="login-btn">Autenticar</button>
         </form>
-    </main>
-
+    </div>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
     <script src="admin-logic.js"></script>
