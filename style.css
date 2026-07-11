@@ -1,25 +1,122 @@
-:root { 
-    --bg: #050505; --card-bg: #121212; --accent: #007bff; --text: #ffffff; 
-}
+:root { --accent: #4f46e5; --accent-alt: #db2777; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
 
-/* Background Dinâmico - Ajustado para ser mais sóbrio */
-.dynamic-background { position: fixed; top:0; left:0; width: 100%; height: 100%; z-index: -1; 
-    background: linear-gradient(135deg, #0a0a0a, #001a33, #0a0a0a); }
+body {  
+    background: #020202; 
+    height: 100vh; 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    overflow: hidden; 
+    font-family: 'Segoe UI', sans-serif;
+    color: white;
+}
 
-header { background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); padding: 20px 5%; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent); }
-.nav-link { color: #ccc; text-decoration: none; margin: 0 15px; font-weight: bold; transition: 0.3s; }
-.nav-link:hover { color: var(--accent); transform: scale(1.1); }
+.dynamic-background {
+    position: absolute; width: 100%; height: 100%; z-index: -1;
+    background: radial-gradient(circle at 0% 0%, var(--accent), transparent 50%),
+                radial-gradient(circle at 100% 100%, var(--accent-alt), transparent 50%);
+    animation: rotate-bg 15s infinite linear;
+}
 
-.container { max-width: 1200px; margin: 50px auto; padding: 20px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; }
+@keyframes rotate-bg {
+    0% { filter: hue-rotate(0deg) blur(80px); }
+    100% { filter: hue-rotate(360deg) blur(80px); }
+}
 
-.card { background: var(--card-bg); padding: 30px; border-radius: 20px; border: 1px solid #333; 
-        transition: 0.4s; cursor: pointer; text-align: center; }
-.card:hover { border-color: var(--accent); box-shadow: 0 0 20px rgba(0,123,255,0.2); }
+/* Container adaptável e inteligente */
+.main-container {
+    text-align: center;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 3rem;
+    border-radius: 20px;
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    
+    /* Adaptabilidade fluida */
+    width: 90%;             
+    max-width: 600px;       
+    min-width: 280px;       
+    
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    
+    /* Isso garante que a transição de tamanho seja suave ao rotacionar */
+    transition: width 0.3s ease, padding 0.3s ease;
+}
 
-/* Modal */
-.modal { display: none; position: fixed; top:0; left:0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); justify-content: center; align-items: center; z-index: 100; }
-.modal-content { background: #1a1a1a; padding: 40px; border-radius: 20px; width: 90%; max-width: 500px; border: 1px solid var(--accent); }
-button { width: 100%; padding: 15px; margin-top: 10px; background: var(--accent); border: none; color: white; border-radius: 10px; cursor: pointer; font-weight: bold; }
+/* Ajuste específico para garantir que ele flua melhor em telas menores ou rotação */
+@media screen and (max-width: 480px) {
+    .main-container {
+        padding: 1.5rem; /* Reduz o padding para ganhar espaço em celulares */
+        width: 95%;      /* Aproveita mais a tela em modo retrato */
+    }
+}
+
+
+
+/* 2. Container da Logo - Agora com tratamento de isolamento */
+.logo-box { 
+    width: 280px; 
+    height: 280px; 
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: transparent; /* Removemos o fundo do container para sumir o "quadro" */
+    border: none;
+}
+
+.logo-box img { 
+    max-width: 100%; 
+    max-height: 100%; 
+    object-fit: contain;
+}
+
+
+
+
+.progress-wrapper { width: 100%; height: 4px; background: #333; border-radius: 2px; overflow: hidden; }
+.progress-bar { height: 100%; width: 0%; background: white; transition: width 0.1s linear; }
+#percent { margin-top: 10px; font-size: 0.9rem; opacity: 0.8; }
+
+.whatsapp-float {
+    position: fixed;
+    width: 60px;
+    height: 60px;
+    bottom: 40px;
+    right: 40px;
+    background-color: #25d366;
+    color: #FFF;
+    border-radius: 50px;
+    text-align: center;
+    font-size: 30px;
+    box-shadow: 2px 2px 10px rgba(0,0,0,0.3);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: transform 0.3s ease;
+}
+
+.whatsapp-float img {
+    width: 70%;
+    height: 70%;
+}
+
+.whatsapp-float:hover {
+    transform: scale(1.1);
+    background-color: #128c7e;
+}
+
+/* Ajuste para celular */
+@media (max-width: 480px) {
+    .whatsapp-float {
+        width: 50px;
+        height: 50px;
+        bottom: 20px;
+        right: 20px;
+    }
+}
+ 
