@@ -10,38 +10,20 @@ const firebaseConfig = {
 
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 
-// Lógica de Login
-const loginForm = document.getElementById('login-form');
-if (loginForm) {
-    loginForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const email = document.getElementById('email').value;
-        const pass = document.getElementById('pass').value;
-        firebase.auth().signInWithEmailAndPassword(email, pass)
-            .then(() => window.location.href = "painel.html")
-            .catch(err => alert("Erro: " + err.message));
-    });
-}
+window.add = (path) => {
+    const data = { title: document.getElementById('t').value, url: document.getElementById('u').value };
+    if(path === 'servicos') { data.desc = document.getElementById('d').value; data.logo = document.getElementById('l').value; }
+    firebase.database().ref(path).push(data).then(() => alert("Salvo!"));
+};
 
-// Lógica do Painel
-if (window.location.pathname.includes('painel.html')) {
-    firebase.auth().onAuthStateChanged(user => { if (!user) window.location.href = "index.html"; });
-    
-    window.add = (path) => {
-        const data = { title: document.getElementById('t').value, url: document.getElementById('u').value };
-        if(path === 'servicos') { data.desc = document.getElementById('d').value; data.logo = document.getElementById('l').value; }
-        firebase.database().ref(path).push(data).then(() => alert("Adicionado!"));
-    };
+window.del = (p, k) => firebase.database().ref(p + '/' + k).remove().then(() => alert("Removido!"));
 
-    window.del = (p, k) => firebase.database().ref(p + '/' + k).remove();
-
-    window.render = (path) => {
-        firebase.database().ref(path).on('value', snap => {
-            const list = document.getElementById('list');
-            list.innerHTML = '';
-            snap.forEach(c => {
-                list.innerHTML += `<div class="item-row">${c.val().title} <button style="width:auto;background:red" onclick="del('${path}','${c.key}')">X</button></div>`;
-            });
+window.render = (path) => {
+    firebase.database().ref(path).on('value', snap => {
+        const list = document.getElementById('list'); list.innerHTML = '';
+        snap.forEach(c => {
+            list.innerHTML += `<div class="item-row" style="display:flex; justify-content:space-between; background:#222; padding:10px; margin:5px; border-radius:5px;">
+            ${c.val().title} <button style="width:auto; background:red" onclick="del('${path}','${c.key}')">X</button></div>`;
         });
-    };
-}
+    });
+};
