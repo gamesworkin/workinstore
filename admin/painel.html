@@ -6,16 +6,12 @@
         <h1>Painel Admin</h1>
         <button onclick="render('header')">Gerenciar Cabeçalho</button>
         <button onclick="render('servicos')">Gerenciar Serviços</button>
-        <div id="controls">
-            <input id="t" placeholder="Título"><input id="d" placeholder="Desc (se for serviço)"><input id="u" placeholder="URL"><input id="l" placeholder="Logo (se for serviço)">
-            <button onclick="add('servicos')">Adicionar Serviço</button>
-            <button onclick="add('header')">Adicionar Header</button>
-        </div>
+        <input id="t" placeholder="Título"><input id="d" placeholder="Descrição"><input id="u" placeholder="URL"><input id="l" placeholder="Logo">
+        <button onclick="add('servicos')">Adicionar Serviço</button>
+        <button onclick="add('header')">Adicionar Header</button>
         <div id="list"></div>
-        <button onclick="firebase.auth().signOut().then(()=>location.href='index.html')" style="background:#d97706;">Sair</button>
     </main>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
     <script src="admin-logic.js"></script>
 </body></html>
