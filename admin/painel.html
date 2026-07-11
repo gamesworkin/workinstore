@@ -3,18 +3,16 @@
 <body>
     <div class="dynamic-background"></div>
     <main class="main-container">
-        <h1>Painel de Controle</h1>
+        <h1>Gerenciamento</h1>
+        <section id="form-section">
+            <input id="s-title" placeholder="Título"> <input id="s-desc" placeholder="Descrição"> 
+            <input id="s-url" placeholder="URL"> <input id="s-logo" placeholder="Logo">
+            <button onclick="salvarItem()">Salvar Serviço</button>
+        </section>
         <hr>
-        <h3>Header</h3>
-        <input id="h-title" placeholder="Título"> <input id="h-url" placeholder="URL">
-        <button onclick="addHeader()">Adicionar Link</button>
-        <h3>Serviços</h3>
-        <input id="s-title" placeholder="Título"> <input id="s-desc" placeholder="Descrição"> <input id="s-url" placeholder="URL"> <input id="s-logo" placeholder="URL da Logo">
-        <button onclick="addService()">Salvar Serviço</button>
-        <hr style="margin:20px 0;">
+        <h3>Itens Atuais</h3>
+        <div id="lista-itens"></div>
         <button onclick="exportJSON()" style="background:#22c55e;">Exportar Backup</button>
-        <button onclick="document.getElementById('import-file').click()" style="background:#f59e0b;">Importar Backup</button>
-        <input type="file" id="import-file" style="display:none" onchange="importJSON(event)">
         <button onclick="logout()" style="background:#ef4444;">Sair</button>
     </main>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
