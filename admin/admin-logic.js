@@ -7,40 +7,36 @@ const firebaseConfig = {
     messagingSenderId: "803334158041",
     appId: "1:803334158041:web:5ef4069e7ec3a5973970c8"
   };
-firebase.initializeApp(firebaseConfig);
 
-const form = document.getElementById('login-form');
-form?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = document.getElementById('btn-login');
-    btn.innerText = "Autenticando...";
-    try {
-        await firebase.auth().signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('pass').value);
-        window.location.href = "painel.html";
-    } catch(err) { alert(err.message); btn.innerText = "Autenticar"; }
-});
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 
+function addHeader() {
+    firebase.database().ref('header/').push({title: document.getElementById('h-title').value, url: document.getElementById('h-url').value});
+    alert("Adicionado!");
+}
 
-// Exportar Backup
+function addService() {
+    firebase.database().ref('servicos/').push({
+        title: document.getElementById('s-title').value,
+        desc: document.getElementById('s-desc').value,
+        url: document.getElementById('s-url').value,
+        logo: document.getElementById('s-logo').value
+    });
+    alert("Serviço salvo!");
+}
+
 function exportJSON() {
     firebase.database().ref('/').once('value').then(snap => {
-        const data = JSON.stringify(snap.val());
-        const blob = new Blob([data], {type: 'application/json'});
-        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = 'backup.json'; a.click();
+        a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(snap.val()));
+        a.download = "backup.json"; a.click();
     });
 }
 
-function importJSON(event) {
-    const file = event.target.files[0];
+function importJSON(e) {
     const reader = new FileReader();
-    reader.onload = (e) => {
-        const data = JSON.parse(e.target.result);
-        firebase.database().ref('/').set(data).then(() => alert("Backup importado com sucesso!"));
-    };
-    reader.readAsText(file);
+    reader.onload = (ev) => firebase.database().ref('/').set(JSON.parse(ev.target.result)).then(() => alert("Importado!"));
+    reader.readAsText(e.target.files[0]);
 }
 
-
-
+function logout() { firebase.auth().signOut().then(() => window.location.href = "index.html"); }
