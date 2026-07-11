@@ -3,6 +3,9 @@
     <section>
         <h3>Gerenciar Header</h3>
         <input id="h-title" placeholder="Título"> <input id="h-url" placeholder="URL">
+        <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(event)">
+<button onclick="document.getElementById('import-file').click()" style="background:#f59e0b;">Importar Backup</button>
+
         <button onclick="addHeader()">Adicionar ao Header</button>
     </section>
     <section>
