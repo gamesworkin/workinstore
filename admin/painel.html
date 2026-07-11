@@ -1,24 +1,14 @@
-<!DOCTYPE html>
-<html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="stylesheet" href="../style.css"></head>
-<body><div class="dynamic-background"></div>
-<main class="main-container">
-    <h1>Painel Admin</h1>
-    <input id="t" placeholder="Título"><input id="d" placeholder="Descrição"><input id="u" placeholder="URL"><input id="l" placeholder="Logo">
-    <button onclick="add('servicos')">Adicionar Serviço</button>
-    <button onclick="add('header')">Adicionar Header</button>
-    <div id="list"></div>
+<!DOCTYPE html><html><head><link rel="stylesheet" href="../style.css"></head>
+<body>
+    <div class="dynamic-background"></div>
+    <main class="main-container">
+        <h1>Painel de Gerenciamento</h1>
+        <input id="t" placeholder="Título"><input id="d" placeholder="Descrição"><input id="u" placeholder="URL">
+        <button onclick="add('servicos')">Adicionar Serviço</button>
+        <button onclick="add('header')">Adicionar Header</button>
+        <div id="list"></div>
+    </main>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
     <script src="admin-logic.js"></script>
-    <script>
-        // Carrega listas automaticamente
-        ['header', 'servicos'].forEach(path => {
-            firebase.database().ref(path).on('value', snap => {
-                snap.forEach(c => {
-                    document.getElementById('list').innerHTML += `<div class="card" style="display:flex; justify-content:space-between;">
-                    ${c.val().title} <button style="width:auto; background:red" onclick="del('${path}','${c.key}')">Apagar</button></div>`;
-                });
-            });
-        });
-    </script>
 </body></html>
