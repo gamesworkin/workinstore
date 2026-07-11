@@ -1,69 +1,30 @@
-:root { --accent: #4f46e5; --accent-alt: #db2777; }
+:root { --accent: #4f46e5; --accent-alt: #db2777; --bg: #020202; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; overflow-x: hidden; min-height: 100vh; }
 
-body {  
-    background: #020202; 
-    min-height: 100vh; 
-    font-family: 'Segoe UI', sans-serif;
-    color: white;
-    overflow-x: hidden;
-}
-
-/* Background Dinâmico Corrigido */
+/* Fundo Animado */
 .dynamic-background {
-    position: fixed; 
-    top: 0; left: 0; width: 100%; height: 100%; 
-    z-index: -1;
-    background: radial-gradient(circle at 0% 0%, var(--accent), transparent 50%),
-                radial-gradient(circle at 100% 100%, var(--accent-alt), transparent 50%);
-    animation: rotate-bg 20s infinite linear;
-    filter: blur(100px);
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+    background: radial-gradient(circle at 20% 30%, var(--accent), transparent 50%),
+                radial-gradient(circle at 80% 70%, var(--accent-alt), transparent 50%);
+    animation: rotate 20s infinite linear;
+    filter: blur(80px);
 }
-
-@keyframes rotate-bg {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
+@keyframes rotate { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
 /* Layout Geral */
 .main-container {
-    background: rgba(255, 255, 255, 0.05);
-    padding: 2rem;
-    border-radius: 20px;
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    width: 90%; max-width: 500px;
-    margin: 50px auto;
-    text-align: center;
+    width: 90%; max-width: 800px; margin: 50px auto;
+    background: rgba(255,255,255,0.05); padding: 2rem; border-radius: 20px;
+    backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1);
 }
 
-/* Botão Área Restrita (Estilizado) */
-.admin-link {
-    display: inline-block;
-    padding: 12px 25px;
-    background: linear-gradient(45deg, var(--accent), var(--accent-alt));
-    color: white;
-    text-decoration: none;
-    border-radius: 50px;
-    font-weight: bold;
-    transition: transform 0.3s, box-shadow 0.3s;
-}
+/* Responsividade e Grid */
+.grid-servicos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 20px; }
+.card { background: rgba(255,255,255,0.08); padding: 20px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.1); transition: 0.3s; }
+.card:hover { transform: translateY(-10px); background: rgba(255,255,255,0.12); }
 
-.admin-link:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 20px var(--accent);
-}
+button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: none; background: var(--accent); color: white; font-weight: bold; cursor: pointer; }
+input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #444; background: #111; color: white; }
 
-/* Responsividade Celular */
-@media (max-width: 480px) {
-    .main-container { width: 95%; padding: 1.5rem; }
-}
-
-input, button {
-    width: 100%; padding: 12px; margin: 10px 0;
-    border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
-    background: rgba(0,0,0,0.3); color: white;
-}
-
-button { background: var(--accent); cursor: pointer; font-weight: bold; }
-button:hover { filter: brightness(1.2); }
+.btn-admin { display: inline-block; padding: 15px 30px; background: linear-gradient(45deg, var(--accent), var(--accent-alt)); border-radius: 50px; text-decoration: none; color: white; margin-top: 20px; }
