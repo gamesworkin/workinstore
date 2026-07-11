@@ -1,19 +1,17 @@
 <!DOCTYPE html>
-<html lang="pt-br"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Painel</title><link rel="stylesheet" href="../style.css"></head>
+<html lang="pt-br"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Painel Admin</title><link rel="stylesheet" href="../style.css"></head>
 <body>
     <div class="dynamic-background"></div>
     <main class="main-container">
-        <h1>Gerenciamento</h1>
-        <section id="form-section">
-            <input id="s-title" placeholder="Título"> <input id="s-desc" placeholder="Descrição"> 
-            <input id="s-url" placeholder="URL"> <input id="s-logo" placeholder="Logo">
-            <button onclick="salvarItem()">Salvar Serviço</button>
-        </section>
-        <hr>
-        <h3>Itens Atuais</h3>
-        <div id="lista-itens"></div>
-        <button onclick="exportJSON()" style="background:#22c55e;">Exportar Backup</button>
-        <button onclick="logout()" style="background:#ef4444;">Sair</button>
+        <h1>Admin Control</h1>
+        <button onclick="showTab('header')">Gerenciar Cabeçalho</button>
+        <button onclick="showTab('servico')">Gerenciar Serviços</button>
+        <div id="content-area"></div>
+        <hr style="margin: 20px 0;">
+        <button onclick="exportData()" style="background:#22c55e;">Exportar Backup (JSON)</button>
+        <button onclick="document.getElementById('file-in').click()" style="background:#f59e0b;">Importar Backup (JSON)</button>
+        <input type="file" id="file-in" style="display:none" onchange="importData(event)">
+        <button onclick="firebase.auth().signOut().then(()=>location.href='../')" style="background:#ef4444;">Sair</button>
     </main>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
