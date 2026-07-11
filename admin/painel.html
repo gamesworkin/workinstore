@@ -1,23 +1,17 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <title>Painel Admin</title>
-    <link rel="stylesheet" href="../style.css">
-</head>
-<body>
-    <div class="dynamic-background"></div>
-    <main class="main-container">
-        <h1>Gerenciar Serviços</h1>
-        <input type="text" id="title" placeholder="Título do Serviço">
-        <input type="text" id="desc" placeholder="Descrição curta">
-        <input type="text" id="url" placeholder="URL do Link">
-        <button id="save-btn">Salvar Serviço</button>
-        <button id="logout-btn" style="background: #e11d48;">Sair</button>
-    </main>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
-    <script src="admin-logic.js"></script>
-</body>
-</html>
+<main class="main-container">
+    <h1>Painel de Controle</h1>
+    <section>
+        <h3>Gerenciar Header</h3>
+        <input id="h-title" placeholder="Título"> <input id="h-url" placeholder="URL">
+        <button onclick="addHeader()">Adicionar ao Header</button>
+    </section>
+    <section>
+        <h3>Gerenciar Serviços</h3>
+        <input id="s-title" placeholder="Nome"> <input id="s-desc" placeholder="Descrição"> <input id="s-url" placeholder="URL">
+        <button onclick="addService()">Adicionar Serviço</button>
+    </section>
+    <section>
+        <button onclick="exportJSON()" style="background:#22c55e;">Exportar JSON</button>
+        <button onclick="logout()" style="background:#ef4444;">Sair</button>
+    </section>
+</main>
