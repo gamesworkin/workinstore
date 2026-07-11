@@ -1,14 +1,10 @@
 <!DOCTYPE html>
-<html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="stylesheet" href="../style.css"></head>
-<body><div class="dynamic-background"></div>
-<main class="main-container">
-    <form id="login-form">
-        <input type="email" id="email" placeholder="Email" required>
-        <input type="password" id="pass" placeholder="Senha" required>
-        <button type="submit" id="btn-login">Autenticar</button>
-    </form>
-</main>
-<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
-<script src="admin-logic.js"></script></body></html>
+<html lang="pt-br"><head><meta charset="UTF-8"><title>Workin'Store</title><link rel="stylesheet" href="style.css"></head>
+<body>
+    <div class="dynamic-background"></div>
+    <header><nav id="nav-header"></nav><a href="admin/" class="admin-btn">Admin</a></header>
+    <main class="main-container"><div id="grid" class="grid"></div></main>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    <script src="main.js"></script>
 </body></html>
