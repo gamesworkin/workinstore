@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin | Workin'Store</title>
+    <link rel="stylesheet" href="../style.css"> <!-- Referência ao CSS global -->
+</head>
+<body oncontextmenu="event.preventDefault()" onkeydown="return !(event.ctrlKey && event.keyCode == 85)">
+    <div class="dynamic-background"></div>
+
+    <main class="main-container">
+        <h1>Autenticação Admin</h1>
+        <form id="login-form">
+            <input type="email" id="email" placeholder="Email" required style="width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: none;">
+            <input type="password" id="pass" placeholder="Senha" required style="width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: none;">
+            <button type="submit" id="login-btn" style="width: 100%; padding: 10px; margin-top: 10px; cursor: pointer;">Autenticar</button>
+        </form>
+    </main>
+
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+    <script src="admin-logic.js"></script>
+</body>
+</html>
