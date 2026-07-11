@@ -34,3 +34,28 @@ form.addEventListener('submit', async (e) => {
         btn.disabled = false;
     }
 });
+
+// Verifica se está logado
+firebase.auth().onAuthStateChanged((user) => {
+    if (!user && !window.location.href.includes('index.html')) {
+        window.location.href = "index.html";
+    }
+});
+
+// Função para Salvar no Realtime Database
+const saveBtn = document.getElementById('save-btn');
+if(saveBtn) {
+    saveBtn.addEventListener('click', () => {
+        const title = document.getElementById('link-title').value;
+        const url = document.getElementById('link-url').value;
+        
+        firebase.database().ref('header/').push({ title, url }).then(() => {
+            alert("Link adicionado com sucesso!");
+        });
+    });
+}
+
+// Botão Sair
+document.getElementById('logout-btn')?.addEventListener('click', () => {
+    firebase.auth().signOut().then(() => window.location.href = "index.html");
+});
