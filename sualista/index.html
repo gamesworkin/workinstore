@@ -1,417 +1,239 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Workin'Store | Monte sua lista de Jogos</title>
-    <link rel="shortcut icon" href="fav.ico" type="image/x-icon">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Catálogo Retro - Monte sua lista de jogos e escolha seu pendrive." />
+  <title>Workin'Store | Sua lista</title>
+  <link id="faviconLink" rel="icon" href="favicon.ico" type="image/x-icon" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- Loader inicial -->
+  <div id="appLoader" class="app-loader">
+    <div class="loader-ring"></div>
+    <p>Carregando catálogo...</p>
+  </div>
 
-    <canvas id="particleCanvas"></canvas>
-
-    <header class="header-gamer">
-        <div class="header-container">
-            <div class="brand-logo" id="btnLogo">
-                <i class="fa-solid fa-gamepad"></i> Workin'<span>Store</span>
-            </div>
-            <nav class="nav-menu">
-                <a href="#" id="navHome"><i class="fa-solid fa-house"></i> Início</a>
-                <a href="#" id="navRestrito"><i class="fa-solid fa-lock"></i> Painel Admin</a>
-                <a href="#" id="navSair" class="hidden"><i class="fa-solid fa-right-from-bracket"></i> Sair</a>
-                <button id="btnToggleTheme" class="btn-theme-toggle" type="button">
-                    <i class="fa-solid fa-sun"></i>
-                </button>
-            </nav>
+  <!-- ============================================================
+       ÁREA PÚBLICA
+       ============================================================ -->
+  <div id="publicApp" class="hidden">
+    <header class="site-header glass">
+      <div class="header-inner">
+        <div class="brand">
+          <img id="siteLogo" src="" alt="Logo" class="brand-logo" />
+          <h1 id="siteTitle" class="brand-title">Catálogo Retro</h1>
         </div>
+        <div class="header-actions">
+          <button id="openCartBtn" class="btn btn-neon">
+            <i class="fa-solid fa-list"></i>
+            <span>Minha Lista</span>
+            <span id="cartBadge" class="badge">0</span>
+          </button>
+          <button id="adminLoginBtn" class="btn btn-ghost" title="Área do administrador">
+            <i class="fa-solid fa-user-shield"></i>
+          </button>
+        </div>
+      </div>
     </header>
 
-    <main class="main-wrapper">
-
-        <section id="initialModal" class="glass-panel central-card">
-            <h2 class="title-cyber">Seja bem-vindo!</h2>
-            <p class="subtitle-cyber">Monte sua lista de jogos diretamente nos pen-drives.</p>
-            <div class="action-stack">
-                <button type="button" class="btn-gamer btn-primary" id="btnOpcaoLogin">
-                    <span class="btn-text"><i class="fa-solid fa-user-check"></i> Acessar Minha Conta</span>
-                </button>
-                <button type="button" class="btn-gamer btn-secondary" id="btnOpcaoCadastro">
-                    <span class="btn-text"><i class="fa-solid fa-user-plus"></i> Registrar Nova Conta</span>
-                </button>
-                <div class="divider-or"><span>OU</span></div>
-                <button type="button" class="btn-gamer btn-accent" id="btnOpcaoAnonimo">
-                    <span class="btn-text"><i class="fa-solid fa-bolt"></i> Continuar de Forma Anônima</span>
-                </button>
-            </div>
-        </section>
-
-        <section id="loginModal" class="glass-panel central-card hidden">
-            <h2 class="title-cyber">LOGIN DE CLIENTE</h2>
-            <form id="formLogin" class="form-cyber">
-                <div class="input-group">
-                    <label for="loginEmail">E-mail</label>
-                    <input type="email" id="loginEmail" required placeholder="Ex: jogador@gmail.com">
-                </div>
-                <div class="input-group">
-                    <label for="loginSenha">Senha</label>
-                    <input type="password" id="loginSenha" required placeholder="******">
-                </div>
-                <button type="submit" class="btn-gamer btn-primary" id="btnLoginSubmit">
-                    <span class="btn-text"><i class="fa-solid fa-right-to-bracket"></i> Autenticar</span>
-                </button>
-                <div class="form-links">
-                    <a href="#" id="btnIrRecuperar">Esqueceu a senha?</a>
-                    <button type="button" class="btn-gamer btn-secondary btn-small btnBackInitial">Voltar</button>
-                </div>
-            </form>
-        </section>
-
-        <section id="recoveryModal" class="glass-panel central-card hidden">
-            <h2 class="title-cyber">RECUPERAR CONTA</h2>
-            <p class="form-instruction">Forneça o seu e-mail cadastrado para enviarmos instruções de redefinição.</p>
-            <form id="formRecovery" class="form-cyber">
-                <div class="input-group">
-                    <label for="recoveryEmail">E-mail Cadastrado</label>
-                    <input type="email" id="recoveryEmail" required placeholder="Ex: jogador@gmail.com">
-                </div>
-                <button type="submit" class="btn-gamer btn-primary" id="btnRecoverySubmit">
-                    <span class="btn-text"><i class="fa-solid fa-paper-plane"></i> Enviar Link</span>
-                </button>
-                <button type="button" class="btn-gamer btn-secondary btn-small" id="btnBackLogin">Voltar para o Login</button>
-            </form>
-        </section>
-
-        <section id="cadastroModal" class="glass-panel central-card hidden">
-            <h2 class="title-cyber">NOVA CONTA</h2>
-            <form id="formCadastro" class="form-cyber grid-2">
-                <div class="input-group">
-                    <label for="cadNome">Nome</label>
-                    <input type="text" id="cadNome" required placeholder="Seu nome">
-                </div>
-                <div class="input-group">
-                    <label for="cadSobrenome">Sobrenome</label>
-                    <input type="text" id="cadSobrenome" required placeholder="Seu sobrenome">
-                </div>
-                <div class="input-group span-2">
-                    <label for="cadEmail">E-mail Comercial</label>
-                    <input type="email" id="cadEmail" required placeholder="Ex: jogador@gmail.com">
-                </div>
-                <div class="input-group">
-                    <label for="cadSenha">Senha de Acesso</label>
-                    <input type="password" id="cadSenha" required placeholder="Mínimo 6 dígitos">
-                </div>
-                <div class="input-group">
-                    <label for="cadWhatsapp">WhatsApp</label>
-                    <input type="text" id="cadWhatsapp" required placeholder="(88) 99999-9999">
-                </div>
-                <div class="input-group">
-                    <label for="cadCidade">Cidade</label>
-                    <input type="text" id="cadCidade" required placeholder="Sua cidade">
-                </div>
-                <div class="input-group">
-                    <label for="cadUF">Estado (UF)</label>
-                    <select id="cadUF" required>
-                        <option value="" disabled selected>Selecione</option>
-                        <option value="AC">AC - Acre</option>
-                        <option value="AL">AL - Alagoas</option>
-                        <option value="AP">AP - Amapá</option>
-                        <option value="AM">AM - Amazonas</option>
-                        <option value="BA">BA - Bahia</option>
-                        <option value="CE">CE - Ceará</option>
-                        <option value="DF">DF - Distrito Federal</option>
-                        <option value="ES">ES - Espírito Santo</option>
-                        <option value="GO">GO - Goiás</option>
-                        <option value="MA">MA - Maranhão</option>
-                        <option value="MT">MT - Mato Grosso</option>
-                        <option value="MS">MS - Mato Grosso do Sul</option>
-                        <option value="MG">MG - Minas Gerais</option>
-                        <option value="PA">PA - Pará</option>
-                        <option value="PB">PB - Paraíba</option>
-                        <option value="PR">PR - Paraná</option>
-                        <option value="PE">PE - Pernambuco</option>
-                        <option value="PI">PI - Piauí</option>
-                        <option value="RJ">RJ - Rio de Janeiro</option>
-                        <option value="RN">RN - Rio Grande do Norte</option>
-                        <option value="RS">RS - Rio Grande do Sul</option>
-                        <option value="RO">RO - Rondônia</option>
-                        <option value="RR">RR - Roraima</option>
-                        <option value="SC">SC - Santa Catarina</option>
-                        <option value="SP">SP - São Paulo</option>
-                        <option value="SE">SE - Sergipe</option>
-                        <option value="TO">TO - Tocantins</option>
-                    </select>
-                </div>
-                <div class="span-2 flex-center" style="margin-top: 10px;">
-                    <button type="submit" class="btn-gamer btn-primary" id="btnCadastroSubmit">
-                        <span class="btn-text"><i class="fa-solid fa-user-plus"></i> Concluir</span>
-                    </button>
-                    <button type="button" class="btn-gamer btn-secondary btnBackInitial">Cancelar</button>
-                </div>
-            </form>
-        </section>
-
-        <section id="adminLoginModal" class="glass-panel central-card hidden">
-            <h2 class="title-cyber"><i class="fa-solid fa-terminal"></i> TERMINAL RESTRITO</h2>
-            <form id="formAdminLogin" class="form-cyber">
-                <div class="input-group">
-                    <label for="adminEmail">Chave de Identificação</label>
-                    <input type="email" id="adminEmail" required placeholder="nome@email.com">
-                </div>
-                <div class="input-group">
-                    <label for="adminSenha">Senha de Autenticação</label>
-                    <input type="password" id="adminSenha" required placeholder="******">
-                </div>
-                <button type="submit" class="btn-gamer btn-accent" id="btnAdminLoginSubmit">
-                    <span class="btn-text"><i class="fa-solid fa-key"></i> Liberar Acesso</span>
-                </button>
-                <button type="button" class="btn-gamer btn-secondary btn-small btnBackInitial">Voltar</button>
-            </form>
-        </section>
-
-        <section id="pendriveSelectionScreen" class="glass-panel wide-card hidden">
-            <h2 class="title-cyber text-center">ESCOLHA A CAPACIDADE DO SEU PENDRIVE</h2>
-            <p class="subtitle-cyber text-center">Cada opção possui uma margem real ajustada pelo sistema.</p>
-            
-            <div class="pendrive-grid">
-                <div class="pendrive-card" data-size="32">
-                    <div class="usb-icon"><i class="fa-solid fa-hdd"></i></div>
-                    <h3>32 GB</h3>
-                    <p class="real-space">Espaço útil: <span class="lblRealSize32">Calculando...</span></p>
-                    <span class="badge-card">Básico</span>
-                </div>
-                <div class="pendrive-card" data-size="64">
-                    <div class="usb-icon"><i class="fa-solid fa-hdd"></i></div>
-                    <h3>64 GB</h3>
-                    <p class="real-space">Espaço útil: <span class="lblRealSize64">Calculando...</span></p>
-                    <span class="badge-card popular">Mais Vendido</span>
-                </div>
-                <div class="pendrive-card" data-size="128">
-                    <div class="usb-icon"><i class="fa-solid fa-hdd"></i></div>
-                    <h3>128 GB</h3>
-                    <p class="real-space">Espaço útil: <span class="lblRealSize128">Calculando...</span></p>
-                    <span class="badge-card">Premium</span>
-                </div>
-            </div>
-            
-            <div class="flex-center" style="margin-top:25px;">
-                <button type="button" class="btn-gamer btn-secondary btnBackInitial">Voltar ao Início</button>
-            </div>
-        </section>
-
-        <section id="listBuilderScreen" class="glass-panel workspace-card hidden">
-            <div class="workspace-header">
-                <div>
-                    <h2 class="title-cyber">MONTANDO ARMAZENAMENTO DIGITAL</h2>
-                    <p class="subtitle-cyber">Mídia: <span id="txtPendriveSelecionado">--</span> | Espaço Real Máximo: <span id="txtEspaçoRealMax">--</span></p>
-                </div>
-                <button type="button" class="btn-gamer btn-secondary btn-small" id="btnAlterarPendrive"><i class="fa-solid fa-rotate"></i> Mudar Mídia</button>
-            </div>
-
-            <div class="storage-dashboard-bar">
-                <div class="storage-meta-info">
-                    <span>Espaço Alocado: <strong id="txtEspacoUsado">0.00 GB</strong></span>
-                    <span>Espaço Livre: <strong id="txtEspacoLivre">0.00 GB</strong></span>
-                </div>
-                <div class="progress-container-cyber">
-                    <div id="storageProgressBar" class="progress-bar-fill"></div>
-                </div>
-            </div>
-
-            <div class="builder-split-grid">
-                <div class="panel-box">
-                    <h3><i class="fa-solid fa-magnifying-glass"></i> Títulos Disponíveis</h3>
-                    <input type="text" id="searchGames" class="input-cyber search-input" placeholder="Buscar jogos...">
-                    <div id="availableGamesContainer" class="scrollable-games-list"></div>
-                </div>
-
-                <div class="panel-box">
-                    <h3><i class="fa-solid fa-folder-open"></i> Conteúdo do seu Pendrive</h3>
-                    <div id="myGamesContainer" class="scrollable-games-list"></div>
-                </div>
-            </div>
-
-            <div class="checkout-footer-panel panel-box">
-                <h3><i class="fa-solid fa-truck-ramp-box"></i> Confirmar Informações de Envio</h3>
-                <form id="formEnvioLista" class="form-cyber grid-3">
-                    <div class="input-group">
-                        <label>Nome</label>
-                        <input type="text" id="envioNome" required placeholder="Nome">
-                    </div>
-                    <div class="input-group">
-                        <label>Sobrenome</label>
-                        <input type="text" id="envioSobrenome" required placeholder="Sobrenome">
-                    </div>
-                    <div class="input-group">
-                        <label>WhatsApp</label>
-                        <input type="text" id="envioWhatsapp" required placeholder="(88) 99999-9999">
-                    </div>
-                    <div class="input-group span-2">
-                        <label>Cidade de Entrega</label>
-                        <input type="text" id="envioCidade" required placeholder="Sua cidade">
-                    </div>
-                    <div class="input-group">
-                        <label>Estado (UF)</label>
-                        <select id="envioUF" required>
-                            <option value="" disabled selected>Selecione</option>
-                            <option value="AC">AC - Acre</option>
-                            <option value="AL">AL - Alagoas</option>
-                            <option value="AP">AP - Amapá</option>
-                            <option value="AM">AM - Amazonas</option>
-                            <option value="BA">BA - Bahia</option>
-                            <option value="CE">CE - Ceará</option>
-                            <option value="DF">DF - Distrito Federal</option>
-                            <option value="ES">ES - Espírito Santo</option>
-                            <option value="GO">GO - Goiás</option>
-                            <option value="MA">MA - Maranhão</option>
-                            <option value="MT">MT - Mato Grosso</option>
-                            <option value="MS">MS - Mato Grosso do Sul</option>
-                            <option value="MG">MG - Minas Gerais</option>
-                            <option value="PA">PA - Pará</option>
-                            <option value="PB">PB - Paraíba</option>
-                            <option value="PR">PR - Paraná</option>
-                            <option value="PE">PE - Pernambuco</option>
-                            <option value="PI">PI - Piauí</option>
-                            <option value="RJ">RJ - Rio de Janeiro</option>
-                            <option value="RN">RN - Rio Grande do Norte</option>
-                            <option value="RS">RS - Rio Grande do Sul</option>
-                            <option value="RO">RO - Rondônia</option>
-                            <option value="RR">RR - Roraima</option>
-                            <option value="SC">SC - Santa Catarina</option>
-                            <option value="SP">SP - São Paulo</option>
-                            <option value="SE">SE - Sergipe</option>
-                            <option value="TO">TO - Tocantins</option>
-                        </select>
-                    </div>
-                    <div class="span-3 flex-center" style="margin-top:10px;">
-                        <button type="submit" class="btn-gamer btn-accent" id="btnEnviarListaFinal">
-                            <span class="btn-text"><i class="fa-solid fa-cloud-arrow-up"></i> Solicitar Gravação</span>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </section>
-
-        <section id="userDashboardScreen" class="glass-panel workspace-card hidden">
-            <div class="workspace-header">
-                <div>
-                    <h2 class="title-cyber">PAINEL DO JOGADOR</h2>
-                    <p class="subtitle-cyber">Acompanhe seus pedidos em tempo real ou inicie novas compilações.</p>
-                </div>
-                <button type="button" class="btn-gamer btn-primary" id="btnIniciarNovaLista"><i class="fa-solid fa-plus"></i> Criar Nova Lista</button>
-            </div>
-            <div class="panel-box" style="margin-top:20px;">
-                <h3><i class="fa-solid fa-clock-rotate-left"></i> Histórico de Encomendas</h3>
-                <div id="userListsHistoryContainer" class="history-grid-layout"></div>
-            </div>
-        </section>
-
-        <section id="adminDashboardScreen" class="glass-panel workspace-card hidden">
-            <div class="workspace-header">
-                <div>
-                    <h2 class="title-cyber"><i class="fa-solid fa-gears"></i> SALA DE CONTROLE - ADMIN</h2>
-                    <p class="subtitle-cyber">Gerencie o acervo geral, backups e listas em fila.</p>
-                </div>
-                <div class="admin-backup-actions flex-center">
-                    <button type="button" class="btn-gamer btn-small" id="btnExportarCatalogo" style="background:#2980b9;"><i class="fa-solid fa-file-export"></i> Exportar JSON</button>
-                    <label class="btn-gamer btn-small" style="background:#27ae60; cursor:pointer; margin:0;">
-                        <i class="fa-solid fa-file-import"></i> Importar JSON
-                        <input type="file" id="btnImportarCatalogoFile" accept=".json" style="display:none;">
-                    </label>
-                </div>
-            </div>
-
-            <div class="admin-dashboard-grid">
-                <div class="panel-box">
-                    <h3><i class="fa-solid fa-square-plus"></i> Gerenciar Título</h3>
-                    <form id="formAdminAddJogo" class="form-cyber">
-                        <div class="input-group">
-                            <label>Nome do Jogo</label>
-                            <input type="text" id="addJogoNome" required placeholder="Ex: Grand Theft Auto V">
-                        </div>
-                        <div class="grid-2">
-                            <div class="input-group">
-                                <label>Tamanho</label>
-                                <input type="number" id="addJogoTamanho" step="0.01" required placeholder="Ex: 65.5">
-                            </div>
-                            <div class="input-group">
-                                <label>Unidade</label>
-                                <select id="addJogoUnidade">
-                                    <option value="GB">GB</option>
-                                    <option value="MB">MB</option>
-                                </select>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn-gamer btn-primary" id="btnAddJogoSubmit">
-                            <span class="btn-text"><i class="fa-solid fa-plus"></i> Salvar Jogo</span>
-                        </button>
-                    </form>
-                </div>
-
-                <div class="panel-box">
-                    <h3><i class="fa-solid fa-sliders"></i> Ajuste de Mídias</h3>
-                    <form id="formAdminConfigPendrives" class="form-cyber">
-                        <div class="input-group">
-                            <label>Pendrive 32GB útil (GB)</label>
-                            <input type="number" id="cfgSize32" step="0.01" required>
-                        </div>
-                        <div class="input-group">
-                            <label>Pendrive 64GB útil (GB)</label>
-                            <input type="number" id="cfgSize64" step="0.01" required>
-                        </div>
-                        <div class="input-group">
-                            <label>Pendrive 128GB útil (GB)</label>
-                            <input type="number" id="cfgSize128" step="0.01" required>
-                        </div>
-                        <button type="submit" class="btn-gamer btn-accent" id="btnConfigPendrivesSubmit">
-                            <span class="btn-text"><i class="fa-solid fa-floppy-disk"></i> Salvar</span>
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-            <div class="panel-box" style="margin-top:20px;">
-                <h3><i class="fa-solid fa-layer-group"></i> Fila de Produção (Listas Recebidas)</h3>
-                <div id="adminOrdersContainer" class="admin-list-rows"></div>
-            </div>
-
-            <div class="panel-box" style="margin-top:20px;">
-                <h3><i class="fa-solid fa-database"></i> Títulos Cadastrados</h3>
-                <div id="adminCatalogContainer" class="admin-list-rows"></div>
-            </div>
-        </section>
-
-    </main>
-
-    <div id="confirmationModal" class="fixed-modal-overlay hidden">
-        <div class="glass-panel confirmation-box text-center">
-            <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
-            <h2 class="title-cyber">TRANSMITIDO COM SUCESSO!</h2>
-            <p class="subtitle-cyber">Seu catálogo digital foi processado.</p>
-            
-            <p class="form-instruction" style="margin-bottom:15px; color:var(--text-muted);">Como deseja obter o espelho desta folha de gravação (A4)?</p>
-            
-            <div class="action-stack">
-                <button type="button" id="btnVisualizarListaBase64" class="btn-gamer" style="background:#3498db;">
-                    <i class="fa-solid fa-file-lines"></i> Visualizar Folha A4
-                </button>
-                <button type="button" id="btnBaixarListaJpeg" class="btn-gamer" style="background:#2ecc71;">
-                    <i class="fa-solid fa-file-image"></i> Baixar Imagem JPEG
-                </button>
-                <a href="#" id="btnConfirmacaoWhatsapp" target="_blank" class="btn-gamer" style="background:#25D366; text-decoration:none;">
-                    <i class="fa-brands fa-whatsapp"></i> Enviar pelo WhatsApp
-                </a>
-                <button type="button" class="btn-gamer btn-secondary" id="btnFecharConfirmacao" style="margin-top:10px;">
-                    Voltar ao Painel
-                </button>
-            </div>
+    <!-- Barra do pendrive (sempre visível) -->
+    <section class="pendrive-bar glass">
+      <div class="pendrive-controls">
+        <label for="pendriveSelect"><i class="fa-solid fa-hard-drive"></i> Pendrive:</label>
+        <select id="pendriveSelect" class="select-neon"></select>
+        <div id="pendriveButtons" class="pendrive-buttons" role="group" aria-label="Selecionar capacidade"></div>
+      </div>
+      <div class="pendrive-progress">
+        <div class="progress-track">
+          <div id="pendriveBar" class="progress-fill" style="width:0%"></div>
         </div>
+        <div class="pendrive-stats">
+          <span><b id="usedGB">0.00</b> GB usados</span>
+          <span><b id="freeGB">0.00</b> GB livres</span>
+          <span><b id="percentUsed">0%</b></span>
+          <span><i class="fa-solid fa-gamepad"></i> <b id="qtyGames">0</b> jogos</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Filtros -->
+    <section class="filters glass">
+      <div class="filter-item search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input id="searchInput" type="text" placeholder="Pesquisar por nome, categoria ou subcategoria..." />
+      </div>
+      <select id="categoryFilter" class="select-neon"><option value="">Todas categorias</option></select>
+      <select id="subcategoryFilter" class="select-neon"><option value="">Todas subcategorias</option></select>
+      <select id="sortFilter" class="select-neon">
+        <option value="alpha">Ordem alfabética</option>
+        <option value="light">Mais leves</option>
+        <option value="heavy">Mais pesados</option>
+      </select>
+    </section>
+
+    <!-- Barra de modo de exibição (grid / lista) -->
+    <div class="view-toggle-bar">
+      <div class="view-toggle" role="group" aria-label="Modo de exibição">
+        <button type="button" class="vt-btn active" data-view-mode="grid" aria-pressed="true" title="Ver em grade">
+          <i class="fa-solid fa-th-large"></i><span>Grade</span>
+        </button>
+        <button type="button" class="vt-btn" data-view-mode="list" aria-pressed="false" title="Ver em lista">
+          <i class="fa-solid fa-list-ul"></i><span>Lista</span>
+        </button>
+      </div>
     </div>
 
-    <script type="module" src="script.js"></script>
+    <!-- Aviso sobre jogos e patches (traduzidos/hacks) -->
+    <div class="warn-official" role="alert">
+      <div class="warn-official-title"><i class="fa-solid fa-triangle-exclamation"></i> Aviso sobre jogos e patches (traduzidos/hacks)</div>
+      <p>Jogos não-oficiais (traduções para PT-BR, patches ou versões alternativas) podem apresentar bugs, travamentos, tela preta ou problemas de compatibilidade. O funcionamento do jogo não é garantido e varia conforme o modelo e estado do seu PlayStation 2.</p>
+    </div>
+
+    <!-- Catálogo -->
+    <main class="catalog-wrapper">
+      <div id="gamesGrid" class="games-grid"></div>
+      <div id="emptyState" class="empty-state hidden">
+        <i class="fa-solid fa-ghost"></i>
+        <p>Nenhum jogo encontrado.</p>
+      </div>
+      <div id="pagination" class="pagination"></div>
+    </main>
+
+    <footer class="site-footer glass">
+      <p id="footerText">Catálogo Retro</p>
+    </footer>
+  </div>
+
+  <!-- ============================================================
+       MODAL: Detalhes do jogo
+       ============================================================ -->
+  <div id="gameModal" class="modal hidden">
+    <div class="modal-content glass">
+      <button class="modal-close" data-close="gameModal"><i class="fa-solid fa-xmark"></i></button>
+      <div class="game-detail">
+        <img id="gmImg" src="" alt="" />
+        <div class="game-detail-info">
+          <h2 id="gmName"></h2>
+          <p class="badges">
+            <span id="gmCat" class="tag"></span>
+            <span id="gmSub" class="tag"></span>
+          </p>
+          <p id="gmDesc"></p>
+          <ul class="specs">
+            <li><b>Compatibilidade:</b> <span id="gmComp"></span></li>
+            <li><b>Idioma:</b> <span id="gmLang"></span></li>
+            <li><b>Tamanho:</b> <span id="gmSize"></span> GB</li>
+            <li><b>Código:</b> <span id="gmCode"></span></li>
+          </ul>
+          <button id="gmAddBtn" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Adicionar à lista</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       MODAL: Carrinho / Lista
+       ============================================================ -->
+  <div id="cartModal" class="modal hidden">
+    <div class="modal-content glass wide">
+      <button class="modal-close" data-close="cartModal"><i class="fa-solid fa-xmark"></i></button>
+      <h2><i class="fa-solid fa-list"></i> Minha Lista</h2>
+      <div id="cartItems" class="cart-items"></div>
+      <div class="cart-summary">
+        <div><b id="cartQty">0</b> jogos • <b id="cartUsed">0.00</b> GB de <b id="cartCap">0.00</b> GB</div>
+        <div id="cartWarn" class="warn hidden"></div>
+      </div>
+
+      <form id="checkoutForm" class="checkout-form">
+        <h3>Dados para envio</h3>
+        <div class="grid-2">
+          <input required name="firstName" placeholder="Nome" />
+          <input required name="lastName" placeholder="Sobrenome" />
+          <input required name="whatsapp" placeholder="WhatsApp (com DDD)" />
+          <input required name="city" placeholder="Cidade" />
+          <input required name="uf" maxlength="2" placeholder="UF" />
+        </div>
+        <button id="finishBtn" type="submit" class="btn btn-primary btn-block" disabled>
+          <i class="fa-solid fa-paper-plane"></i> Finalizar Pedido
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       MODAL: Login Admin
+       ============================================================ -->
+  <div id="loginModal" class="modal hidden">
+    <div class="modal-content glass narrow">
+      <button class="modal-close" data-close="loginModal"><i class="fa-solid fa-xmark"></i></button>
+      <h2><i class="fa-solid fa-user-shield"></i> Painel Admin</h2>
+      <form id="loginForm" class="checkout-form">
+        <input required type="email" name="email" placeholder="E-mail" />
+        <input required type="password" name="password" placeholder="Senha" />
+        <button type="submit" class="btn btn-primary btn-block">Entrar</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       MODAL: Preview JPG
+       ============================================================ -->
+  <div id="jpgModal" class="modal hidden">
+    <div class="modal-content glass wide">
+      <button class="modal-close" data-close="jpgModal"><i class="fa-solid fa-xmark"></i></button>
+      <h2>Pedido gerado</h2>
+      <img id="jpgPreview" alt="Pedido" style="max-width:100%;border-radius:12px;" />
+      <div class="row-actions">
+        <a id="downloadJpg" class="btn btn-primary" download="pedido.jpg"><i class="fa-solid fa-download"></i> Baixar JPG</a>
+        <a id="sendWhats" class="btn btn-neon" target="_blank"><i class="fa-brands fa-whatsapp"></i> Enviar no WhatsApp</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       PAINEL ADMINISTRATIVO
+       ============================================================ -->
+  <div id="adminApp" class="hidden admin-app">
+    <aside class="admin-sidebar glass">
+      <div class="brand small">
+        <i class="fa-solid fa-gamepad neon-purple"></i>
+        <h2>Admin</h2>
+      </div>
+      <nav class="admin-nav">
+        <button class="nav-item active" data-view="dashboard"><i class="fa-solid fa-gauge-high"></i> Dashboard</button>
+        <button class="nav-item" data-view="orders"><i class="fa-solid fa-receipt"></i> Pedidos</button>
+        <button class="nav-item" data-view="games"><i class="fa-solid fa-gamepad"></i> Jogos</button>
+        <button class="nav-item" data-view="categories"><i class="fa-solid fa-tags"></i> Categorias</button>
+        <button class="nav-item" data-view="subcategories"><i class="fa-solid fa-tag"></i> Subcategorias</button>
+        <button class="nav-item" data-view="pendrives"><i class="fa-solid fa-hard-drive"></i> Pendrives</button>
+        <button class="nav-item" data-view="settings"><i class="fa-solid fa-sliders"></i> Configurações</button>
+        <button id="logoutBtn" class="nav-item danger"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+      </nav>
+    </aside>
+    <main class="admin-main">
+      <header class="admin-topbar glass">
+        <button id="mobileMenuBtn" class="btn btn-ghost"><i class="fa-solid fa-bars"></i></button>
+        <h1 id="viewTitle">Dashboard</h1>
+        <div class="user-chip"><i class="fa-solid fa-user"></i> admin</div>
+      </header>
+      <section id="viewContainer" class="view-container"></section>
+    </main>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Firebase (compat SDKs) -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+
+  <script src="script.js"></script>
 </body>
 </html>
