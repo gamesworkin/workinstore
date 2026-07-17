@@ -1,7 +1,5 @@
-/* workinstore theme — animations v2 */
-﻿/* =================================================================
-   WORKIN'STORE — style.css
-   Visual moderno, minimalista, tecnológico, com glassmorphism discreto.
+/* =================================================================
+   WORKIN'STORE — style.css (Corrigido para Estabilidade)
    ================================================================= */
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -143,6 +141,7 @@ main{padding-top:calc(var(--header-h) + 20px)}
 .btn{
   padding:13px 22px;border-radius:12px;font-weight:600;font-size:14px;
   transition:transform .2s, box-shadow .2s, background .2s;display:inline-flex;align-items:center;gap:8px;
+  cursor:pointer;border:none;
 }
 .btn-primary{
   background:linear-gradient(135deg,var(--primary),var(--secondary));
@@ -166,6 +165,7 @@ main{padding-top:calc(var(--header-h) + 20px)}
   background:rgba(0,0,0,.4);backdrop-filter:blur(8px);
   color:#fff;font-size:22px;line-height:1;
   transition:background .2s,transform .2s;z-index:2;
+  border:none;cursor:pointer;
 }
 .slider-arrow:hover{background:rgba(0,0,0,.65)}
 .slider-arrow.prev{left:12px}
@@ -174,6 +174,7 @@ main{padding-top:calc(var(--header-h) + 20px)}
 .dots button{
   width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.4);
   transition:width .3s,background .3s;
+  border:none;cursor:pointer;
 }
 .dots button.active{width:22px;background:var(--secondary)}
 .slide-empty{
@@ -190,7 +191,7 @@ main{padding-top:calc(var(--header-h) + 20px)}
 .chip{
   padding:10px 18px;border-radius:999px;background:rgba(255,255,255,.06);
   border:1px solid var(--glass-border);font-size:14px;font-weight:500;
-  transition:all .2s;
+  transition:all .2s;cursor:pointer;
 }
 .chip:hover{background:rgba(255,255,255,.12);transform:translateY(-1px)}
 .chip.active{background:linear-gradient(135deg,var(--primary),var(--secondary));border-color:transparent}
@@ -237,6 +238,7 @@ main{padding-top:calc(var(--header-h) + 20px)}
   margin-top:auto;padding:12px;border-radius:12px;text-align:center;font-weight:600;font-size:14px;
   background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;
   transition:transform .2s, box-shadow .2s;
+  border:none;cursor:pointer;
 }
 .product .buy:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,212,255,.35)}
 .empty{text-align:center;color:var(--muted);padding:40px}
@@ -272,10 +274,10 @@ main{padding-top:calc(var(--header-h) + 20px)}
 .center{display:block;margin:14px auto 0;text-align:center;width:100%}
 /* ============ MODAL ============ */
 .modal{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
-.modal[hidden]{display:none !important}
+.modal[hidden]{display:none !important} /* CORREÇÃO: Força o ocultamento */
 .admin[hidden]{display:none !important}
 .modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);animation:fadeIn .3s ease}
-.modal-card{position:relative;width:100%;max-width:420px;padding:32px;animation:popIn .35s cubic-bezier(.3,1.4,.5,1);background:rgba(15,18,32,.92);border:1px solid var(--glass-border);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-radius:var(--radius);box-shadow:var(--shadow-lg)}
+.modal-card{position:relative;width:100%;max-width:420px;padding:32px;animation:modalInDesktop .4s cubic-bezier(.2,.7,.2,1);background:rgba(15,18,32,.92);border:1px solid var(--glass-border);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-radius:var(--radius);box-shadow:var(--shadow-lg)}
 .modal-card h3{margin:0 0 20px;font-size:22px}
 .modal-card label{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;font-size:13px;color:var(--muted)}
 .modal-card input,.admin input:not([type=file]):not([type=color]),.admin select,.admin textarea{
@@ -289,7 +291,10 @@ main{padding-top:calc(var(--header-h) + 20px)}
 .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:8px}
 .error{color:#ff6b8a;font-size:13px;margin:0 0 8px}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-@keyframes popIn{from{opacity:0;transform:scale(.9) translateY(20px)}to{opacity:1;transform:none}}
+@keyframes modalInDesktop{
+  from{opacity:0;transform:translateY(16px) scale(.98)}
+  to{opacity:1;transform:none}
+}
 @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
 /* ============ ADMIN ============ */
 .admin{position:fixed;inset:0;z-index:200;background:rgba(5,7,15,.96);overflow:auto}
@@ -301,7 +306,7 @@ main{padding-top:calc(var(--header-h) + 20px)}
 .admin-tabs{display:flex;gap:6px;flex-wrap:wrap;flex:1;justify-content:center}
 .admin-tabs button{
   padding:8px 14px;border-radius:10px;background:rgba(255,255,255,.05);
-  border:1px solid var(--glass-border);font-size:13px;font-weight:500;transition:all .2s;
+  border:1px solid var(--glass-border);font-size:13px;font-weight:500;transition:all .2s;cursor:pointer;
 }
 .admin-tabs button:hover{background:rgba(255,255,255,.1)}
 .admin-tabs button.active{background:linear-gradient(135deg,var(--primary),var(--secondary));border-color:transparent}
@@ -325,7 +330,7 @@ main{padding-top:calc(var(--header-h) + 20px)}
 .admin-item .info b{display:block;font-size:14px;margin-bottom:2px}
 .admin-item .info small{color:var(--muted);font-size:12px}
 .admin-item .actions{display:flex;gap:6px}
-.admin-item .actions button{padding:6px 12px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid var(--glass-border);font-size:12px}
+.admin-item .actions button{padding:6px 12px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid var(--glass-border);font-size:12px;cursor:pointer}
 .admin-item .actions button.danger{background:rgba(255,80,100,.15);color:#ff8ea0;border-color:rgba(255,80,100,.3)}
 .admin-item .actions button:hover{filter:brightness(1.2)}
 .row-actions{display:flex;gap:10px;margin-bottom:20px}
@@ -372,11 +377,7 @@ main{padding-top:calc(var(--header-h) + 20px)}
 .product{cursor:pointer}
 .modal-card.product-modal{
   max-width:720px;max-height:90vh;overflow-y:auto;padding:0;display:flex;flex-direction:column;
-  animation:modalIn .4s cubic-bezier(.2,.7,.2,1);
-}
-@keyframes modalIn{
-  from{opacity:0;transform:translateY(16px) scale(.98)}
-  to{opacity:1;transform:none}
+  animation:modalInDesktop .4s cubic-bezier(.2,.7,.2,1);
 }
 .modal-close{
   position:absolute;top:12px;right:14px;z-index:3;
@@ -384,16 +385,19 @@ main{padding-top:calc(var(--header-h) + 20px)}
   background:rgba(0,0,0,.5);color:#fff;font-size:22px;line-height:1;
   display:flex;align-items:center;justify-content:center;
   transition:background .2s,transform .2s;
+  border:none;cursor:pointer;
 }
 .modal-close:hover{background:rgba(0,0,0,.75);transform:rotate(90deg)}
-.pm-body{display:grid;grid-template-columns:1fr 1fr;gap:0;align-items:stretch}
+.pm-body{display:grid;grid-template-columns:1fr 1fr;gap:0;align-items:center}
 .pm-thumb{
+  width:100%;aspect-ratio:1/1;
   background:rgba(255,255,255,.04);
   display:flex;align-items:center;justify-content:center;overflow:hidden;
   border-top-left-radius:var(--radius);border-bottom-left-radius:var(--radius);
-  color:var(--muted);font-size:60px;aspect-ratio:1/1;
+  color:var(--muted);font-size:60px;
 }
 .pm-thumb img{width:100%;height:100%;object-fit:contain;object-position:center;display:block}
+
 .pm-info{padding:28px;display:flex;flex-direction:column;gap:12px}
 .pm-info h3{margin:0;font-size:24px;line-height:1.2}
 .pm-meta{display:flex;flex-wrap:wrap;gap:6px}
@@ -413,168 +417,53 @@ main{padding-top:calc(var(--header-h) + 20px)}
   .pm-footer .btn{width:100%;justify-content:center}
 }
 /* Reduced motion */
-@media (prefers-reduced-motion: reduce){
-  *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
-  .bg-rgb{animation:none}
+@keyframes heroImageMotion{
+  0%{transform:scale(1.05) translate3d(-1.5%,-1.2%,0)}
+  100%{transform:scale(1.12) translate3d(1.5%,1.2%,0)}
 }
-
-/* =================================================================
-   ✨ ANIMAÇÕES EXTRAS (banner slider dinâmico + cards)
-   ================================================================= */
-
-/* ---- Banner / Slider: efeito Ken Burns (zoom + pan sutil e contínuo) ---- */
-.slides{
-  transition: transform 1.1s cubic-bezier(.77,0,.18,1);
+@keyframes heroCaptionIn{
+  from{opacity:0;transform:translateY(12px);filter:blur(6px)}
+  to{opacity:1;transform:translateY(0);filter:blur(0)}
+}
+@keyframes sliderDotPulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(0,212,255,.35)}
+  50%{box-shadow:0 0 0 8px rgba(0,212,255,0)}
+}
+@keyframes cardShine{
+  from{transform:translateX(-140%) skewX(-18deg);opacity:0}
+  20%{opacity:.9}
+  to{transform:translateX(140%) skewX(-18deg);opacity:0}
 }
 .slides .slide{overflow:hidden}
 .slides .slide img{
-  transform-origin:center center;
-  animation: kenBurns 14s ease-in-out infinite alternate;
-  will-change: transform;
-}
-.slides .slide:nth-child(2n) img{ animation-name: kenBurnsAlt; animation-duration:16s; }
-.slides .slide:nth-child(3n) img{ animation-duration:18s; }
-
-@keyframes kenBurns{
-  0%   { transform: scale(1)    translate(0,0); }
-  100% { transform: scale(1.12) translate(-2%, -1.5%); }
-}
-@keyframes kenBurnsAlt{
-  0%   { transform: scale(1.05) translate(1.5%, 1%); }
-  100% { transform: scale(1.15) translate(-1.5%, -1%); }
+  transform:none;
+  animation:none;
+  will-change:auto;backface-visibility:hidden;
 }
 
-/* Legenda com leve entrada */
-.slides .slide .cap{
-  animation: capIn .9s cubic-bezier(.2,.7,.2,1) both;
+.slides .slide .cap{animation:heroCaptionIn .65s cubic-bezier(.2,.7,.2,1) both}
+.slider-arrow:hover{transform:translateY(-50%) scale(1.08);box-shadow:0 0 24px rgba(0,212,255,.28)}
+.dots button.active{animation:sliderDotPulse 1.7s ease-in-out infinite}
+.product,.mini-card{position:relative;isolation:isolate;will-change:transform}
+.product::before,.mini-card::before{
+  content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(135deg,rgba(0,212,255,.55),rgba(108,92,231,.45),rgba(255,255,255,.16));
+  opacity:0;transition:opacity .45s ease;filter:blur(14px);transform:scale(1.02);
 }
-@keyframes capIn{
-  from{opacity:0; transform: translateY(14px)}
-  to  {opacity:1; transform: translateY(0)}
+.product::after,.mini-card::after{
+  content:"";position:absolute;top:-30%;bottom:-30%;left:0;width:42%;z-index:2;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.34),transparent);
+  transform:translateX(-140%) skewX(-18deg);opacity:0;
 }
-
-/* Dots com micro-pulse quando ativo */
-.dots button.active{
-  box-shadow:0 0 0 0 rgba(0,212,255,.55);
-  animation: dotPulse 2.2s ease-out infinite;
-}
-@keyframes dotPulse{
-  0%   { box-shadow:0 0 0 0   rgba(0,212,255,.55); }
-  70%  { box-shadow:0 0 0 10px rgba(0,212,255,0); }
-  100% { box-shadow:0 0 0 0   rgba(0,212,255,0); }
-}
-
-/* Setas ganham leve zoom no hover */
-.slider-arrow{transition:background .25s, transform .25s ease}
-.slider-arrow:hover{transform:translateY(-50%) scale(1.12)}
-
-/* ---- Produtos: hover com aumento suave + brilho + faixa de luz ---- */
-.product{
-  position:relative;
-  isolation:isolate;
-  transition:
-    transform .5s cubic-bezier(.2,.7,.2,1),
-    box-shadow .5s ease,
-    border-color .5s ease;
-}
-
-/* Halo colorido atrás do card (aparece no hover) */
-.product::before{
-  content:"";
-  position:absolute; inset:-1px;
-  border-radius:inherit;
-  padding:1px;
-  background: linear-gradient(135deg, rgba(108,92,231,.0), rgba(0,212,255,.0));
-  -webkit-mask:
-     linear-gradient(#000 0 0) content-box,
-     linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-  opacity:0;
-  transition:opacity .5s ease, background .5s ease;
-  pointer-events:none;
-  z-index:1;
-}
-.product:hover::before{
-  opacity:1;
-  background: linear-gradient(135deg, rgba(108,92,231,.9), rgba(0,212,255,.9));
-}
-
-/* Faixa de luz que atravessa o card (shine) */
-.product .thumb{position:relative; overflow:hidden}
-.product .thumb::before{
-  content:"";
-  position:absolute; top:0; left:-75%;
-  width:50%; height:100%;
-  background: linear-gradient(120deg,
-     transparent 0%,
-     rgba(255,255,255,.18) 45%,
-     rgba(255,255,255,.35) 50%,
-     rgba(255,255,255,.18) 55%,
-     transparent 100%);
-  transform: skewX(-20deg);
-  transition: left .9s cubic-bezier(.2,.7,.2,1);
-  pointer-events:none;
-  z-index:2;
-}
-.product:hover .thumb::before{ left:125%; }
-
-/* Aumento levemente maior + brilho mais bonito */
-.product:hover{
-  transform: translateY(-8px) scale(1.03);
-  box-shadow:
-     0 22px 50px rgba(0,0,0,.55),
-     0 0 28px rgba(0,212,255,.45),
-     0 0 60px rgba(108,92,231,.35);
-  border-color: rgba(0,212,255,.6);
-}
-.product:hover .thumb img{ transform: scale(1.10); }
-
-/* Cards menores (serviços/downloads) ganham o mesmo tratamento suave */
-.mini-card{
-  transition: transform .45s cubic-bezier(.2,.7,.2,1),
-              box-shadow .45s ease, border-color .45s ease;
-}
-.mini-card:hover{
-  transform: translateY(-6px) scale(1.02);
-  box-shadow: 0 18px 40px rgba(0,0,0,.45),
-              0 0 22px rgba(0,212,255,.28);
-  border-color: rgba(0,212,255,.45);
-}
-
-/* ---- Abertura suave e elegante dos modais / cards de produto ----
-   Usamos :not([hidden]) para que a animação dispare TODA VEZ que o
-   modal for aberto (o script alterna o atributo `hidden`).            */
-.modal:not([hidden]) .modal-backdrop{ animation: fadeIn .35s ease both; }
-.modal:not([hidden]) .modal-card{
-  animation: cardOpen .55s cubic-bezier(.2,.9,.25,1.05) both;
-  transform-origin: 50% 60%;
-}
-.modal:not([hidden]) .modal-card.product-modal{
-  animation: productCardOpen .6s cubic-bezier(.2,.9,.25,1.05) both;
-}
-@keyframes cardOpen{
-  0%   { opacity:0; transform: translateY(30px) scale(.92); filter: blur(6px); }
-  60%  { opacity:1; filter: blur(0); }
-  100% { opacity:1; transform: translateY(0) scale(1); }
-}
-@keyframes productCardOpen{
-  0%   { opacity:0; transform: translateY(40px) scale(.9) rotateX(6deg); filter: blur(8px); }
-  100% { opacity:1; transform: translateY(0)   scale(1)  rotateX(0);    filter: blur(0); }
-}
-
-/* Respeita usuários que preferem menos movimento */
+.product:hover{transform:translateY(-8px) scale(1.03)}
+.product:hover::before,.mini-card:hover::before{opacity:1}
+.product:hover::after,.mini-card:hover::after{animation:cardShine .9s ease}
+.product:hover .thumb::after{opacity:1;background:radial-gradient(circle at 50% 115%, rgba(0,212,255,.34), transparent 62%)}
+.product:hover .thumb img{transform:scale(1.1)}
+.mini-card{transition:transform .45s cubic-bezier(.2,.7,.2,1),box-shadow .45s ease,border-color .45s ease;overflow:hidden}
+.mini-card:hover{transform:translateY(-6px) scale(1.025);border-color:rgba(0,212,255,.45);box-shadow:var(--shadow-lg),0 0 24px rgba(0,212,255,.3),0 0 42px rgba(108,92,231,.22)}
+.modal:not([hidden]) .modal-card.product-modal{animation:modalInDesktop .46s cubic-bezier(.16,1,.3,1) both}
 @media (prefers-reduced-motion: reduce){
-  .slides .slide img,
-  .dots button.active,
-  .product,
-  .product:hover,
-  .mini-card,
-  .mini-card:hover,
-  .modal-card,
-  .modal-card.product-modal{
-    animation:none !important;
-    transition:none !important;
-    transform:none !important;
-  }
+  *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  .bg-rgb{animation:none}
 }

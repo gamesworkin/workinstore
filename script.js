@@ -1,4 +1,4 @@
-﻿/* =================================================================
+/* =================================================================
    WORKIN'STORE — script.js
    HTML5 + CSS3 + JS puro (Vanilla). Persistência: Firebase Auth + RTDB.
    Imagens salvas em Base64 no Realtime Database (sem Storage).
@@ -247,8 +247,10 @@ function updateSlider() {
 }
 function restartSlideTimer() {
   clearInterval(state.slideTimer);
-  if (Object.keys(state.banners).length > 1)
-    state.slideTimer = setInterval(() => { state.slideIndex++; updateSlider(); }, 5000);
+  state.slideTimer = setInterval(() => {
+    state.slideIndex++;
+    updateSlider();
+  }, 5000);
 }
 function renderCategoryChips() {
   const cats = Object.entries(state.categories);
@@ -579,7 +581,7 @@ async function saveSite() {
   state.site.heroSubtitle = $("#adm_heroSubtitle").value;
   state.site.aboutText = $("#adm_aboutText").value;
   state.site.supportText = $("#adm_supportText").value;
-  // URLs de logos/favicon (prioridade: URL > base64 se ambos existirem)
+  // URLs de logos/favicon (prioridade: URL > base64 se ambos estiverem presente)
   const fUrl  = document.getElementById("adm_faviconUrl");
   const lsUrl = document.getElementById("adm_logoSquareUrl");
   const lhUrl = document.getElementById("adm_logoHorizontalUrl");
@@ -786,6 +788,13 @@ async function persist(path, value) {
    BOOT
    ================================================================= */
 document.addEventListener("DOMContentLoaded", () => {
+  // CORREÇÃO: Garante que o modal de produto inicie escondido
+  const m = $("#productModal");
+  if (m) {
+    m.hidden = true;
+    m.setAttribute("aria-hidden", "true");
+  }
+
   bindPublicEvents();
   renderAll();
   renderSlider();
