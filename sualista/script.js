@@ -1,5 +1,5 @@
 /* =========================================================
- * CATÁLOGO RETRO - script.js
+ * Sua Lista | Workin'Store - script.js
  * Firebase Authentication + Realtime Database
  * Estrutura modular via IIFE / módulos internos
  * ========================================================= */
@@ -116,17 +116,17 @@ async function ensureDefaults() {
   const sSnap = await db.ref("settings").once("value");
   if (!sSnap.exists()) {
     await db.ref("settings").set({
-      siteTitle: "Catálogo Retro",
-      siteName: "Catálogo Retro",
+      siteTitle: "Sua Lista | Workin'Store",
+      siteName: "Sua Lista | Workin'Store",
       logoUrl: "",
       faviconUrl: "",
       primaryColor: "#00b3ff",
       secondaryColor: "#8a2be2",
       backgroundUrl: "",
-      footerText: "© Catálogo Retro - Todos os direitos reservados",
+      footerText: "© Sua Lista | Workin'Store - Todos os direitos reservados",
       whatsappNumber: "5588988470190",
       whatsappMessage: "Olá! Segue minha lista de jogos.",
-      jpgMessage: "Obrigado por escolher o Catálogo Retro!",
+      jpgMessage: "Obrigado por escolher a Workin'Store!",
     });
   }
 }
@@ -505,7 +505,7 @@ async function handleCheckout(e) {
 function buildWhatsappUrl(order) {
   const number = (state.settings.whatsappNumber || "5588988470190").replace(/\D/g, "");
   const lines = [
-    `*Novo pedido - ${state.settings.siteTitle || "Catálogo Retro"}*`,
+    `*Novo pedido - ${state.settings.siteTitle || "Sua Lista | Workin'Store"}*`,
     `Nome: ${order.firstName} ${order.lastName}`,
     `Cidade: ${order.city}/${order.uf}`,
     `WhatsApp: ${order.whatsapp}`,
@@ -564,7 +564,7 @@ async function buildOrderImage(order) {
   // Título
   ctx.fillStyle = "#ffffff";
   ctx.font = "bold 30px Orbitron, Arial";
-  ctx.fillText(state.settings.siteTitle || "Catálogo Retro", infoX, 60);
+  ctx.fillText(state.settings.siteTitle || "Sua Lista | Workin'Store", infoX, 60);
 
   ctx.fillStyle = "#a4a9c9";
   ctx.font = "16px Rajdhani, Arial";
