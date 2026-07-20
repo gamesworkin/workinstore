@@ -1,20 +1,22 @@
 <!DOCTYPE html>
-<html lang="pt-br"> 
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gerador de Catálogo de Downloads</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 min-h-screen flex items-center justify-center p-6">
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
 
-    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-lg border border-gray-100">
+    <!-- Card Principal -->
+    <div class="bg-white p-6 md:p-8 rounded-2xl shadow-xl w-full max-w-lg border border-gray-200">
         <h1 class="text-2xl font-bold text-gray-800 mb-2">Gerador de Catálogo</h1>
-        <p class="text-gray-500 mb-6 text-sm">Insira os dados para gerar o seu arquivo de catálogo indexado.</p>
+        <p class="text-gray-500 mb-6 text-sm">Crie seu catálogo responsivo de arquivos.</p>
         
         <div class="space-y-4">
-            <input type="text" id="baseUrl" placeholder="URL Base (ex: https://site.com)" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-            <input type="file" id="fileInput" multiple class="w-full p-2 border rounded-lg text-sm">
-            <button onclick="gerarArquivoFinal()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200">Gerar Catálogo HTML</button>
+            <input type="text" id="baseUrl" placeholder="URL Base (ex: https://site.com)" class="w-full p-4 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+            <input type="file" id="fileInput" multiple class="w-full p-3 border rounded-xl text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+            <button onclick="gerarArquivoFinal()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg active:scale-95">Gerar Catálogo HTML</button>
         </div>
     </div>
 
@@ -23,7 +25,7 @@
             const baseUrl = document.getElementById('baseUrl').value.replace(/\/$/, "");
             const files = Array.from(document.getElementById('fileInput').files);
             
-            if(!baseUrl || files.length === 0) { alert("Preencha a URL e selecione os arquivos!"); return; }
+            if(!baseUrl || files.length === 0) { alert("Por favor, preencha a URL e selecione os arquivos!"); return; }
 
             const data = files.map(f => ({ name: f.name.replace(/\.[^/.]+$/, ""), url: `${baseUrl}/${f.name}` }));
 
@@ -31,29 +33,41 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <meta charset="UTF-8"><title>Catálogo de Downloads</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meus Arquivos</title>
     <script src="https://cdn.tailwindcss.com"><\/script>
 </head>
-<body class="bg-gray-50 p-4 md:p-10">
+<body class="bg-gray-50 min-h-screen p-4 md:p-8">
     <div class="max-w-5xl mx-auto">
-        <h1 class="text-3xl font-bold text-gray-800 mb-6">Meus Arquivos</h1>
-        <input type="text" id="search" onkeyup="filter()" placeholder="Pesquisar arquivos..." class="w-full p-4 rounded-xl border mb-6 shadow-sm">
-        <div id="list" class="grid grid-cols-1 md:grid-cols-3 gap-3"></div>
-        <div id="pagination" class="mt-8 flex justify-center gap-2"></div>
+        <div class="mb-8">
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-4">Meus Arquivos</h1>
+            <input type="text" id="search" onkeyup="filter()" placeholder="Buscar arquivos..." class="w-full p-4 rounded-2xl border border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none text-lg">
+        </div>
+        
+        <div id="list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        
+        <div id="pagination" class="mt-10 flex flex-wrap justify-center gap-2"></div>
     </div>
+
     <script>
         const data = ${JSON.stringify(data)};
         let page = 1; const perPage = 30;
+        
         function render(filtered = data) {
             const list = document.getElementById('list');
+            const pagDiv = document.getElementById('pagination');
+            
             list.innerHTML = filtered.slice((page-1)*perPage, page*perPage).map(i => 
-                \`<a href="\${i.url}" download class="p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:border-blue-500 hover:text-blue-600 transition truncate">\${i.name}</a>\`
+                \`<a href="\${i.url}" download class="p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-blue-500 hover:shadow-md transition text-gray-700 truncate block text-center font-medium">\${i.name}</a>\`
             ).join('');
+            
             const pages = Math.ceil(filtered.length/perPage);
-            document.getElementById('pagination').innerHTML = Array.from({length: pages}, (_, i) => 
-                \`<button onclick="page=\${i+1}; render()" class="px-4 py-2 bg-white border rounded shadow-sm hover:bg-blue-50">\${i+1}</button>\`
+            pagDiv.innerHTML = Array.from({length: pages}, (_, i) => 
+                \`<button onclick="page=\${i+1}; render()" class="px-5 py-2 \${page === i+1 ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'} border rounded-lg shadow-sm font-semibold">\${i+1}</button>\`
             ).join('');
         }
+        
         function filter() {
             const q = document.getElementById('search').value.toLowerCase();
             page = 1; render(data.filter(i => i.name.toLowerCase().includes(q)));
