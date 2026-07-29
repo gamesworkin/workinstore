@@ -463,7 +463,7 @@ tr:hover { background: rgba(255,255,255,0.02); }
     .select-style { width: 100%; }
     #file-name-display { text-align: center; width: 100%; }
     
-    .grid-games { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 15px; }
+    .grid-games { grid-template-columns: repeat(2, 1fr) !important; } }
     .cover-wrapper { height: 140px; }
     .form-grid { flex-direction: column; gap: 0; }
     .admin-tabs { flex-direction: column; width: 100%; gap: 6px; }
