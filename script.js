@@ -1,806 +1,665 @@
-/* =================================================================
-   WORKIN'STORE — script.js
-   HTML5 + CSS3 + JS puro (Vanilla). Persistência: Firebase Auth + RTDB.
-   Imagens salvas em Base64 no Realtime Database (sem Storage).
-   ================================================================= */
-/* =================================================================
-   CONFIGURAÇÃO DO FIREBASE
-   -----------------------------------------------------------------
-   Preencha abaixo os dados do seu projeto Firebase.
-   Você encontra em: https://console.firebase.google.com/
-     → Seu projeto → Configurações do projeto → Seus apps (Web)
-   -----------------------------------------------------------------
-   Habilite no console:
-     1) Authentication → Sign-in method → Email/Senha
-     2) Realtime Database → Criar banco
-        Regras iniciais sugeridas (ajuste depois):
-        {
-          "rules": {
-            ".read": true,
-            ".write": "auth != null && auth.token.email == 'admin@admin.com'"
-          }
-        }
-   ================================================================= */
+/* ============================================================
+   SUBSTITUA AS CREDENCIAIS ABAIXO PELO SEU PROJETO FIREBASE
+   ============================================================ */
 const firebaseConfig = {
- apiKey: "AIzaSyDiAP2IvsfPac29qzFA71sbLYuizVxZ9HQ",
-  authDomain: "portal-workin-store.firebaseapp.com",
-  databaseURL: "https://portal-workin-store-default-rtdb.firebaseio.com",
-  projectId: "portal-workin-store",
-  storageBucket: "portal-workin-store.firebasestorage.app",
-  messagingSenderId: "803334158041",
-  appId: "1:803334158041:web:5ef4069e7ec3a5973970c8"
+  apiKey: "AIzaSyCdbgPcsM-RLHzDkClVToAhGhOizfLvu6o",
+  authDomain: "kitopl2.firebaseapp.com",
+  databaseURL: "https://kitopl2-default-rtdb.firebaseio.com",
+  projectId: "kitopl2",
+  storageBucket: "kitopl2.firebasestorage.app",
+  messagingSenderId: "529504176070",
+  appId: "1:529504176070:web:2c20baf1163b98f563d4c7"
 };
-// Email autorizado a acessar o painel administrativo (facilmente editável)
-const ADMIN_EMAIL = "admin@admin.com";
-/* =================================================================
+
+/* ============================================================
+   GATILHOS DE MARKETING PRÉ-PROGRAMADOS
+   ============================================================ */
+const MARKETING_TRIGGERS = [
+  { id: "hot", label: "🔥 Mais vendido", badgeClass: "hot" },
+  { id: "new", label: "🆕 Lançamento", badgeClass: "new" },
+  { id: "sale", label: "🏷️ Promoção", badgeClass: "" },
+  { id: "limited", label: "⏳ Edição limitada", badgeClass: "" },
+  { id: "exclusive", label: "✨ Exclusivo", badgeClass: "" }
+];
+
+/* ============================================================
    ESTADO GLOBAL
-   ================================================================= */
+   ============================================================ */
 const state = {
-  site: {
-    title: "Workin'Store",
-    description: "Tecnologia, acessórios e serviços com a confiança que você merece.",
-    keywords: "workin store, loja, tecnologia, playstation 2, acessórios",
-    colorPrimary: "#6c5ce7",
-    colorSecondary: "#00d4ff",
-    favicon: "",
-    logoSquare: "",
-    logoHorizontal: "",
-    heroEyebrow: "Bem-vindo",
-    heroTitle: "Workin'Store",
-    heroSubtitle: "Tecnologia, acessórios e serviços com a confiança que você merece.",
-    aboutText: "A Workin'Store é referência em tecnologia e atendimento personalizado.",
-    supportText: "Precisa de ajuda? Fale conosco pelos canais oficiais.",
-  },
-  banners: {},
-  categories: {},
-  products: {},
-  menu: {},
-  footer: {
-    company: "Workin'Store",
-    about: "Tecnologia com propósito.",
-    info: "",
-    copy: "© " + new Date().getFullYear() + " Workin'Store",
-    links: "",      // "Home|#home\nLoja|#loja"
-    socials: "",    // "Instagram|https://..."
-    contacts: "",   // "WhatsApp|(88) 99999-9999"
-  },
-  services: [
-    { title: "Assistência Técnica", desc: "Reparos em OPL ou Funtuna com garantia e agilidade." },
-    { title: "Instalação", desc: "Só plugar e jogar, tudo garantido." },
-    { title: "Consultoria", desc: "Escolha o produto certo para você." },
-  ],
-  downloads: [
-    { title: "Manuais", desc: "Passo a passo de como inicializar seus jogos no PS2." },
-    { title: "Firmwares", desc: "Atualizações oficiais do OPL sempre que você nos pedir." },
-    { title: "Jogos Bônus", desc: "Na compra de um Kit OPL, ganhe acesso exclusivo a jogos bônus em nossas plataformas." },
-  ],
-  currentCategory: null,
-  currentSearch: "",
-  editingProductId: null,
-  slideIndex: 0,
-  slideTimer: null,
-  auth: null,
-  db: null,
-  fbReady: false,
+  produtos: [],
+  menu: [],
+  footer: { columns: [], copyright: "© Todos os direitos reservados." },
+  brand: { square: "", wide: "" },
+  user: null,
+  isAdmin: false,
+  page: 1,
+  perPage: 10,
+  editingId: null,
+  menuEditingId: null
 };
-/* =================================================================
-   UTIL
-   ================================================================= */
-const $ = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-const uid = () => "id_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-function toast(msg, type = "") {
-  const el = $("#toast");
-  el.textContent = msg;
-  el.className = "toast" + (type ? " " + type : "");
-  el.hidden = false;
-  clearTimeout(el._t);
-  el._t = setTimeout(() => (el.hidden = true), 3000);
+
+/* ============================================================
+   INICIALIZAÇÃO FIREBASE
+   ============================================================ */
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function showToast(message, type = "info") {
+  const toast = document.getElementById("toast");
+  toast.textContent = message;
+  toast.className = "toast " + type;
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 3000);
 }
-function fileToBase64(file) {
+
+function toBase64(file) {
   return new Promise((resolve, reject) => {
-    if (!file) return resolve("");
-    // Compressão leve para reduzir tamanho no RTDB.
-    // Preserva PNG/WebP/SVG (transparência) — só converte para JPEG quando origem é JPEG.
     const reader = new FileReader();
-    const type = (file.type || "").toLowerCase();
-    // SVG: mantém como está (vetor, sem canvas)
-    if (type === "image/svg+xml") {
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-      return;
-    }
-    const keepAlpha = type === "image/png" || type === "image/webp" || type === "image/gif";
-    const outType = keepAlpha ? "image/png" : "image/jpeg";
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const max = 1200;
-        let { width: w, height: h } = img;
-        if (w > max || h > max) {
-          if (w > h) { h = Math.round((h * max) / w); w = max; }
-          else { w = Math.round((w * max) / h); h = max; }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        // Sem fill de fundo — canvas começa transparente. Para JPEG (sem alfa) pintamos branco em vez de preto.
-        if (!keepAlpha) { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h); }
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(keepAlpha ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.9));
-      };
-      img.onerror = reject;
-      img.src = reader.result;
-    };
+    reader.onload = () => resolve(reader.result);
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
 }
-/* =================================================================
-   FIREBASE INIT
-   ================================================================= */
-function initFirebase() {
-  const filled = firebaseConfig.apiKey && firebaseConfig.databaseURL;
-  if (!filled) {
-    $("#fbStatus").textContent =
-      "Firebase NÃO configurado.\nPreencha `firebaseConfig` no início de script.js.\nO site funciona em modo local (somente esta sessão) até ser configurado.";
-    return false;
-  }
-  try {
-    firebase.initializeApp(firebaseConfig);
-    state.auth = firebase.auth();
-    state.db = firebase.database();
-    state.fbReady = true;
-    $("#fbStatus").textContent = "Firebase conectado com sucesso.";
-    subscribeAll();
-    state.auth.onAuthStateChanged(u => {
-      if (u && u.email === ADMIN_EMAIL) {
-        $("#adminEmail").textContent = u.email;
-      } else {
-        // logout / não-admin: esconde painel e limpa email
-        $("#adminEmail").textContent = "";
-        $("#adminPanel").hidden = true;
-      }
-    });
-    return true;
-  } catch (e) {
-    $("#fbStatus").textContent = "Erro Firebase: " + e.message;
-    return false;
-  }
+
+function formatMoney(value) {
+  if (!value && value !== 0) return "—";
+  return Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
-function dbRef(path) { return state.db.ref(path); }
-function subscribeAll() {
-  dbRef("site").on("value", s => { const v = s.val(); if (v) { state.site = { ...state.site, ...v }; renderAll(); } });
-  dbRef("banners").on("value", s => { state.banners = s.val() || {}; renderSlider(); renderAdminBanners(); });
-  dbRef("categories").on("value", s => { state.categories = s.val() || {}; renderCategoryChips(); renderAdminCategories(); refreshProductCategorySelects(); renderMenu(); });
-  dbRef("products").on("value", s => { state.products = s.val() || {}; renderProducts(); renderAdminProducts(); });
-  dbRef("menu").on("value", s => { state.menu = s.val() || {}; renderMenu(); renderAdminMenu(); });
-  dbRef("footer").on("value", s => { const v = s.val(); if (v) { state.footer = { ...state.footer, ...v }; renderFooter(); } });
+
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
-/* =================================================================
-   RENDER
-   ================================================================= */
-function renderAll() {
-  // SEO
-  document.title = state.site.title || "Workin'Store";
-  $("#siteTitle").textContent = state.site.title;
-  $("#metaDescription").setAttribute("content", state.site.description || "");
-  $("#metaKeywords").setAttribute("content", state.site.keywords || "");
-  $("#ogTitle").setAttribute("content", state.site.title || "");
-  $("#ogDescription").setAttribute("content", state.site.description || "");
-  if (state.site.favicon) $("#favicon").setAttribute("href", state.site.favicon);
-  // Cores
-  document.documentElement.style.setProperty("--primary", state.site.colorPrimary || "#6c5ce7");
-  document.documentElement.style.setProperty("--secondary", state.site.colorSecondary || "#00d4ff");
-  // Logos
-  const lsq = $("#logoSquare"), lho = $("#logoHorizontal");
-  if (state.site.logoSquare) { lsq.src = state.site.logoSquare; } else { lsq.removeAttribute("src"); }
-  if (state.site.logoHorizontal) { lho.src = state.site.logoHorizontal; } else { lho.removeAttribute("src"); }
-  // Hero
-  $("#heroEyebrow").textContent = state.site.heroEyebrow || "Bem-vindo";
-  $("#heroTitle").textContent = state.site.heroTitle || "Workin'Store";
-  $("#heroSubtitle").textContent = state.site.heroSubtitle || "";
-  $("#aboutText").textContent = state.site.aboutText || "";
-  $("#supportText").textContent = state.site.supportText || "";
-  renderServices();
-  renderDownloads();
-  applyEmptySectionVisibility();
-}
-function renderServices() {
-  $("#servicesGrid").innerHTML = state.services.map(s =>
-    `<div class="mini-card"><h4>${escapeHtml(s.title)}</h4><p>${escapeHtml(s.desc)}</p></div>`).join("");
-}
-function renderDownloads() {
-  $("#downloadsGrid").innerHTML = state.downloads.map(s =>
-    `<div class="mini-card"><h4>${escapeHtml(s.title)}</h4><p>${escapeHtml(s.desc)}</p></div>`).join("");
-}
-function renderSlider() {
-  const container = $("#slides"), dots = $("#dots");
-  const items = Object.entries(state.banners);
-  const sliderEl = document.querySelector(".hero-slider");
-  if (items.length === 0) {
-    container.innerHTML = "";
-    dots.innerHTML = "";
-    if (sliderEl) sliderEl.hidden = true;
-    const grid = document.querySelector(".hero-grid");
-    if (grid) grid.style.gridTemplateColumns = "1fr";
-    return;
-  }
-  if (sliderEl) sliderEl.hidden = false;
-  const grid = document.querySelector(".hero-grid");
-  if (grid) grid.style.gridTemplateColumns = "";
-  container.innerHTML = items.map(([id, b]) =>
-    `<div class="slide"><img loading="lazy" src="${b.image}" alt="${escapeHtml(b.caption || "")}" />${b.caption ? `<div class="cap">${escapeHtml(b.caption)}</div>` : ""}</div>`).join("");
-  dots.innerHTML = items.map((_, i) =>
-    `<button data-i="${i}" aria-label="Slide ${i + 1}" class="${i === 0 ? "active" : ""}"></button>`).join("");
-  state.slideIndex = 0;
-  updateSlider();
-  restartSlideTimer();
-}
-function updateSlider() {
-  const total = Object.keys(state.banners).length;
-  if (total === 0) return;
-  state.slideIndex = ((state.slideIndex % total) + total) % total;
-  $("#slides").style.transform = `translateX(-${state.slideIndex * 100}%)`;
-  $$("#dots button").forEach((b, i) => b.classList.toggle("active", i === state.slideIndex));
-}
-function restartSlideTimer() {
-  clearInterval(state.slideTimer);
-  state.slideTimer = setInterval(() => {
-    state.slideIndex++;
-    updateSlider();
-  }, 5000);
-}
-function renderCategoryChips() {
-  const cats = Object.entries(state.categories);
-  $("#categoryChips").innerHTML =
-    `<button class="chip ${state.currentCategory === null ? "active" : ""}" data-cat="">Todas</button>` +
-    cats.map(([id, c]) => `<button class="chip ${state.currentCategory === id ? "active" : ""}" data-cat="${id}">${escapeHtml(c.name)}</button>`).join("");
-  applyEmptySectionVisibility();
-}
-function renderProducts() {
-  const grid = $("#productsGrid");
-  const search = state.currentSearch.trim().toLowerCase();
-  let list = Object.entries(state.products);
-  if (state.currentCategory) list = list.filter(([id, p]) => p.category === state.currentCategory);
-  if (search) {
-    list = list.filter(([id, p]) => {
-      const cat = state.categories[p.category]?.name || "";
-      const sub = (state.categories[p.category]?.subs || {})[p.subcategory]?.name || "";
-      return [p.name, p.description, cat, sub].some(v => (v || "").toLowerCase().includes(search));
-    });
-  }
-  $("#emptyState").hidden = list.length > 0;
-  $("#productCount").textContent = `${list.length} produto(s)`;
-  grid.innerHTML = list.map(([id, p]) => {
-    const availTag = p.availability === "local"
-      ? `<span class="tag warn">Local${p.cities ? ": " + escapeHtml(p.cities) : ""}</span>`
-      : `<span class="tag ok">Nacional</span>`;
-    const warrTag = p.warranty === "workin"
-      ? `<span class="tag">Workin'Store (7 dias)</span>`
-      : `<span class="tag">Garantia do Fabricante</span>`;
-    const cat = state.categories[p.category]?.name;
-    const sub = (state.categories[p.category]?.subs || {})[p.subcategory]?.name;
-    return `
-      <article class="product" data-product-id="${id}" role="button" tabindex="0" aria-label="Ver detalhes de ${escapeHtml(p.name)}">
-        <div class="thumb${p.image ? "" : " empty"}">${p.image ? `<img loading="lazy" src="${p.image}" alt="${escapeHtml(p.name)}" />` : "🛒"}</div>
-        <div class="info">
-          <h3 class="name">${escapeHtml(p.name)}</h3>
-          <p class="desc">${escapeHtml(p.description || "")}</p>
-          <div class="meta">
-            ${cat ? `<span class="tag">${escapeHtml(cat)}</span>` : ""}
-            ${sub ? `<span class="tag">${escapeHtml(sub)}</span>` : ""}
-            ${availTag}${warrTag}
-          </div>
-          <a class="buy" href="${p.buyUrl || "#"}" target="_blank" rel="noopener">Comprar</a>
-        </div>
-      </article>`;
-  }).join("");
-  applyEmptySectionVisibility();
-}
-/* =================================================================
-   MODAL DE PRODUTO
-   ================================================================= */
-function openProductModal(id) {
-  const p = state.products[id]; if (!p) return;
-  const cat = state.categories[p.category]?.name;
-  const sub = (state.categories[p.category]?.subs || {})[p.subcategory]?.name;
-  const availTag = p.availability === "local"
-    ? `<span class="tag warn">Local${p.cities ? ": " + escapeHtml(p.cities) : ""}</span>`
-    : `<span class="tag ok">Nacional</span>`;
-  const warrTag = p.warranty === "workin"
-    ? `<span class="tag">Workin'Store (7 dias)</span>`
-    : `<span class="tag">Garantia do Fabricante</span>`;
-  $("#pm_thumb").innerHTML = p.image
-    ? `<img src="${p.image}" alt="${escapeHtml(p.name)}" />`
-    : "🛒";
-  $("#pm_name").textContent = p.name || "";
-  $("#pm_desc").textContent = p.description || "";
-  $("#pm_meta").innerHTML =
-    (cat ? `<span class="tag">${escapeHtml(cat)}</span>` : "") +
-    (sub ? `<span class="tag">${escapeHtml(sub)}</span>` : "") +
-    availTag + warrTag;
-  const buy = $("#pm_buy");
-  if (p.buyUrl) { buy.href = p.buyUrl; buy.style.display = ""; }
-  else { buy.removeAttribute("href"); buy.style.display = "none"; }
-  const modal = $("#productModal");
-  modal.hidden = false; modal.setAttribute("aria-hidden", "false");
+
+function openModal(id) {
+  document.getElementById(id).classList.add("open");
   document.body.style.overflow = "hidden";
 }
-function closeProductModal() {
-  const modal = $("#productModal");
-  modal.hidden = true; modal.setAttribute("aria-hidden", "true");
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove("open");
   document.body.style.overflow = "";
 }
-function renderMenu() {
-  const list = $("#menuList");
-  const defaults = [
-    { label: "Home", href: "#home" },
-    { label: "Loja", href: "#loja" },
-    { label: "Serviços", href: "#servicos" },
-    { label: "Downloads", href: "#downloads" },
-    { label: "Contato", href: "#contato" },
-    { label: "Sobre", href: "#sobre" },
-    { label: "Suporte", href: "#suporte" },
-  ];
-  const items = Object.keys(state.menu).length ? Object.entries(state.menu).map(([id, m]) => ({ id, ...m })) : defaults;
-  // Mega menu de Loja: subcategorias/categorias
-  const cats = Object.entries(state.categories);
-  list.innerHTML = items.map(m => {
-    const isStore = /loja/i.test(m.label);
-    let mega = "";
-    if (isStore && cats.length) {
-      mega = `<div class="mega">${cats.map(([id, c]) => `<a href="#loja" data-cat="${id}">${escapeHtml(c.name)}</a>`).join("")}</div>`;
-    }
-    return `<li><a class="m-link" href="${m.href || "#"}">${escapeHtml(m.label)}</a>${mega}</li>`;
-  }).join("");
+
+function getCheckedValues(selector) {
+  return Array.from(document.querySelectorAll(selector + ":checked")).map((cb) => cb.value);
 }
-function renderFooter() {
-  $("#footerCompany").textContent = state.footer.company || "Workin'Store";
-  $("#footerAbout").textContent = state.footer.about || "";
-  $("#footerInfo").textContent = state.footer.info || "";
-  $("#footerCopy").textContent = state.footer.copy || "";
-  const parseLines = s => (s || "").split("\n").map(l => l.split("|").map(x => x.trim())).filter(a => a[0]);
-  $("#footerLinks").innerHTML = parseLines(state.footer.links).map(([l, h]) => `<li><a href="${h || "#"}">${escapeHtml(l)}</a></li>`).join("");
-  $("#footerSocials").innerHTML = parseLines(state.footer.socials).map(([l, h]) => `<li><a href="${h || "#"}" target="_blank" rel="noopener">${escapeHtml(l)}</a></li>`).join("");
-  $("#contactList").innerHTML = parseLines(state.footer.contacts).map(([l, v]) => `<li><b>${escapeHtml(l)}:</b>${escapeHtml(v || "")}</li>`).join("");
-  applyEmptySectionVisibility();
-}
-function escapeHtml(s) {
-  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-/* Esconde seções sem conteúdo cadastrado */
-function applyEmptySectionVisibility() {
-  const hide = (id, empty) => {
-    const el = document.getElementById(id);
-    if (el) el.hidden = !!empty;
-  };
-  hide("categorias", Object.keys(state.categories || {}).length === 0);
-  hide("loja",       Object.keys(state.products   || {}).length === 0);
-  hide("servicos",   !state.services || state.services.length === 0);
-  hide("downloads",  !state.downloads || state.downloads.length === 0);
-  hide("sobre",      !(state.site.aboutText && state.site.aboutText.trim()));
-  hide("suporte",    !(state.site.supportText && state.site.supportText.trim()));
-  const contatos = (state.footer.contacts || "").trim();
-  hide("contato", !contatos);
-}
-/* =================================================================
-   INTERAÇÕES / EVENTOS PÚBLICOS
-   ================================================================= */
-function bindPublicEvents() {
-  // Header scroll
-  window.addEventListener("scroll", () => {
-    $("#header").classList.toggle("scrolled", window.scrollY > 20);
-  }, { passive: true });
-  // Mobile menu toggle
-  $("#menuToggle").addEventListener("click", () => $("#mainNav").classList.toggle("open"));
-  // Search
-  $("#searchToggle").addEventListener("click", () => {
-    const sb = $("#searchBar"); sb.hidden = !sb.hidden;
-    if (!sb.hidden) $("#searchInput").focus();
-  });
-  $("#searchInput").addEventListener("input", e => {
-    state.currentSearch = e.target.value; renderProducts();
-    document.getElementById("loja").scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-  // Slider
-  $("#prevSlide").addEventListener("click", () => { state.slideIndex--; updateSlider(); restartSlideTimer(); });
-  $("#nextSlide").addEventListener("click", () => { state.slideIndex++; updateSlider(); restartSlideTimer(); });
-  $("#dots").addEventListener("click", e => {
-    const b = e.target.closest("button[data-i]"); if (!b) return;
-    state.slideIndex = +b.dataset.i; updateSlider(); restartSlideTimer();
-  });
-  // Category chips
-  $("#categoryChips").addEventListener("click", e => {
-    const b = e.target.closest(".chip"); if (!b) return;
-    state.currentCategory = b.dataset.cat || null;
-    renderCategoryChips(); renderProducts();
-  });
-  // Mega menu category clicks
-  $("#menuList").addEventListener("click", e => {
-    const a = e.target.closest("a[data-cat]"); if (!a) return;
-    state.currentCategory = a.dataset.cat; renderCategoryChips(); renderProducts();
-  });
-  // Login modal
-  $("#openLogin").addEventListener("click", openLogin);
-  $$("[data-close]").forEach(el => el.addEventListener("click", closeLogin));
-  document.addEventListener("keydown", e => {
-    if (e.key === "Escape") { closeLogin(); closeProductModal(); }
-  });
-  $("#loginForm").addEventListener("submit", handleLogin);
-  $("#forgotBtn").addEventListener("click", handleForgot);
-  // Product modal: clique no card abre; clique no link "Comprar" segue direto
-  $("#productsGrid").addEventListener("click", e => {
-    if (e.target.closest("a.buy")) return; // deixa o link comprar funcionar
-    const card = e.target.closest(".product[data-product-id]");
-    if (!card) return;
-    openProductModal(card.dataset.productId);
-  });
-  $("#productsGrid").addEventListener("keydown", e => {
-    if (e.key !== "Enter" && e.key !== " ") return;
-    const card = e.target.closest(".product[data-product-id]");
-    if (!card) return;
-    e.preventDefault();
-    openProductModal(card.dataset.productId);
-  });
-  $$("#productModal [data-close-product]").forEach(el =>
-    el.addEventListener("click", closeProductModal));
-  // Logout: liga aqui (existe no DOM desde o boot, mesmo com painel oculto)
-  $("#logoutBtn").addEventListener("click", async () => {
-    try {
-      if (state.auth) await state.auth.signOut();
-    } catch (e) { /* ignore */ }
-    $("#adminPanel").hidden = true;
-    $("#adminEmail").textContent = "";
-    toast("Sessão encerrada.");
+
+function setCheckedValues(selector, values) {
+  document.querySelectorAll(selector).forEach((cb) => {
+    cb.checked = values && values.includes(cb.value);
   });
 }
-function openLogin() {
-  $("#loginModal").hidden = false;
-  $("#loginEmail").value = ""; $("#loginPassword").value = "";
-  $("#loginError").hidden = true;
-  setTimeout(() => $("#loginEmail").focus(), 100);
-}
-function closeLogin() { $("#loginModal").hidden = true; }
-async function handleLogin(e) {
-  e.preventDefault();
-  const email = $("#loginEmail").value.trim();
-  const password = $("#loginPassword").value;
-  const btn = $("#loginSubmit"); btn.disabled = true; btn.textContent = "Entrando...";
-  try {
-    if (!state.fbReady) throw new Error("Firebase não configurado.");
-    const cred = await state.auth.signInWithEmailAndPassword(email, password);
-    if (cred.user.email !== ADMIN_EMAIL) {
-      await state.auth.signOut();
-      throw new Error("Acesso negado.");
-    }
-    closeLogin(); openAdmin(); toast("Bem-vindo!", "success");
-  } catch (err) {
-    $("#loginError").textContent = err.message || "Falha no login."; $("#loginError").hidden = false;
-  } finally { btn.disabled = false; btn.textContent = "Entrar"; }
-}
-async function handleForgot() {
-  const email = $("#loginEmail").value.trim();
-  if (!email) { toast("Digite seu email primeiro.", "error"); return; }
-  try {
-    if (!state.fbReady) throw new Error("Firebase não configurado.");
-    await state.auth.sendPasswordResetEmail(email);
-    toast("Email de recuperação enviado.", "success");
-  } catch (err) { toast(err.message, "error"); }
-}
-/* =================================================================
-   ADMIN
-   ================================================================= */
-function openAdmin() {
-  $("#adminPanel").hidden = false;
-  fillAdminForms();
-  bindAdminEvents();
-  renderAdminBanners(); renderAdminCategories(); renderAdminProducts(); renderAdminMenu();
-}
-function fillAdminForms() {
-  const s = state.site;
-  $("#adm_title").value = s.title || "";
-  $("#adm_description").value = s.description || "";
-  $("#adm_keywords").value = s.keywords || "";
-  $("#adm_colorPrimary").value = s.colorPrimary || "#6c5ce7";
-  $("#adm_colorSecondary").value = s.colorSecondary || "#00d4ff";
-  $("#adm_heroEyebrow").value = s.heroEyebrow || "";
-  $("#adm_heroTitle").value = s.heroTitle || "";
-  $("#adm_heroSubtitle").value = s.heroSubtitle || "";
-  $("#adm_aboutText").value = s.aboutText || "";
-  $("#adm_supportText").value = s.supportText || "";
-  $("#adm_favicon_state").textContent = s.favicon ? "imagem carregada" : "sem imagem";
-  $("#adm_logoSquare_state").textContent = s.logoSquare ? "imagem carregada" : "sem imagem";
-  $("#adm_logoHorizontal_state").textContent = s.logoHorizontal ? "imagem carregada" : "sem imagem";
-  // URLs (usadas quando não há upload; ideal para hospedar imagens no GitHub)
-  const fUrl = document.getElementById("adm_faviconUrl");
-  const lsUrl = document.getElementById("adm_logoSquareUrl");
-  const lhUrl = document.getElementById("adm_logoHorizontalUrl");
-  if (fUrl)  fUrl.value  = s.faviconUrl        || "";
-  if (lsUrl) lsUrl.value = s.logoSquareUrl     || "";
-  if (lhUrl) lhUrl.value = s.logoHorizontalUrl || "";
-  const f = state.footer;
-  $("#adm_footerCompany").value = f.company || "";
-  $("#adm_footerAbout").value = f.about || "";
-  $("#adm_footerInfo").value = f.info || "";
-  $("#adm_footerCopy").value = f.copy || "";
-  $("#adm_footerLinks").value = f.links || "";
-  $("#adm_footerSocials").value = f.socials || "";
-  $("#adm_contactList").value = f.contacts || "";
-}
-let adminBound = false;
-function bindAdminEvents() {
-  if (adminBound) return; adminBound = true;
-  // Tabs
-  $("#adminTabs").addEventListener("click", e => {
-    const b = e.target.closest("button[data-tab]"); if (!b) return;
-    $$("#adminTabs button").forEach(x => x.classList.toggle("active", x === b));
-    $$(".admin-tab").forEach(t => t.classList.toggle("active", t.dataset.tab === b.dataset.tab));
-  });
-  // File uploads (site)
-  $$(".admin-tab[data-tab=site] input[type=file]").forEach(inp => {
-    inp.addEventListener("change", async e => {
-      const target = inp.dataset.target; // adm_favicon / adm_logoSquare / adm_logoHorizontal
-      const key = target.replace("adm_", "");
-      const file = e.target.files[0]; if (!file) return;
-      const b64 = await fileToBase64(file);
-      state.site[key] = b64;
-      $(`#${target}_state`).textContent = "imagem carregada";
-      toast("Imagem preparada — clique em Salvar.", "success");
-    });
-  });
-  $("#saveSite").addEventListener("click", saveSite);
-  $("#saveFooter").addEventListener("click", saveFooter);
-  // Banners
-  $("#addBanner").addEventListener("click", addBanner);
-  $("#bannerList").addEventListener("click", handleBannerListClick);
-  // Categories
-  $("#addCategory").addEventListener("click", addCategory);
-  $("#categoryList").addEventListener("click", handleCategoryListClick);
-  // Products
-  $("#p_category").addEventListener("change", refreshSubcategorySelect);
-  $("#p_availability").addEventListener("change", () => {
-    $("#p_cities").parentElement.style.display = $("#p_availability").value === "local" ? "flex" : "none";
-  });
-  $("#saveProduct").addEventListener("click", saveProduct);
-  $("#clearProduct").addEventListener("click", clearProductForm);
-  $("#productList").addEventListener("click", handleProductListClick);
-  // Menu
-  $("#addMenu").addEventListener("click", addMenuItem);
-  $("#menuAdminList").addEventListener("click", handleMenuListClick);
-}
-async function saveSite() {
-  state.site.title = $("#adm_title").value;
-  state.site.description = $("#adm_description").value;
-  state.site.keywords = $("#adm_keywords").value;
-  state.site.colorPrimary = $("#adm_colorPrimary").value;
-  state.site.colorSecondary = $("#adm_colorSecondary").value;
-  state.site.heroEyebrow = $("#adm_heroEyebrow").value;
-  state.site.heroTitle = $("#adm_heroTitle").value;
-  state.site.heroSubtitle = $("#adm_heroSubtitle").value;
-  state.site.aboutText = $("#adm_aboutText").value;
-  state.site.supportText = $("#adm_supportText").value;
-  // URLs de logos/favicon (prioridade: URL > base64 se ambos estiverem presente)
-  const fUrl  = document.getElementById("adm_faviconUrl");
-  const lsUrl = document.getElementById("adm_logoSquareUrl");
-  const lhUrl = document.getElementById("adm_logoHorizontalUrl");
-  if (fUrl)  state.site.faviconUrl        = fUrl.value.trim();
-  if (lsUrl) state.site.logoSquareUrl     = lsUrl.value.trim();
-  if (lhUrl) state.site.logoHorizontalUrl = lhUrl.value.trim();
-  if (state.site.faviconUrl)        state.site.favicon        = state.site.faviconUrl;
-  if (state.site.logoSquareUrl)     state.site.logoSquare     = state.site.logoSquareUrl;
-  if (state.site.logoHorizontalUrl) state.site.logoHorizontal = state.site.logoHorizontalUrl;
-  await persist("site", state.site);
-  renderAll();
-  toast("Site atualizado.", "success");
-}
-async function saveFooter() {
-  state.footer = {
-    company: $("#adm_footerCompany").value,
-    about: $("#adm_footerAbout").value,
-    info: $("#adm_footerInfo").value,
-    copy: $("#adm_footerCopy").value,
-    links: $("#adm_footerLinks").value,
-    socials: $("#adm_footerSocials").value,
-    contacts: $("#adm_contactList").value,
-  };
-  await persist("footer", state.footer);
-  renderFooter();
-  toast("Rodapé atualizado.", "success");
-}
-async function addBanner() {
-  const file = $("#bannerFile").files[0];
-  const caption = $("#bannerCaption").value.trim();
-  if (!file) { toast("Selecione uma imagem.", "error"); return; }
-  const b64 = await fileToBase64(file);
-  const id = uid();
-  state.banners[id] = { image: b64, caption, created: Date.now() };
-  await persist("banners/" + id, state.banners[id]);
-  $("#bannerFile").value = ""; $("#bannerCaption").value = "";
-  toast("Banner adicionado.", "success");
-}
-function renderAdminBanners() {
-  $("#bannerList").innerHTML = Object.entries(state.banners).map(([id, b]) => `
-    <div class="admin-item">
-      <img class="thumb" src="${b.image}" alt="" />
-      <div class="info"><b>${escapeHtml(b.caption || "(sem legenda)")}</b><small>${new Date(b.created || 0).toLocaleString()}</small></div>
-      <div class="actions"><button class="danger" data-del="${id}">Excluir</button></div>
-    </div>`).join("");
-}
-function handleBannerListClick(e) {
-  const del = e.target.closest("[data-del]"); if (del) removeBanner(del.dataset.del);
-}
-async function removeBanner(id) {
-  delete state.banners[id];
-  await persist("banners/" + id, null);
-  toast("Banner removido.");
-}
-async function addCategory() {
-  const name = $("#newCategory").value.trim(); if (!name) return;
-  const id = uid();
-  state.categories[id] = { name, subs: {} };
-  await persist("categories/" + id, state.categories[id]);
-  $("#newCategory").value = "";
-}
-function renderAdminCategories() {
-  $("#categoryList").innerHTML = Object.entries(state.categories).map(([id, c]) => `
-    <div class="admin-item" data-cat="${id}">
-      <div class="info">
-        <b>${escapeHtml(c.name)}</b>
-        <small>${Object.keys(c.subs || {}).length} subcategoria(s)</small>
-        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
-          ${Object.entries(c.subs || {}).map(([sid, s]) => `<span class="tag">${escapeHtml(s.name)} <button data-delsub="${id}|${sid}" style="margin-left:6px;color:#ff8ea0">×</button></span>`).join("")}
-        </div>
-        <div style="margin-top:8px;display:flex;gap:6px">
-          <input placeholder="Nova subcategoria" data-subinput="${id}" style="flex:1;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid var(--glass-border);color:#fff" />
-          <button data-addsub="${id}">Adicionar</button>
-        </div>
-      </div>
-      <div class="actions">
-        <button data-rename="${id}">Renomear</button>
-        <button class="danger" data-delcat="${id}">Excluir</button>
-      </div>
-    </div>`).join("");
-}
-async function handleCategoryListClick(e) {
-  const t = e.target;
-  if (t.dataset.delcat) {
-    delete state.categories[t.dataset.delcat];
-    await persist("categories/" + t.dataset.delcat, null); toast("Categoria removida.");
-  } else if (t.dataset.rename) {
-    const id = t.dataset.rename; const name = prompt("Novo nome:", state.categories[id].name);
-    if (name) { state.categories[id].name = name; await persist("categories/" + id + "/name", name); }
-  } else if (t.dataset.addsub) {
-    const id = t.dataset.addsub;
-    const inp = $(`[data-subinput="${id}"]`); const name = inp.value.trim(); if (!name) return;
-    const sid = uid(); state.categories[id].subs = state.categories[id].subs || {};
-    state.categories[id].subs[sid] = { name };
-    await persist(`categories/${id}/subs/${sid}`, { name }); inp.value = "";
-  } else if (t.dataset.delsub) {
-    const [id, sid] = t.dataset.delsub.split("|");
-    delete state.categories[id].subs[sid];
-    await persist(`categories/${id}/subs/${sid}`, null);
-  }
-}
-function refreshProductCategorySelects() {
-  const cat = $("#p_category"); if (!cat) return;
-  const cur = cat.value;
-  cat.innerHTML = `<option value="">— selecione —</option>` +
-    Object.entries(state.categories).map(([id, c]) => `<option value="${id}">${escapeHtml(c.name)}</option>`).join("");
-  if (cur) cat.value = cur;
-  refreshSubcategorySelect();
-}
-function refreshSubcategorySelect() {
-  const catId = $("#p_category").value;
-  const sub = $("#p_subcategory");
-  const subs = state.categories[catId]?.subs || {};
-  sub.innerHTML = `<option value="">— selecione —</option>` +
-    Object.entries(subs).map(([id, s]) => `<option value="${id}">${escapeHtml(s.name)}</option>`).join("");
-}
-async function saveProduct() {
-  const p = {
-    name: $("#p_name").value.trim(),
-    description: $("#p_description").value.trim(),
-    category: $("#p_category").value,
-    subcategory: $("#p_subcategory").value,
-    availability: $("#p_availability").value,
-    cities: $("#p_cities").value.trim(),
-    warranty: $("#p_warranty").value,
-    buyUrl: $("#p_buyUrl").value.trim(),
-    image: state.editingProductId ? (state.products[state.editingProductId]?.image || "") : "",
-  };
-  if (!p.name) { toast("Nome obrigatório.", "error"); return; }
-  const file = $("#p_image").files[0];
-  if (file) p.image = await fileToBase64(file);
-  const id = state.editingProductId || uid();
-  state.products[id] = p;
-  await persist("products/" + id, p);
-  clearProductForm();
-  toast("Produto salvo.", "success");
-}
-function clearProductForm() {
-  ["p_name","p_description","p_cities","p_buyUrl"].forEach(i => $("#" + i).value = "");
-  $("#p_image").value = ""; $("#p_category").value = ""; $("#p_subcategory").innerHTML = "";
-  $("#p_availability").value = "nacional"; $("#p_warranty").value = "workin";
-  state.editingProductId = null;
-}
-function renderAdminProducts() {
-  $("#productList").innerHTML = Object.entries(state.products).map(([id, p]) => `
-    <div class="admin-item">
-      ${p.image ? `<img class="thumb" src="${p.image}" alt="" />` : `<div class="thumb"></div>`}
-      <div class="info"><b>${escapeHtml(p.name)}</b><small>${escapeHtml(state.categories[p.category]?.name || "—")} · ${p.availability}</small></div>
-      <div class="actions">
-        <button data-edit="${id}">Editar</button>
-        <button class="danger" data-delp="${id}">Excluir</button>
-      </div>
-    </div>`).join("");
-}
-async function handleProductListClick(e) {
-  const t = e.target;
-  if (t.dataset.delp) {
-    delete state.products[t.dataset.delp]; await persist("products/" + t.dataset.delp, null); toast("Produto removido.");
-  } else if (t.dataset.edit) {
-    const id = t.dataset.edit; const p = state.products[id]; state.editingProductId = id;
-    $("#p_name").value = p.name || ""; $("#p_description").value = p.description || "";
-    $("#p_category").value = p.category || ""; refreshSubcategorySelect(); $("#p_subcategory").value = p.subcategory || "";
-    $("#p_availability").value = p.availability || "nacional"; $("#p_cities").value = p.cities || "";
-    $("#p_warranty").value = p.warranty || "workin"; $("#p_buyUrl").value = p.buyUrl || "";
-    document.querySelector('[data-tab="products"] h3').scrollIntoView({behavior:"smooth"});
-  }
-}
-async function addMenuItem() {
-  const label = $("#menuLabel").value.trim(), href = $("#menuHref").value.trim();
-  if (!label) return;
-  const id = uid();
-  state.menu[id] = { label, href };
-  await persist("menu/" + id, { label, href });
-  $("#menuLabel").value = ""; $("#menuHref").value = "";
-}
-function renderAdminMenu() {
-  $("#menuAdminList").innerHTML = Object.entries(state.menu).map(([id, m]) => `
-    <div class="admin-item">
-      <div class="info"><b>${escapeHtml(m.label)}</b><small>${escapeHtml(m.href || "")}</small></div>
-      <div class="actions"><button class="danger" data-delm="${id}">Excluir</button></div>
-    </div>`).join("");
-}
-async function handleMenuListClick(e) {
-  const t = e.target.closest("[data-delm]"); if (!t) return;
-  delete state.menu[t.dataset.delm];
-  await persist("menu/" + t.dataset.delm, null);
-}
-/* =================================================================
-   PERSIST (Firebase ou local fallback)
-   ================================================================= */
-async function persist(path, value) {
-  if (state.fbReady) {
-    try {
-      if (value === null) await dbRef(path).remove();
-      else await dbRef(path).set(value);
-    } catch (e) { toast("Erro ao salvar: " + e.message, "error"); }
+
+/* ============================================================
+   AUTENTICAÇÃO
+   ============================================================ */
+auth.onAuthStateChanged((user) => {
+  state.user = user;
+  state.isAdmin = user && user.email === "admin@admin.com";
+  updateAuthUI();
+  loadData();
+});
+
+function updateAuthUI() {
+  const loginBtn = document.getElementById("login-btn");
+  const logoutBtn = document.getElementById("logout-btn");
+  const adminPanel = document.getElementById("admin-panel");
+  if (state.isAdmin) {
+    if (loginBtn) loginBtn.classList.add("hidden");
+    if (logoutBtn) logoutBtn.classList.remove("hidden");
+    if (adminPanel) adminPanel.classList.remove("hidden");
+    showToast("Bem-vindo, admin!", "success");
   } else {
-    // Fallback local: apenas re-renderiza o que já está no state
-    renderAll(); renderSlider(); renderCategoryChips(); renderProducts(); renderMenu(); renderFooter();
-    renderAdminBanners(); renderAdminCategories(); renderAdminProducts(); renderAdminMenu();
+    if (loginBtn) loginBtn.classList.remove("hidden");
+    if (logoutBtn) logoutBtn.classList.add("hidden");
+    if (adminPanel) adminPanel.classList.add("hidden");
   }
 }
-/* =================================================================
-   BOOT
-   ================================================================= */
-document.addEventListener("DOMContentLoaded", () => {
-  // CORREÇÃO: Garante que o modal de produto inicie escondido
-  const m = $("#productModal");
-  if (m) {
-    m.hidden = true;
-    m.setAttribute("aria-hidden", "true");
+
+
+function handleLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
+  const loader = document.getElementById("login-loader");
+  const form = document.getElementById("login-form");
+
+  if (!email || !password) {
+    showToast("Preencha e-mail e senha.", "error");
+    return;
   }
 
-  bindPublicEvents();
-  renderAll();
-  renderSlider();
-  renderCategoryChips();
-  renderProducts();
-  renderMenu();
-  renderFooter();
-  initFirebase();
+  loader.classList.add("active");
+  form.classList.add("hidden");
+
+  auth.signInWithEmailAndPassword(email, password)
+    .then(() => {
+      loader.classList.remove("active");
+      form.classList.remove("hidden");
+      document.getElementById("login-form").reset();
+      closeModal("login-modal");
+    })
+    .catch((err) => {
+      loader.classList.remove("active");
+      form.classList.remove("hidden");
+      showToast("Erro: " + err.message, "error");
+    });
+}
+
+function logout() {
+  auth.signOut().then(() => {
+    showToast("Logout realizado.", "info");
+  });
+}
+
+/* ============================================================
+   CARREGAMENTO DE DADOS
+   ============================================================ */
+function loadData() {
+  db.ref("produtos").on("value", (snap) => {
+    const data = snap.val() || {};
+    state.produtos = Object.entries(data).map(([id, p]) => ({ id, ...p }));
+    state.page = 1;
+    renderProdutos();
+  });
+
+  db.ref("menu").on("value", (snap) => {
+    const data = snap.val() || {};
+    state.menu = Object.entries(data).map(([id, m]) => ({ id, ...m }));
+    renderMenu();
+    renderAdminMenu();
+  });
+
+  db.ref("footer").on("value", (snap) => {
+    const data = snap.val() || { columns: [], copyright: "© Todos os direitos reservados." };
+    state.footer = data;
+    renderFooter();
+    fillFooterForm();
+  });
+
+  db.ref("brand").on("value", (snap) => {
+    const data = snap.val() || { square: "", wide: "" };
+    state.brand = data;
+    renderBrand();
+    fillBrandForm();
+  });
+}
+
+/* ============================================================
+   MARCA / LOGOS
+   ============================================================ */
+function renderBrand() {
+  const square = document.getElementById("logo-square");
+  const wide = document.getElementById("logo-wide");
+  if (square) square.src = state.brand.square || "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+  if (wide) {
+    if (state.brand.wide) {
+      wide.src = state.brand.wide;
+      wide.classList.remove("hidden");
+    } else {
+      wide.classList.add("hidden");
+    }
+  }
+}
+
+function fillBrandForm() {
+  document.getElementById("brand-square-url").value = state.brand.square || "";
+  document.getElementById("brand-wide-url").value = state.brand.wide || "";
+}
+
+async function saveBrand(e) {
+  e.preventDefault();
+  if (!state.isAdmin) return;
+
+  const squareFile = document.getElementById("brand-square-file").files[0];
+  const wideFile = document.getElementById("brand-wide-file").files[0];
+  const squareUrl = document.getElementById("brand-square-url").value.trim();
+  const wideUrl = document.getElementById("brand-wide-url").value.trim();
+
+  const square = squareFile ? await toBase64(squareFile) : squareUrl;
+  const wide = wideFile ? await toBase64(wideFile) : wideUrl;
+
+  db.ref("brand").set({ square, wide })
+    .then(() => showToast("Marca salva com sucesso!", "success"))
+    .catch((err) => showToast("Erro ao salvar: " + err.message, "error"));
+}
+
+/* ============================================================
+   MENU (MISTO: LINKS DIRETOS + SUBMENUS)
+   ============================================================ */
+function renderMenu() {
+  const desktop = document.getElementById("menu-desktop");
+  const mobile = document.getElementById("mobile-menu-list");
+  if (!desktop) return;
+
+  const topItems = state.menu.filter((m) => !m.parentId);
+  const children = (parentId) => state.menu.filter((m) => m.parentId === parentId);
+
+  desktop.innerHTML = topItems.map((item) => buildDesktopItem(item, children)).join("");
+  mobile.innerHTML = topItems.map((item, idx) => buildMobileItem(item, idx, children)).join("");
+}
+
+function buildDesktopItem(item, childrenFn) {
+  const kids = childrenFn(item.id);
+  const hasChildren = kids.length > 0;
+
+  if (hasChildren) {
+    return `
+      <li class="menu-item">
+        <span class="menu-toggle">${escapeHtml(item.name)} <span class="arrow">▾</span></span>
+        <ul class="submenu">
+          ${kids.map((k) => `<li><a class="menu-link" href="${escapeHtml(k.link || "#")}">${escapeHtml(k.name)}</a></li>`).join("")}
+        </ul>
+      </li>
+    `;
+  }
+
+  return `<li class="menu-item"><a class="menu-link" href="${escapeHtml(item.link || "#")}">${escapeHtml(item.name)}</a></li>`;
+}
+
+function buildMobileItem(item, idx, childrenFn) {
+  const kids = childrenFn(item.id);
+  const hasChildren = kids.length > 0;
+
+  if (hasChildren) {
+    return `
+      <li>
+        <span class="submenu-toggle" onclick="toggleMobileSubmenu(${idx})">${escapeHtml(item.name)} <span id="arrow-${idx}">▾</span></span>
+        <ul class="mobile-submenu" id="mobile-submenu-${idx}">
+          ${kids.map((k) => `<li><a href="${escapeHtml(k.link || "#")}">${escapeHtml(k.name)}</a></li>`).join("")}
+        </ul>
+      </li>
+    `;
+  }
+
+  return `<li><a href="${escapeHtml(item.link || "#")}">${escapeHtml(item.name)}</a></li>`;
+}
+
+function toggleMobileSubmenu(idx) {
+  const sub = document.getElementById("mobile-submenu-" + idx);
+  const arrow = document.getElementById("arrow-" + idx);
+  sub.classList.toggle("open");
+  arrow.textContent = sub.classList.contains("open") ? "▴" : "▾";
+}
+
+function toggleMobileMenu() {
+  document.getElementById("mobile-menu").classList.toggle("open");
+}
+
+/* ============================================================
+   ADMIN MENU
+   ============================================================ */
+function renderAdminMenu() {
+  const list = document.getElementById("menu-list");
+  const parentSelect = document.getElementById("menu-parent");
+  if (!list) return;
+
+  list.innerHTML = state.menu.map((item) => {
+    const parent = state.menu.find((m) => m.id === item.parentId);
+    return `
+      <div class="admin-list-item">
+        <div>
+          <strong>${escapeHtml(item.name)}</strong>
+          <br><small>${item.link ? "Link: " + escapeHtml(item.link) : "Sem link (pai de submenu)"}</small>
+          <br><small>${parent ? "Pai: " + escapeHtml(parent.name) : "Item de topo"}</small>
+        </div>
+        <div class="admin-list-actions">
+          <button class="btn-save" onclick="editMenuItem('${item.id}')">Editar</button>
+          <button class="btn-danger" onclick="deleteMenuItem('${item.id}')">Excluir</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const topItems = state.menu.filter((m) => !m.parentId);
+  parentSelect.innerHTML = `<option value="">Nenhum (item de topo)</option>` +
+    topItems.map((m) => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join("");
+
+  if (state.menuEditingId) {
+    const item = state.menu.find((m) => m.id === state.menuEditingId);
+    if (item) parentSelect.value = item.parentId || "";
+  }
+}
+
+function saveMenuItem(e) {
+  e.preventDefault();
+  if (!state.isAdmin) return;
+
+  const name = document.getElementById("menu-name").value.trim();
+  const link = document.getElementById("menu-link").value.trim();
+  const parentId = document.getElementById("menu-parent").value || null;
+
+  if (!name) {
+    showToast("Digite um nome para o menu.", "error");
+    return;
+  }
+
+  const data = { name, link, parentId };
+  const ref = state.menuEditingId
+    ? db.ref("menu/" + state.menuEditingId)
+    : db.ref("menu").push();
+
+  ref.set(data)
+    .then(() => {
+      showToast("Menu salvo!", "success");
+      resetMenuForm();
+    })
+    .catch((err) => showToast("Erro: " + err.message, "error"));
+}
+
+function editMenuItem(id) {
+  const item = state.menu.find((m) => m.id === id);
+  if (!item) return;
+  state.menuEditingId = id;
+  document.getElementById("menu-name").value = item.name;
+  document.getElementById("menu-link").value = item.link || "";
+  document.getElementById("menu-parent").value = item.parentId || "";
+  document.getElementById("menu-form-title").textContent = "Editar item de menu";
+  document.getElementById("menu-cancel").classList.remove("hidden");
+}
+
+function deleteMenuItem(id) {
+  if (!state.isAdmin) return;
+  if (!confirm("Excluir este item? Subitens vinculados a ele também ficarão órfãos.")) return;
+  db.ref("menu/" + id).remove()
+    .then(() => showToast("Item removido.", "info"))
+    .catch((err) => showToast("Erro: " + err.message, "error"));
+}
+
+function resetMenuForm() {
+  state.menuEditingId = null;
+  document.getElementById("menu-form").reset();
+  document.getElementById("menu-form-title").textContent = "Adicionar item de menu";
+  document.getElementById("menu-cancel").classList.add("hidden");
+}
+
+/* ============================================================
+   PRODUTOS
+   ============================================================ */
+function renderProdutos() {
+  const grid = document.getElementById("produtos-grid");
+  const total = state.produtos.length;
+  const start = (state.page - 1) * state.perPage;
+  const pageItems = state.produtos.slice(start, start + state.perPage);
+
+  if (!total) {
+    grid.innerHTML = `<p class="empty" style="color:var(--text-muted);grid-column:1/-1;text-align:center;padding:3rem 0;">Nenhum produto cadastrado ainda.</p>`;
+  } else {
+    grid.innerHTML = pageItems.map((p) => buildCard(p)).join("");
+  }
+
+  renderPagination(total);
+}
+
+function buildCard(p) {
+  const triggers = (p.triggers || []).map((t) => {
+    const opt = MARKETING_TRIGGERS.find((x) => x.id === t);
+    return opt ? `<span class="badge ${opt.badgeClass}">${opt.label}</span>` : "";
+  }).join("");
+
+  return `
+    <article class="card" onclick="openProdutoModal('${p.id}')">
+      <div class="trigger-badges">${triggers}</div>
+      <img class="card-img" src="${escapeHtml(p.image || "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")}" alt="${escapeHtml(p.title)}">
+      <div class="card-body">
+        <h3 class="card-title">${escapeHtml(p.title)}</h3>
+        <p class="card-desc">${escapeHtml(p.description)}</p>
+        <p class="card-price">${formatMoney(p.price)}</p>
+      </div>
+    </article>
+  `;
+}
+
+function renderPagination(total) {
+  const pages = Math.ceil(total / state.perPage) || 1;
+  const pagination = document.getElementById("pagination");
+  let html = `
+    <button onclick="setPage(${state.page - 1})" ${state.page === 1 ? "disabled" : ""}>‹</button>
+  `;
+  for (let i = 1; i <= pages; i++) {
+    html += `<button class="${i === state.page ? "active" : ""}" onclick="setPage(${i})">${i}</button>`;
+  }
+  html += `<button onclick="setPage(${state.page + 1})" ${state.page === pages ? "disabled" : ""}>›</button>`;
+  pagination.innerHTML = html;
+}
+
+function setPage(page) {
+  const pages = Math.ceil(state.produtos.length / state.perPage) || 1;
+  if (page < 1 || page > pages) return;
+  state.page = page;
+  renderProdutos();
+  document.getElementById("produtos").scrollIntoView({ behavior: "smooth" });
+}
+
+function openProdutoModal(id) {
+  const p = state.produtos.find((x) => x.id === id);
+  if (!p) return;
+
+  document.getElementById("modal-img").src = p.image || "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+  document.getElementById("modal-title").textContent = p.title || "Produto";
+  document.getElementById("modal-desc").textContent = p.description || "";
+  document.getElementById("modal-cities").textContent = p.cities || "Nacional";
+  document.getElementById("modal-price").textContent = formatMoney(p.price);
+  document.getElementById("modal-buy").href = p.buyLink || "#";
+
+  const triggers = (p.triggers || []).map((t) => {
+    const opt = MARKETING_TRIGGERS.find((x) => x.id === t);
+    return opt ? `<span class="badge ${opt.badgeClass}">${opt.label}</span>` : "";
+  }).join("");
+  document.getElementById("modal-triggers").innerHTML = triggers;
+
+  openModal("produto-modal");
+}
+
+/* ============================================================
+   ADMIN PRODUTOS
+   ============================================================ */
+function renderAdminProdutos() {
+  const list = document.getElementById("produtos-list");
+  if (!list) return;
+  list.innerHTML = state.produtos.map((p) => `
+    <div class="admin-list-item">
+      <div>
+        <strong>${escapeHtml(p.title)}</strong>
+        <br><small>${formatMoney(p.price)} — ${escapeHtml(p.description || "").substring(0, 60)}${p.description && p.description.length > 60 ? "..." : ""}</small>
+      </div>
+      <div class="admin-list-actions">
+        <button class="btn-save" onclick="editProduto('${p.id}')">Editar</button>
+        <button class="btn-danger" onclick="deleteProduto('${p.id}')">Excluir</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderTriggersOptions() {
+  const container = document.getElementById("triggers-options");
+  if (!container) return;
+  container.innerHTML = MARKETING_TRIGGERS.map((t) => `
+    <label style="display:flex;align-items:center;gap:0.5rem;margin:0.4rem 0;cursor:pointer;">
+      <input type="checkbox" name="trigger" value="${t.id}">
+      <span class="badge ${t.badgeClass}">${t.label}</span>
+    </label>
+  `).join("");
+}
+
+async function saveProduto(e) {
+  e.preventDefault();
+  if (!state.isAdmin) return;
+
+  const file = document.getElementById("produto-imagem-file").files[0];
+  const url = document.getElementById("produto-imagem-url").value.trim();
+  const title = document.getElementById("produto-titulo").value.trim();
+  const description = document.getElementById("produto-descricao").value.trim();
+  const cities = document.getElementById("produto-cidades").value.trim();
+  const price = parseFloat(document.getElementById("produto-preco").value.replace(",", "."));
+  const buyLink = document.getElementById("produto-comprar").value.trim();
+  const triggers = getCheckedValues("input[name='trigger']");
+
+  let image = url;
+  if (file) image = await toBase64(file);
+
+  if (!title) {
+    showToast("Preencha o título do produto.", "error");
+    return;
+  }
+
+  const data = { title, description, cities, price, buyLink, image, triggers };
+  const ref = state.editingId
+    ? db.ref("produtos/" + state.editingId)
+    : db.ref("produtos").push();
+
+  ref.set(data)
+    .then(() => {
+      showToast("Produto salvo!", "success");
+      resetProdutoForm();
+    })
+    .catch((err) => showToast("Erro: " + err.message, "error"));
+}
+
+function editProduto(id) {
+  const p = state.produtos.find((x) => x.id === id);
+  if (!p) return;
+  state.editingId = id;
+  document.getElementById("produto-titulo").value = p.title || "";
+  document.getElementById("produto-descricao").value = p.description || "";
+  document.getElementById("produto-cidades").value = p.cities || "";
+  document.getElementById("produto-preco").value = p.price || "";
+  document.getElementById("produto-comprar").value = p.buyLink || "";
+  document.getElementById("produto-imagem-url").value = p.image || "";
+  setCheckedValues("input[name='trigger']", p.triggers || []);
+  document.getElementById("produto-form-title").textContent = "Editar produto";
+  document.getElementById("produto-cancel").classList.remove("hidden");
+  switchTab("produtos-tab");
+}
+
+function deleteProduto(id) {
+  if (!state.isAdmin) return;
+  if (!confirm("Excluir este produto?")) return;
+  db.ref("produtos/" + id).remove()
+    .then(() => showToast("Produto removido.", "info"))
+    .catch((err) => showToast("Erro: " + err.message, "error"));
+}
+
+function resetProdutoForm() {
+  state.editingId = null;
+  document.getElementById("produto-form").reset();
+  setCheckedValues("input[name='trigger']", []);
+  document.getElementById("produto-form-title").textContent = "Adicionar produto";
+  document.getElementById("produto-cancel").classList.add("hidden");
+}
+
+/* ============================================================
+   RODAPÉ
+   ============================================================ */
+function renderFooter() {
+  const cols = state.footer.columns || [];
+  const grid = document.getElementById("footer-columns");
+  if (!grid) return;
+  grid.innerHTML = cols.map((col) => `
+    <div class="footer-col">
+      <h4>${escapeHtml(col.title)}</h4>
+      ${(col.links || []).map((l) => `<a href="${escapeHtml(l.url || "#")}" target="${l.external ? "_blank" : "_self"}">${escapeHtml(l.text)}</a>`).join("")}
+    </div>
+  `).join("");
+
+  document.getElementById("footer-copyright").textContent = state.footer.copyright || "© Todos os direitos reservados.";
+}
+
+function fillFooterForm() {
+  const cols = state.footer.columns || [];
+  const json = JSON.stringify(cols, null, 2);
+  document.getElementById("footer-columns-json").value = json;
+  document.getElementById("footer-copyright-input").value = state.footer.copyright || "© Todos os direitos reservados.";
+}
+
+function saveFooter(e) {
+  e.preventDefault();
+  if (!state.isAdmin) return;
+
+  try {
+    const columns = JSON.parse(document.getElementById("footer-columns-json").value || "[]");
+    const copyright = document.getElementById("footer-copyright-input").value.trim();
+    db.ref("footer").set({ columns, copyright })
+      .then(() => showToast("Rodapé salvo!", "success"))
+      .catch((err) => showToast("Erro: " + err.message, "error"));
+  } catch (err) {
+    showToast("JSON inválido: " + err.message, "error");
+  }
+}
+
+/* ============================================================
+   ABAS DO ADMIN
+   ============================================================ */
+function switchTab(tabId) {
+  document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll(".admin-section").forEach((s) => s.classList.remove("active"));
+  document.getElementById("btn-" + tabId).classList.add("active");
+  document.getElementById(tabId).classList.add("active");
+
+  if (tabId === "produtos-tab") renderAdminProdutos();
+}
+
+/* ============================================================
+   EVENT LISTENERS
+   ============================================================ */
+document.addEventListener("DOMContentLoaded", () => {
+  renderTriggersOptions();
+
+  document.getElementById("login-form").addEventListener("submit", handleLogin);
+  const loginBtn = document.getElementById("login-btn");
+  if (loginBtn) loginBtn.addEventListener("click", () => openModal("login-modal"));
+  document.getElementById("logout-btn").addEventListener("click", logout);
+
+  document.getElementById("restricted-dot").addEventListener("click", () => openModal("login-modal"));
+
+  document.getElementById("produto-form").addEventListener("submit", saveProduto);
+  document.getElementById("produto-cancel").addEventListener("click", resetProdutoForm);
+  document.getElementById("menu-form").addEventListener("submit", saveMenuItem);
+  document.getElementById("menu-cancel").addEventListener("click", resetMenuForm);
+  document.getElementById("brand-form").addEventListener("submit", saveBrand);
+  document.getElementById("footer-form").addEventListener("submit", saveFooter);
+
+  document.querySelectorAll(".modal-close").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const modal = btn.closest(".modal-overlay");
+      modal.classList.remove("open");
+      document.body.style.overflow = "";
+    });
+  });
+
+  document.querySelectorAll(".modal-overlay").forEach((overlay) => {
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) {
+        overlay.classList.remove("open");
+        document.body.style.overflow = "";
+      }
+    });
+  });
+
+  document.getElementById("btn-produtos-tab").addEventListener("click", () => switchTab("produtos-tab"));
+  document.getElementById("btn-menu-tab").addEventListener("click", () => switchTab("menu-tab"));
+  document.getElementById("btn-brand-tab").addEventListener("click", () => switchTab("brand-tab"));
+  document.getElementById("btn-footer-tab").addEventListener("click", () => switchTab("footer-tab"));
+
+  window.addEventListener("scroll", () => {
+    const header = document.getElementById("main-header");
+    if (window.scrollY > 30) header.classList.add("scrolled");
+    else header.classList.remove("scrolled");
+  });
+
+  document.getElementById("login-email").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") document.getElementById("login-password").focus();
+  });
+  document.getElementById("login-password").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handleLogin(e);
+  });
 });
