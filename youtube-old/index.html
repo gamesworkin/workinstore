@@ -1,0 +1,150 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1.0"
+/>
+
+<title>Workin'Flix</title>
+  
+<link rel="icon" type="image/x-icon" href="fav.ico">
+  
+<link rel="stylesheet" href="style.css">
+
+<link
+href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
+rel="stylesheet"
+/>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+
+</head>
+
+<body>
+
+<header class="topbar">
+
+<div class="logo">
+WORKIN'FLIX
+</div>
+
+<div class="search-box">
+
+<input
+type="text"
+id="searchInput"
+placeholder="Pesquisar vídeos..."
+oninput="searchVideos()"
+/>
+
+<button onclick="clearSearch()">
+Limpar
+</button>
+
+</div>
+
+<div class="header-buttons">
+
+<a href="https://bombapatchworkin.blogspot.com" class="subscribe-btn">Bomba Patch Workin'</a>
+
+<a href="https://gamesworkin.blogspot.com" class="subscribe-btn">Games Workin'</a>
+
+<button onclick="showFavorites()">
+Favoritos
+</button>
+
+<button onclick="showAllVideos()">
+Todos
+</button>
+
+<a
+id="subscribeBtn"
+class="subscribe-btn"
+target="_blank"
+>
+Inscrever-se
+</a>
+
+</div>
+
+</header>
+
+<section class="hero" id="hero">
+
+<div class="hero-overlay"></div>
+
+<div class="hero-content">
+
+<h1 id="heroTitle">
+Carregando...
+</h1>
+
+<p id="heroDescription"></p>
+
+<div class="hero-buttons">
+
+<button onclick="playCurrentVideo()">
+▶ Assistir
+</button>
+
+<button onclick="addFavorite()">
+❤ Favoritar
+</button>
+
+</div>
+
+</div>
+
+</section>
+
+<section class="player-section">
+
+<div id="player"></div>
+
+</section>
+
+<section>
+
+<h2>
+Continue Assistindo
+</h2>
+
+<div
+class="horizontal-list"
+id="continueWatching"
+></div>
+
+</section>
+
+<section>
+
+<h2 id="catalogTitle">
+Vídeos Recentes
+</h2>
+
+<div
+class="video-grid"
+id="videoGrid"
+></div>
+
+</section>
+
+<div id="loading">
+
+<div class="loader"></div>
+
+<p id="loadingText">
+Carregando vídeos...
+</p>
+
+</div>
+
+<script src="app.js"></script>
+
+</body>
+</html>
