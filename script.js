@@ -33,7 +33,7 @@ const state = {
   user: null,
   isAdmin: false,
   page: 1,
-  perPage: 10,
+  perPage: 12,
   editingId: null,
   menuEditingId: null
 };
