@@ -1,150 +1,352 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
-
-<meta charset="UTF-8">
-
-<meta
-name="viewport"
-content="width=device-width, initial-scale=1.0"
-/>
-
-<title>Workin'Flix</title>
-  
-<link rel="icon" type="image/x-icon" href="fav.ico">
-  
-<link rel="stylesheet" href="style.css">
-
-<link
-href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
-rel="stylesheet"
-/>
-
-<script src="https://www.youtube.com/iframe_api"></script>
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workin'Store | YouTube</title>
+  <meta name="description" content="Catálogo de produtos gamer com menu personalizável, admin exclusivo e integração Firebase.">
+  <link rel="icon" type="image/x-icon" href="fav.ico">
+  <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
-<header class="topbar">
+  <!-- Header / Navbar -->
+  <header id="main-header">
+    <nav>
+      <a href="#" class="brand-area">
+        <img id="logo-square" class="logo-square" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Logo quadrado">
+        <img id="logo-wide" class="logo-wide hidden" src="" alt="Logo escrito">
+      </a>
 
-<div class="logo">
-WORKIN'FLIX
-</div>
+      <ul class="menu-desktop" id="menu-desktop">
+        <!-- Menu renderizado via JS -->
+      </ul>
 
-<div class="search-box">
+      <button class="menu-toggle-btn" onclick="toggleMobileMenu()" aria-label="Abrir menu">☰</button>
+    </nav>
+  </header>
 
-<input
-type="text"
-id="searchInput"
-placeholder="Pesquisar vídeos..."
-oninput="searchVideos()"
-/>
+  <!-- Mobile menu -->
+  <div class="mobile-menu" id="mobile-menu">
+    <ul id="mobile-menu-list">
+      <!-- Menu mobile renderizado via JS -->
+    </ul>
+  </div>
 
-<button onclick="clearSearch()">
-Limpar
-</button>
+  <!-- Hero -->
+  <section class="hero">
+    <section class="catalogo" id="youtube-section" style="padding-top: 40px;">
+    <!-- Barra de Busca -->
+    <div class="form-group" style="margin-bottom: 2rem;">
+        <input type="text" id="yt-search-input" placeholder="Pesquisar vídeos do canal..." class="form-control">
+    </div>
 
-</div>
+    <!-- Player Ampliado -->
+    <div id="yt-player-wrapper" style="width: 100%; aspect-ratio: 16/9; margin-bottom: 2.5rem; border: 1px solid var(--primary); border-radius: var(--radius); overflow: hidden; background: var(--bg); box-shadow: var(--shadow);">
+        <!-- O player será carregado aqui -->
+        <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);">
+            Carregando player...
+        </div>
+    </div>
 
-<div class="header-buttons">
+    <!-- Grid de Vídeos (Forçado 3 por linha) -->
+    <div class="grid" id="yt-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <!-- Os vídeos serão carregados aqui -->
+    </div>
 
-<a href="https://bombapatchworkin.blogspot.com" class="subscribe-btn">Bomba Patch Workin'</a>
-
-<a href="https://gamesworkin.blogspot.com" class="subscribe-btn">Games Workin'</a>
-
-<button onclick="showFavorites()">
-Favoritos
-</button>
-
-<button onclick="showAllVideos()">
-Todos
-</button>
-
-<a
-id="subscribeBtn"
-class="subscribe-btn"
-target="_blank"
->
-Inscrever-se
-</a>
-
-</div>
-
-</header>
-
-<section class="hero" id="hero">
-
-<div class="hero-overlay"></div>
-
-<div class="hero-content">
-
-<h1 id="heroTitle">
-Carregando...
-</h1>
-
-<p id="heroDescription"></p>
-
-<div class="hero-buttons">
-
-<button onclick="playCurrentVideo()">
-▶ Assistir
-</button>
-
-<button onclick="addFavorite()">
-❤ Favoritar
-</button>
-
-</div>
-
-</div>
-
+    <style>
+        @media (max-width: 240px) { .grid { grid-template-columns: repeat(2, 1fr) !important; } }
+        @media (max-width: 640px) { .grid { grid-template-columns: repeat(2, 1fr) !important; } }
+    </style>
 </section>
 
-<section class="player-section">
+<script>
+    // --- CONFIGURAÇÃO ---
+    const API_KEY = 'AIzaSyDHkLh2vGgxUJpVo11o1kKqtH1DQ5Toeu4'; // <--- INSIRA SUA CHAVE AQUI
+    const CHANNEL_ID = 'UCwgc-ODtpi4OKxnbYGmyTig'; // <--- INSIRA SEU ID DE CANAL AQUI
+    // --------------------
 
-<div id="player"></div>
+    async function loadVideos() {
+        const url = `https://www.googleapis.com/youtube/v3/search?key=${API_KEY}&channelId=${CHANNEL_ID}&part=snippet,id&order=date&maxResults=15&type=video`;
+        
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            const grid = document.getElementById('yt-grid');
+            grid.innerHTML = '';
+            
+            data.items.forEach((video, index) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <img src="${video.snippet.thumbnails.high.url}" alt="${video.snippet.title}" class="card-img">
+                    <div class="card-body">
+                        <h3 class="card-title">${video.snippet.title}</h3>
+                        <p class="card-desc">${video.snippet.description || 'Sem descrição.'}</p>
+                    </div>
+                `;
+                card.onclick = () => playVideo(video.id.videoId);
+                grid.appendChild(card);
+                
+                // Player inicial com o primeiro vídeo
+                if(index === 0) playVideo(video.id.videoId);
+            });
+        } catch (error) {
+            console.error('Erro ao carregar vídeos:', error);
+            document.getElementById('yt-grid').innerHTML = '<p>Erro ao carregar vídeos. Verifique sua chave API.</p>';
+        }
+    }
 
-</section>
+    function playVideo(videoId) {
+        const wrapper = document.getElementById('yt-player-wrapper');
+        wrapper.innerHTML = `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/${videoId}?autoplay=1" frameborder="0" allowfullscreen></iframe>`;
+        window.scrollTo({ top: document.getElementById('youtube-section').offsetTop - 100, behavior: 'smooth' });
+    }
 
-<section>
+    // Filtro de busca (Interage com os títulos dos cards)
+    document.getElementById('yt-search-input').addEventListener('input', (e) => {
+        const term = e.target.value.toLowerCase();
+        document.querySelectorAll('.card').forEach(card => {
+            const title = card.querySelector('.card-title').innerText.toLowerCase();
+            card.style.display = title.includes(term) ? '' : 'none';
+        });
+    });
 
-<h2>
-Continue Assistindo
-</h2>
+    loadVideos();
+</script>
 
-<div
-class="horizontal-list"
-id="continueWatching"
-></div>
+  </section>
 
-</section>
 
-<section>
+  <!-- Painel Admin -->
+  <section id="admin-panel" class="admin-panel hidden">
+    <h2>⚙️ Painel Administrativo</h2>
 
-<h2 id="catalogTitle">
-Vídeos Recentes
-</h2>
+    <div class="admin-tabs">
+      <button class="tab-btn active" id="btn-produtos-tab">Produtos</button>
+      <button class="tab-btn" id="btn-menu-tab">Menu</button>
+      <button class="tab-btn" id="btn-brand-tab">Marca</button>
+      <button class="tab-btn" id="btn-footer-tab">Rodapé</button>
+    </div>
 
-<div
-class="video-grid"
-id="videoGrid"
-></div>
+    <!-- Produtos -->
+    <div id="produtos-tab" class="admin-section active">
+      <h3 id="produto-form-title">Adicionar produto</h3>
+      <form id="produto-form">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="produto-titulo">Título</label>
+            <input type="text" id="produto-titulo" required>
+          </div>
+          <div class="form-group">
+            <label for="produto-preco">Preço</label>
+            <input type="number" id="produto-preco" step="0.01" required>
+          </div>
+          <div class="form-group full">
+            <label for="produto-descricao">Descrição</label>
+            <textarea id="produto-descricao" required></textarea>
+          </div>
+          <div class="form-group">
+            <label for="produto-cidades">Cidades / Local de venda</label>
+            <input type="text" id="produto-cidades" placeholder="Ex: Nacional ou São Paulo, Rio de Janeiro">
+          </div>
+          <div class="form-group">
+            <label for="produto-comprar">Link de compra</label>
+            <input type="url" id="produto-comprar" placeholder="https://...">
+          </div>
+          <div class="form-group">
+            <label for="produto-imagem-file">Imagem do produto (arquivo)</label>
+            <input type="file" id="produto-imagem-file" accept="image/*">
+          </div>
+          <div class="form-group">
+            <label for="produto-imagem-url">ou imagem por link externo</label>
+            <input type="url" id="produto-imagem-url" placeholder="https://...">
+          </div>
+          <div class="form-group full">
+            <label>Gatilhos de marketing</label>
+            <div id="triggers-options"></div>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-save">Salvar produto</button>
+          <button type="button" id="produto-cancel" class="btn-cancel hidden">Cancelar</button>
+        </div>
+      </form>
 
-</section>
+      <h3 style="margin-top:2rem;">Produtos cadastrados</h3>
+      <div class="admin-list" id="produtos-list">
+        <!-- Lista via JS -->
+      </div>
+    </div>
 
-<div id="loading">
+    <!-- Menu -->
+    <div id="menu-tab" class="admin-section">
+      <div class="help-text">
+        <strong>Como criar um menu misto (links diretos + submenus):</strong><br>
+        • Para um <strong>link direto</strong> no topo, preencha <em>Nome</em> e <em>Link</em> e deixe <em>Item pai</em> como "Nenhum".<br>
+        • Para criar um <strong>submenu</strong>, primeiro cadastre o item de topo (pode deixar o link em branco). Depois, ao cadastrar um novo item, selecione esse item como <em>Item pai</em>. O sistema detecta automaticamente: itens com filhos viram botões de submenu; itens sem filhos viram links diretos.<br>
+        • Os subitens sempre aparecem como links dentro do menu expandido.
+      </div>
 
-<div class="loader"></div>
+      <h3 id="menu-form-title">Adicionar item de menu</h3>
+      <form id="menu-form">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="menu-name">Nome</label>
+            <input type="text" id="menu-name" required>
+          </div>
+          <div class="form-group">
+            <label for="menu-link">Link</label>
+            <input type="text" id="menu-link" placeholder="#produtos ou https://...">
+          </div>
+          <div class="form-group">
+            <label for="menu-parent">Item pai</label>
+            <select id="menu-parent">
+              <option value="">Nenhum (item de topo)</option>
+              <!-- Preenchido via JS -->
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-save">Salvar item</button>
+          <button type="button" id="menu-cancel" class="btn-cancel hidden">Cancelar</button>
+        </div>
+      </form>
 
-<p id="loadingText">
-Carregando vídeos...
-</p>
+      <h3 style="margin-top:2rem;">Itens do menu</h3>
+      <div class="admin-list" id="menu-list">
+        <!-- Lista via JS -->
+      </div>
+    </div>
 
-</div>
+    <!-- Marca -->
+    <div id="brand-tab" class="admin-section">
+      <h3>Logo e identidade</h3>
+      <form id="brand-form">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="brand-square-file">Logo quadrada (arquivo)</label>
+            <input type="file" id="brand-square-file" accept="image/*">
+          </div>
+          <div class="form-group">
+            <label for="brand-square-url">ou logo quadrada por link</label>
+            <input type="url" id="brand-square-url" placeholder="https://...">
+          </div>
+          <div class="form-group">
+            <label for="brand-wide-file">Logo escrita larga (arquivo)</label>
+            <input type="file" id="brand-wide-file" accept="image/*">
+          </div>
+          <div class="form-group">
+            <label for="brand-wide-url">ou logo escrita por link</label>
+            <input type="url" id="brand-wide-url" placeholder="https://...">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-save">Salvar marca</button>
+        </div>
+      </form>
+    </div>
 
-<script src="app.js"></script>
+    <!-- Rodapé -->
+    <div id="footer-tab" class="admin-section">
+      <h3>Rodapé</h3>
+      <form id="footer-form">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label for="footer-copyright">Texto de direitos reservados</label>
+            <input type="text" id="footer-copyright-input">
+          </div>
+          <div class="form-group full">
+            <label for="footer-columns-json">Colunas e links (JSON)</label>
+            <textarea id="footer-columns-json" rows="10"></textarea>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-save">Salvar rodapé</button>
+        </div>
+      </form>
+    </div>
 
+    <button id="logout-btn" class="btn-danger" style="margin-top:2rem;" type="button">Sair da área administrativa</button>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-content" id="footer-columns">
+      <!-- Colunas via JS -->
+    </div>
+    <div class="footer-bottom">
+      <p id="footer-copyright">© Todos os direitos reservados.</p>
+    </div>
+  </footer>
+
+  <!-- Área restrita discreta -->
+  <div class="restricted-dot" id="restricted-dot" title="Área restrita"></div>
+
+  <!-- Modal Login -->
+  <div class="modal-overlay" id="login-modal">
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-header">
+        <h3>Área restrita</h3>
+        <button class="modal-close" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="login-loader" class="login-loader">
+          <div class="spinner"></div>
+          <p class="login-message">Autenticando...</p>
+        </div>
+        <form id="login-form">
+          <div class="form-grid">
+            <div class="form-group full">
+              <label for="login-email">E-mail</label>
+              <input type="email" id="login-email" required autofocus>
+            </div>
+            <div class="form-group full">
+              <label for="login-password">Senha</label>
+              <input type="password" id="login-password" required>
+            </div>
+          </div>
+          <button type="submit" class="btn-primary" style="margin-top:1rem;">Entrar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Produto -->
+  <div class="modal-overlay" id="produto-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Produto</h3>
+        <button class="modal-close" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal-body">
+        <img id="modal-img" class="modal-img" src="" alt="Produto">
+        <p id="modal-desc" class="modal-desc"></p>
+        <div id="modal-triggers" class="modal-triggers"></div>
+        <div class="modal-info">
+          <div class="info-box">
+            <label>Disponibilidade</label>
+            <span id="modal-cities"></span>
+          </div>
+          <div class="info-box">
+            <label>Preço</label>
+            <span id="modal-price"></span>
+          </div>
+        </div>
+        <a id="modal-buy" href="#" class="btn-primary" target="_blank">Comprar agora</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Firebase -->
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+  <script src="script.js"></script>
 </body>
 </html>
