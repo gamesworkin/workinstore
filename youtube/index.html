@@ -60,7 +60,7 @@
         @media (max-width: 640px) { .grid { grid-template-columns: white-space(nowrap) } }
         @media (max-width: 640px) { .grid { grid-template-columns: overflow(hidden) } }
         @media (max-width: 640px) { .grid { grid-template-columns: text-overflow(ellipsis) } }
-        @media (max-width: 640px) { .grid { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; } }
+        @media (max-width: 640px) { .grid { grid-template-columns: repeat(2, 1fr) !important; width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; } }
 }
     </style>
 </section>
