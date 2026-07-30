@@ -1038,9 +1038,9 @@ footer {
 
 /* Estilos ajustados para evitar sobreposição do header fixo */
 .privacy-section {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 100px 1.5rem 40px; /* padding-top de 100px resolve o problema do header fixo */
+  padding: 30px 1.5rem 40px; /* padding-top de 100px resolve o problema do header fixo */
 }
 
 .privacy-container {
