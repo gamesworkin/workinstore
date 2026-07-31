@@ -1,4 +1,4 @@
-/* ========================================================= 
+/* =========================================================
  * SUA LISTA | WORKIN'STORE - script.js
  * Firebase Authentication + Realtime Database
  * Estrutura modular via IIFE / módulos internos
@@ -269,7 +269,6 @@ function getFilteredGames() {
     );
   }
   if (sort === "alpha") arr.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  if (sort === "alpha") arr.sort((a, b) => (a.code || "").localeCompare(b.code || ""));
   if (sort === "light") arr.sort((a, b) => (a.size || 0) - (b.size || 0));
   if (sort === "heavy") arr.sort((a, b) => (b.size || 0) - (a.size || 0));
   return arr;
