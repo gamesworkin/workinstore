@@ -890,7 +890,7 @@ body.theme-claro .theme-switcher-float {
 @media (max-width: 480px) {
     .whatsapp-float {
         width: 50px;
-        height: 50px;
+        height: 100px;
         bottom: 20px;
         right: 20px;
     }
