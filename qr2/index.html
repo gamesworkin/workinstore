@@ -35,90 +35,87 @@
 
   <!-- Hero -->
   <section class="hero">
-    <div class="qrw">
+   <div class="qrw catalogo">
   <style>
-  .qrw{--qrw-primary:#4f46e5;--qrw-bg:#0f172a;--qrw-text:#f8fafc;font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--qrw-bg);color:var(--qrw-text);display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box}
+  .qrw{--qrw-primary:var(--primary,#66fcf1);--qrw-dim:var(--primary-dim,#45a29e);--qrw-surface:var(--surface,rgba(31,40,51,.85));--qrw-bg:var(--bg,#0b0c10);--qrw-text:var(--text,#f5f5f5);--qrw-muted:var(--text-muted,#a0a0a0);--qrw-radius:var(--radius,12px);--qrw-transition:var(--transition,.3s cubic-bezier(.25,.8,.25,1));--qrw-line:rgba(102,252,241,.15)}
   .qrw *,.qrw *::before,.qrw *::after{box-sizing:border-box}
-  .qrw .glass-container{background:rgba(255,255,255,.05);backdrop-filter:blur(15px);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:40px;width:100%;max-width:900px;box-shadow:0 20px 40px rgba(0,0,0,.3)}
-  .qrw h1{margin:0 0 24px;font-size:2rem;font-weight:800;color:var(--qrw-text)}
-  .qrw h1 span{color:var(--qrw-primary)}
-  .qrw .generator-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px}
-  .qrw .input-group,.qrw .style-options{margin-bottom:20px}
-  .qrw label{font-size:.85rem;color:#94a3b8;margin-bottom:8px;display:block}
-  .qrw input,.qrw select{width:100%;padding:14px;margin-bottom:10px;border-radius:12px;border:1px solid #334155;background:#1e293b;color:#fff;font:inherit}
-  .qrw input[type=color]{padding:4px;height:48px}
-  .qrw .grid-controls{display:grid;grid-template-columns:1fr 2fr;gap:10px}
-  .qrw .btn-primary{width:100%;padding:16px;border:none;border-radius:12px;background:var(--qrw-primary);color:#fff;font-weight:700;cursor:pointer;margin-bottom:10px;font:inherit;font-weight:700}
-  .qrw .btn-success{width:100%;padding:16px;border:none;border-radius:12px;background:#10b981;color:#fff;cursor:pointer;font:inherit;font-weight:700}
-  .qrw .qr-canvas{background:#fff;padding:15px;border-radius:16px;display:flex;justify-content:center;align-items:center;margin:0 auto 20px;box-shadow:0 10px 20px rgba(0,0,0,.2);width:280px;height:280px;overflow:hidden}
-  .qrw .custom-file-upload{display:block;padding:12px;background:#334155;text-align:center;cursor:pointer;border-radius:12px;border:1px dashed #64748b}
-  .qrw .error-msg{color:#f87171;font-size:.8rem;margin-top:10px}
-  .qrw-whatsapp-float{position:fixed;width:60px;height:60px;bottom:40px;right:40px;background-color:#25d366;color:#fff;border-radius:50px;text-align:center;font-size:30px;box-shadow:2px 2px 10px rgba(0,0,0,.3);z-index:1000;display:flex;justify-content:center;align-items:center;transition:transform .3s ease;animation:qrw-pulse 2s infinite}
-  .qrw-whatsapp-float img{width:70%;height:70%}
-  .qrw-whatsapp-float:hover{transform:scale(1.1);background-color:#128c7e}
-  @keyframes qrw-pulse{0%{box-shadow:0 0 0 0 rgba(37,211,102,.7)}70%{box-shadow:0 0 0 15px rgba(37,211,102,0)}100%{box-shadow:0 0 0 0 rgba(37,211,102,0)}}
-  @media (max-width:768px){.qrw .generator-grid{grid-template-columns:1fr}}
-  @media (max-width:480px){.qrw-whatsapp-float{width:50px;height:50px;bottom:20px;right:20px}}
+  .qrw .qrw-head{font-size:1.8rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:.6rem;color:var(--qrw-text)}
+  .qrw .qrw-head::before{content:'';width:6px;height:28px;background:var(--qrw-primary);border-radius:3px}
+  .qrw .qrw-sub{color:var(--qrw-muted);margin:-1rem 0 1.75rem;font-size:.95rem}
+  .qrw .qrw-panel{background:var(--qrw-surface);border:1px solid rgba(102,252,241,.1);border-radius:var(--qrw-radius);padding:1.75rem;display:grid;grid-template-columns:1fr 1fr;gap:2rem;transition:var(--qrw-transition)}
+  .qrw .qrw-panel:hover{border-color:rgba(102,252,241,.25)}
+  .qrw .qrw-stack{display:flex;flex-direction:column;gap:1rem}
+  .qrw .qrw-field{display:flex;flex-direction:column;gap:.4rem}
+  .qrw .qrw-field > label,.qrw .qrw-legend{font-size:.85rem;color:var(--qrw-muted);font-weight:600}
+  .qrw .qrw-legend{text-transform:uppercase;letter-spacing:.05em;font-size:.7rem}
+  .qrw input,.qrw select{width:100%;background:var(--qrw-bg);border:1px solid var(--qrw-line);border-radius:8px;padding:.75rem 1rem;color:var(--qrw-text);font-family:inherit;font-size:.95rem;transition:var(--qrw-transition)}
+  .qrw input:focus,.qrw select:focus{outline:none;border-color:var(--qrw-primary);box-shadow:0 0 0 3px rgba(102,252,241,.1)}
+  .qrw input[type=color]{padding:4px;height:46px;cursor:pointer}
+  .qrw #qrw-dynamicInputs{display:flex;flex-direction:column;gap:.6rem}
+  .qrw .qrw-row{display:grid;grid-template-columns:70px 1fr;gap:.6rem}
+  .qrw .qrw-upload{display:block;padding:.75rem;background:rgba(102,252,241,.06);text-align:center;cursor:pointer;border-radius:8px;border:1px dashed rgba(102,252,241,.3);color:var(--qrw-muted);font-size:.9rem;font-weight:600;transition:var(--qrw-transition)}
+  .qrw .qrw-upload:hover{background:rgba(102,252,241,.12);color:var(--qrw-primary);border-color:var(--qrw-primary)}
+  .qrw .qrw-preview-side{display:flex;flex-direction:column;gap:.85rem}
+  .qrw .qrw-canvas{background:#fff;padding:15px;border-radius:var(--qrw-radius);display:flex;justify-content:center;align-items:center;box-shadow:var(--shadow,0 0 20px rgba(102,252,241,.15));width:100%;max-width:280px;aspect-ratio:1;margin:0 auto;overflow:hidden}
+  .qrw .qrw-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;width:100%;font-family:inherit;font-weight:700;padding:.85rem 1.5rem;border:none;border-radius:var(--qrw-radius);cursor:pointer;text-transform:uppercase;letter-spacing:.03em;transition:var(--qrw-transition)}
+  .qrw .qrw-btn-primary{background:linear-gradient(90deg,var(--qrw-primary),var(--qrw-dim));color:var(--qrw-bg)}
+  .qrw .qrw-btn-primary:hover{box-shadow:0 0 25px rgba(102,252,241,.35);transform:translateY(-2px)}
+  .qrw .qrw-btn-ghost{background:transparent;color:var(--qrw-primary);border:1px solid rgba(102,252,241,.35)}
+  .qrw .qrw-btn-ghost:hover{background:rgba(102,252,241,.1);transform:translateY(-2px)}
+  .qrw .qrw-msg{min-height:1.2rem;font-size:.8rem;color:var(--danger,#ff4d4d);text-align:center}
+  @media (max-width:768px){.qrw .qrw-panel{grid-template-columns:1fr;padding:1.25rem;gap:1.5rem}}
   </style>
 
-  <div class="glass-container">
-    <header><h1>QR Workin<span>'</span></h1></header>
-    <div class="generator-grid">
-      <div class="config-side">
-        <div class="input-group">
-          <label for="qrw-type">Tipo de Conteúdo</label>
-          <select id="qrw-type">
-            <option value="url">Link / Texto Livre</option>
-            <option value="wifi">Rede Wi-Fi</option>
-            <option value="vcard">Cartão de Visita (vCard)</option>
-            <option value="whatsapp">WhatsApp Direct</option>
-            <option value="location">Localização (GPS)</option>
-          </select>
-        </div>
-        <div id="qrw-dynamicInputs" class="dynamic-inputs"></div>
-        <div class="style-options">
-          <label>Configurações de Exportação</label>
-          <div class="grid-controls">
-            <input type="color" id="qrw-dotColor" value="#4f46e5" aria-label="Cor do QR Code">
-            <select id="qrw-dotStyle">
-              <option value="extra-rounded">Extra Redondo</option>
-              <option value="rounded">Arredondado</option>
-              <option value="dots">Pontos</option>
-              <option value="square">Quadrado</option>
-            </select>
-          </div>
-          <select id="qrw-resSelect">
-            <option value="500">500x500 (Padrão)</option>
-            <option value="800">800x800 (HD)</option>
-            <option value="1000">1000x1000 (Alta Qualidade)</option>
-            <option value="2000">2000x2000 (Ultra Qualidade)</option>
-          </select>
-          <label for="qrw-logoUpload" class="custom-file-upload">Adicionar Logo</label>
-          <input type="file" id="qrw-logoUpload" accept="image/*" style="display:none">
-        </div>
+  <div class="qrw-panel">
+    <div class="qrw-stack">
+      <div class="qrw-field">
+        <label for="qrw-type">Tipo de conteúdo</label>
+        <select id="qrw-type">
+          <option value="url">Link / Texto Livre</option>
+          <option value="wifi">Rede Wi-Fi</option>
+          <option value="vcard">Cartão de Visita (vCard)</option>
+          <option value="whatsapp">WhatsApp Direct</option>
+          <option value="location">Localização (GPS)</option>
+        </select>
       </div>
-      <div class="preview-side">
-        <div id="qrw-preview" class="qr-canvas"></div>
-        <button type="button" id="qrw-generateBtn" class="btn-primary">Gerar Visualização</button>
-        <button type="button" id="qrw-downloadBtn" class="btn-success">Baixar PNG em Alta Resolução</button>
-        <p id="qrw-errorMessage" class="error-msg"></p>
+
+      <div id="qrw-dynamicInputs"></div>
+
+      <div class="qrw-field">
+        <span class="qrw-legend">Configurações de exportação</span>
+        <div class="qrw-row">
+          <input type="color" id="qrw-dotColor" value="#66fcf1" aria-label="Cor do QR Code">
+          <select id="qrw-dotStyle">
+            <option value="extra-rounded">Extra Redondo</option>
+            <option value="rounded">Arredondado</option>
+            <option value="dots">Pontos</option>
+            <option value="square">Quadrado</option>
+          </select>
+        </div>
+        <select id="qrw-resSelect">
+          <option value="500">500x500 (Padrão)</option>
+          <option value="800">800x800 (HD)</option>
+          <option value="1000">1000x1000 (Alta Qualidade)</option>
+          <option value="2000">2000x2000 (Ultra Qualidade)</option>
+        </select>
+        <label for="qrw-logoUpload" class="qrw-upload">Adicionar logo</label>
+        <input type="file" id="qrw-logoUpload" accept="image/*" style="display:none">
       </div>
     </div>
-    
+
+    <div class="qrw-preview-side">
+      <div id="qrw-preview" class="qrw-canvas"></div>
+      <button type="button" id="qrw-generateBtn" class="qrw-btn qrw-btn-primary">Gerar visualização</button>
+      <button type="button" id="qrw-downloadBtn" class="qrw-btn qrw-btn-ghost">Baixar PNG em alta</button>
+      <p id="qrw-errorMessage" class="qrw-msg"></p>
+    </div>
   </div>
 
   <script>
   (function () {
     var root = document.currentScript.closest('.qrw');
     var $ = function (id) { return root.querySelector('#' + id); };
-
-    if (!document.querySelector('link[data-qrw-font]')) {
-      var f = document.createElement('link');
-      f.rel = 'stylesheet';
-      f.dataset.qrwFont = '1';
-      f.href = 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap';
-      document.head.appendChild(f);
-    }
+    var msg = $('qrw-errorMessage');
 
     function loadLib(cb) {
       if (window.QRCodeStyling) return cb();
@@ -128,12 +125,12 @@
       s.dataset.qrwLib = '1';
       s.src = 'https://unpkg.com/qr-code-styling@1.6.0/lib/qr-code-styling.js';
       s.onload = cb;
-      s.onerror = function () { $('qrw-errorMessage').textContent = 'Falha ao carregar a biblioteca de QR Code.'; };
+      s.onerror = function () { msg.textContent = 'Falha ao carregar a biblioteca de QR Code.'; };
       document.head.appendChild(s);
     }
 
     var templates = {
-      url: '<input type="text" id="qrw-mainVal" placeholder="URL ou Texto">',
+      url: '<input type="text" id="qrw-mainVal" placeholder="URL ou texto">',
       wifi: '<input type="text" id="qrw-wifiSSID" placeholder="Nome da rede (SSID)"><input type="password" id="qrw-wifiPass" placeholder="Senha">',
       vcard: '<input type="text" id="qrw-vName" placeholder="Nome"><input type="tel" id="qrw-vTel" placeholder="Telefone">',
       whatsapp: '<input type="text" id="qrw-waNum" placeholder="Número (com DDD)">',
@@ -165,7 +162,7 @@
     loadLib(function () {
       var qrCode = new QRCodeStyling({
         width: 250, height: 250,
-        dotsOptions: { type: 'extra-rounded' },
+        dotsOptions: { type: 'extra-rounded', color: '#66fcf1' },
         imageOptions: { hideBackgroundDots: true, imageSize: 0.4, margin: 0 }
       });
       qrCode.append($('qrw-preview'));
@@ -178,18 +175,22 @@
         reader.readAsDataURL(file);
       }
 
+      function guard(config, acao) {
+        if (!config.data) { msg.textContent = 'Preencha os campos antes de ' + acao + '.'; return false; }
+        msg.textContent = '';
+        return true;
+      }
+
       $('qrw-generateBtn').addEventListener('click', function () {
         var config = getBaseConfig();
-        if (!config.data) { $('qrw-errorMessage').textContent = 'Preencha os campos antes de gerar.'; return; }
-        $('qrw-errorMessage').textContent = '';
+        if (!guard(config, 'gerar')) return;
         config.width = 250; config.height = 250;
         withLogo(config, function (c) { qrCode.update(c); });
       });
 
       $('qrw-downloadBtn').addEventListener('click', function () {
         var config = getBaseConfig();
-        if (!config.data) { $('qrw-errorMessage').textContent = 'Preencha os campos antes de baixar.'; return; }
-        $('qrw-errorMessage').textContent = '';
+        if (!guard(config, 'baixar')) return;
         var size = parseInt(val('qrw-resSelect'), 10);
         config.width = size; config.height = size;
         withLogo(config, function (c) {
@@ -200,6 +201,7 @@
   })();
   </script>
 </div>
+
 
   </section>
 
