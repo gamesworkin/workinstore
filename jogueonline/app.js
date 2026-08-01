@@ -623,23 +623,6 @@ function clearAdminGameForm() {
     if (btnCancelEditGame) btnCancelEditGame.classList.add('hidden');
 }
 
-// Efeito de pulsação suave no botão do WhatsApp
-const waButton = document.querySelector('.whatsapp-float');
-if (waButton) {
-    waButton.style.animation = "pulse 2s infinite";
-    
-    // Injetando o keyframe da animação via JS para não precisar mexer no CSS
-    const style = document.createElement('style');
-    style.innerHTML = `
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7); }
-            70% { box-shadow: 0 0 0 15px rgba(37, 211, 102, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0); }
-        }
-    `;
-    document.head.appendChild(style);
-}
-
 // --- MENU PRÓPRIO ADM: TAXONOMIA, IMPORTAÇÃO, EXCLUSÃO EM LOTE ---
 function buildAdminBulkSelectors(jogos) {
     if (!bulkFilterCategory || !bulkFilterSubcategory) return;
@@ -804,6 +787,23 @@ if (importJsonFile) {
         };
         reader.readAsText(file);
     });
+}
+
+// Efeito de pulsação suave no botão do WhatsApp
+const waButton = document.querySelector('.whatsapp-float');
+if (waButton) {
+    waButton.style.animation = "pulse 2s infinite";
+    
+    // Injetando o keyframe da animação via JS para não precisar mexer no CSS
+    const style = document.createElement('style');
+    style.innerHTML = `
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(37, 211, 102, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0); }
+        }
+    `;
+    document.head.appendChild(style);
 }
 
 // --- LISTA DE USUÁRIOS E BANIMENTOS ---
