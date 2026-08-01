@@ -789,23 +789,6 @@ if (importJsonFile) {
     });
 }
 
-// Efeito de pulsação suave no botão do WhatsApp
-const waButton = document.querySelector('.whatsapp-float');
-if (waButton) {
-    waButton.style.animation = "pulse 2s infinite";
-    
-    // Injetando o keyframe da animação via JS para não precisar mexer no CSS
-    const style = document.createElement('style');
-    style.innerHTML = `
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7); }
-            70% { box-shadow: 0 0 0 15px rgba(37, 211, 102, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0); }
-        }
-    `;
-    document.head.appendChild(style);
-}
-
 // --- LISTA DE USUÁRIOS E BANIMENTOS ---
 async function loadAdminUsersTable() {
     const tableBody = document.getElementById('admin-users-table-body');
@@ -969,41 +952,19 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-.whatsapp-float {
-    position: fixed;
-    width: 60px;
-    height: 60px;
-    bottom: 40px;
-    right: 40px;
-    background-color: #25d366;
-    color: #FFF;
-    border-radius: 50px;
-    text-align: center;
-    font-size: 30px;
-    box-shadow: 2px 2px 10px rgba(0,0,0,0.3);
-    z-index: 1000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    transition: transform 0.3s ease;
-}
-
-.whatsapp-float img {
-    width: 70%;
-    height: 70%;
-}
-
-.whatsapp-float:hover {
-    transform: scale(1.1);
-    background-color: #128c7e;
-}
-
-/* Ajuste para celular */
-@media (max-width: 480px) {
-    .whatsapp-float {
-        width: 50px;
-        height: 50px;
-        bottom: 20px;
-        right: 20px;
-    }
+// Efeito de pulsação suave no botão do WhatsApp
+const waButton = document.querySelector('.whatsapp-float');
+if (waButton) {
+    waButton.style.animation = "pulse 2s infinite";
+    
+    // Injetando o keyframe da animação via JS para não precisar mexer no CSS
+    const style = document.createElement('style');
+    style.innerHTML = `
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(37, 211, 102, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0); }
+        }
+    `;
+    document.head.appendChild(style);
 }
