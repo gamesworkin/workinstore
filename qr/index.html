@@ -35,7 +35,7 @@
 
   <!-- Hero -->
   <section class="hero">
-   <div class="qrw catalogo">
+  <div class="qrw catalogo">
   <style>
   .qrw{--qrw-primary:var(--primary,#66fcf1);--qrw-dim:var(--primary-dim,#45a29e);--qrw-surface:var(--surface,rgba(31,40,51,.85));--qrw-bg:var(--bg,#0b0c10);--qrw-text:var(--text,#f5f5f5);--qrw-muted:var(--text-muted,#a0a0a0);--qrw-radius:var(--radius,12px);--qrw-transition:var(--transition,.3s cubic-bezier(.25,.8,.25,1));--qrw-line:rgba(102,252,241,.15)}
   .qrw *,.qrw *::before,.qrw *::after{box-sizing:border-box}
@@ -76,6 +76,7 @@
           <option value="vcard">Cartão de Visita (vCard)</option>
           <option value="whatsapp">WhatsApp Direct</option>
           <option value="location">Localização (GPS)</option>
+          <option value="pix">Chave Pix</option>
         </select>
       </div>
 
@@ -134,8 +135,50 @@
       wifi: '<input type="text" id="qrw-wifiSSID" placeholder="Nome da rede (SSID)"><input type="password" id="qrw-wifiPass" placeholder="Senha">',
       vcard: '<input type="text" id="qrw-vName" placeholder="Nome"><input type="tel" id="qrw-vTel" placeholder="Telefone">',
       whatsapp: '<input type="text" id="qrw-waNum" placeholder="Número (com DDD)">',
-      location: '<input type="text" id="qrw-lat" placeholder="Latitude"><input type="text" id="qrw-lng" placeholder="Longitude">'
+      location: '<input type="text" id="qrw-lat" placeholder="Latitude"><input type="text" id="qrw-lng" placeholder="Longitude">',
+      pix: '<input type="text" id="qrw-pixKey" placeholder="Chave Pix (CPF, CNPJ, e-mail, telefone ou aleatoria)"><input type="text" id="qrw-pixName" placeholder="Nome do recebedor"><input type="text" id="qrw-pixCity" placeholder="Cidade do recebedor"><input type="text" id="qrw-pixAmount" placeholder="Valor (opcional, ex: 49.90)"><input type="text" id="qrw-pixTxid" placeholder="Identificador (opcional, ex: PEDIDO123)">'
     };
+
+    function pixClean(str, max) {
+      var out = (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7E]/g, '').trim();
+      return max ? out.substring(0, max) : out;
+    }
+
+    function pixField(id, value) {
+      return id + String(value.length).padStart(2, '0') + value;
+    }
+
+    function pixCrc16(payload) {
+      var crc = 0xFFFF;
+      for (var i = 0; i < payload.length; i++) {
+        crc ^= payload.charCodeAt(i) << 8;
+        for (var b = 0; b < 8; b++) {
+          crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
+          crc &= 0xFFFF;
+        }
+      }
+      return crc.toString(16).toUpperCase().padStart(4, '0');
+    }
+
+    function buildPix() {
+      var key = pixClean(val('qrw-pixKey'), 77);
+      var name = pixClean(val('qrw-pixName'), 25).toUpperCase();
+      var city = pixClean(val('qrw-pixCity'), 15).toUpperCase();
+      if (!key || !name || !city) return '';
+      var amount = pixClean(val('qrw-pixAmount')).replace(/\s/g, '').replace(',', '.');
+      var txid = pixClean(val('qrw-pixTxid'), 25).replace(/[^A-Za-z0-9]/g, '') || '***';
+      var payload = pixField('00', '01')
+        + pixField('26', pixField('00', 'br.gov.bcb.pix') + pixField('01', key))
+        + pixField('52', '0000')
+        + pixField('53', '986');
+      if (amount && !isNaN(parseFloat(amount))) payload += pixField('54', parseFloat(amount).toFixed(2));
+      payload += pixField('58', 'BR')
+        + pixField('59', name)
+        + pixField('60', city)
+        + pixField('62', pixField('05', txid))
+        + '6304';
+      return payload + pixCrc16(payload);
+    }
 
     var typeEl = $('qrw-type');
     var dyn = $('qrw-dynamicInputs');
@@ -152,6 +195,7 @@
       else if (t === 'vcard') data = 'BEGIN:VCARD\nFN:' + val('qrw-vName') + '\nTEL:' + val('qrw-vTel') + '\nEND:VCARD';
       else if (t === 'whatsapp') data = 'https://wa.me/' + val('qrw-waNum').replace(/\D/g, '');
       else if (t === 'location') data = 'geo:' + val('qrw-lat') + ',' + val('qrw-lng');
+      else if (t === 'pix') data = buildPix();
       return {
         data: data,
         dotsOptions: { color: val('qrw-dotColor'), type: val('qrw-dotStyle') },
@@ -201,7 +245,6 @@
   })();
   </script>
 </div>
-
 
   </section>
 
