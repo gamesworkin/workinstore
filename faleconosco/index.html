@@ -35,8 +35,35 @@
 
   <!-- Hero -->
   <section class="hero">
-    <h1>Entre em contato</h1>
-    <h4><p>Você pode tirar suas dúvidas com a nossa equipe a qualquer momento pelo nosso <a href='https://wa.me/5588988470190' target="_blank" style="color:#66fcf1;">WhatsApp</a> ou enviar um e-mail diretamente para <a href="mailto:contato@workinstore.org" target="_blank" style="color:#66fcf1;">contato@workinstore.org</a>, assim podemos te atender e tirar suas dúvidas e solicitaçoes de serviços ou compras.</p></h4>
+
+	<section id="contato" class="contato-section">
+    <div class="container">
+        <h2>Entre em Contato</h2>
+        <p>Deixe sua sugestão ou mensagem. Responderemos em breve!</p>
+        
+        <form id="form-contato" class="form-padrao">
+            <div class="form-grupo">
+                <label for="nome">Seu Nome</label>
+                <input type="text" id="nome" name="nome" required class="input-padrao">
+            </div>
+
+            <div class="form-grupo">
+                <label for="email">Seu E-mail</label>
+                <input type="email" id="email" name="email" required class="input-padrao">
+            </div>
+
+            <div class="form-grupo">
+                <label for="mensagem">Sua Mensagem ou Sugestão</label>
+                <textarea id="mensagem" name="mensagem" rows="5" required class="textarea-padrao"></textarea>
+            </div>
+
+            <button type="submit" class="btn-primario">Enviar Mensagem</button>
+            <p id="status-envio" class="status-msg"></p>
+        </form>
+    </div>
+</section>
+
+	  
   </section>
 
 
