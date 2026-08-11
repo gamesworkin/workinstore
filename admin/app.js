@@ -17,14 +17,15 @@ import {
    Ative: Authentication (E-mail/senha) e Realtime Database.
 ------------------------------------------------------------------ */
 const firebaseConfig = {
-  apiKey: "SUA_API_KEY",
-  authDomain: "SEU_PROJETO.firebaseapp.com",
-  databaseURL: "https://SEU_PROJETO-default-rtdb.firebaseio.com",
-  projectId: "SEU_PROJETO",
-  storageBucket: "SEU_PROJETO.appspot.com",
-  messagingSenderId: "000000000000",
-  appId: "1:000000000000:web:xxxxxxxxxxxx"
+  apiKey: "AIzaSyBHahO9SNdc_wnL_VMs6B2i-Gb3AXYR1ws",
+  authDomain: "admin-workin-store.firebaseapp.com",
+  databaseURL: "https://admin-workin-store-default-rtdb.firebaseio.com",
+  projectId: "admin-workin-store",
+  storageBucket: "admin-workin-store.firebasestorage.app",
+  messagingSenderId: "284284142161",
+  appId: "1:284284142161:web:abc50279da94b634b3ae70"
 };
+
 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
