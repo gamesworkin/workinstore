@@ -1,0 +1,40 @@
+GESTOR ELETRÔNICOS — instruções rápidas
+=======================================
+Arquivos: index.html, styles.css, app.js (mantenha os três na mesma pasta).
+
+1) Firebase
+   - Console Firebase > Criar projeto.
+   - Authentication > Sign-in method > ativar "E-mail/senha".
+   - Realtime Database > Criar banco (NÃO use Firestore nem Storage).
+   - Configurações do projeto > Apps Web > copie o objeto de config e cole
+     no início do app.js (constante firebaseConfig).
+   - Crie manualmente o usuário admin@admin.com em Authentication > Usuários.
+     Ele recebe automaticamente todas as permissões ao entrar pela 1ª vez.
+
+2) Regras sugeridas do Realtime Database
+{
+  "rules": {
+    "settings": { ".read": true, ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'admin'" },
+    "users": {
+      ".read": "auth != null",
+      "$uid": { ".write": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin')" }
+    },
+    "products":   { ".read": "auth != null", ".write": "auth != null" },
+    "kits":       { ".read": "auth != null", ".write": "auth != null" },
+    "entries":    { ".read": "auth != null", ".write": "auth != null" },
+    "sales":      { ".read": "auth != null", ".write": "auth != null" },
+    "payables":   { ".read": "auth != null", ".write": "auth != null" },
+    "receivables":{ ".read": "auth != null", ".write": "auth != null" },
+    "expenses":   { ".read": "auth != null", ".write": "auth != null" }
+  }
+}
+
+3) Publicação: qualquer hospedagem estática (Firebase Hosting, Netlify, etc.).
+   Obs.: por usar módulos ES, abra via servidor http (não com file://).
+
+4) Preço médio: ao registrar entrada em Estoque/Compras, o custo médio é
+   recalculado como (qtd atual x médio + qtd comprada x unitário) / qtd total.
+   Exemplo: 10 a R$25 + 10 a R$30 => R$27,50.
+
+5) Kits: em "Kits" você combina itens do catálogo; o custo é a soma dos custos
+   médios + o campo "custo adicional da montagem".
