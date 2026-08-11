@@ -262,6 +262,14 @@ function kitAvailable(kit) {
   if (!items.length) return 0;
   return Math.min(...items.map(it => Math.floor(num(STATE.products[it.productId]?.qty) / (num(it.qty) || 1))));
 }
+function margin(p) {
+  const price = num(p.promo) || num(p.price);
+  const cost = num(p.avgCost);
+  const value = price - cost;
+  return { price, cost, value, pct: price > 0 ? (value / price) * 100 : 0, markup: cost > 0 ? (value / cost) * 100 : 0 };
+}
+const marginCell = (value, percent, hasPrice = true, markup = null) => `<span class="pill ${value >= 0 ? "ok" : "dan"}"${markup !== null ? ` title="Markup sobre o custo: ${pct(markup)}"` : ""}>${money(value)}${hasPrice ? ` · ${pct(percent)}` : ""}</span>`;
+const pct = n => (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%";
 function inRange(dateStr, from, to) {
   if (!dateStr) return false;
   if (from && dateStr < from) return false;
@@ -331,16 +339,20 @@ function viewProdutos(root) {
       .filter(p => !q || [p.name, p.sku, p.barcode, p.brand, p.model].some(v => (v || "").toLowerCase().includes(q)))
       .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
     $("#pTable").innerHTML = rows.length ? tbl(
-      ["", "Produto", "SKU", "Cód. barras", "Categoria", "Estoque", "Custo médio", "Preço venda", "Total", "Ações"],
-      rows.map(p => `<tr>
+      ["", "Produto", "SKU", "Cód. barras", "Categoria", "Estoque", "Custo médio", "Preço venda", "Margem un. (R$ · %)", "Total", "Ações"],
+      rows.map(p => {
+        const m = margin(p);
+        return `<tr>
         <td>${p.image ? `<img class="thumb" src="${p.image}" alt="">` : `<div class="thumb"></div>`}</td>
         <td><strong>${esc(p.name)}</strong><br><small class="muted">${esc(p.brand || "")} ${esc(p.model || "")}</small></td>
         <td>${esc(p.sku || "—")}</td><td>${esc(p.barcode || "—")}</td><td>${esc(p.category || "—")}</td>
         <td><span class="pill ${num(p.qty) <= num(p.minQty || 0) ? "dan" : "ok"}">${num(p.qty)} ${esc(p.unit || "un")}</span></td>
         <td class="right">${money(p.avgCost)}</td><td class="right">${money(p.price)}</td>
+        <td class="right">${marginCell(m.value, m.pct, m.price > 0, m.markup)}</td>
         <td class="right">${money(num(p.qty) * num(p.avgCost))}</td>
         <td><button class="btn btn-sm" data-edit="${p.id}">Editar</button>
-            <button class="btn btn-sm btn-danger" data-del="${p.id}">Excluir</button></td></tr>`).join("")
+            <button class="btn btn-sm btn-danger" data-del="${p.id}">Excluir</button></td></tr>`;
+      }).join("")
     ) : `<div class="empty">Nenhum item encontrado. Cadastre o primeiro produto.</div>`;
     $$("[data-edit]", $("#pTable")).forEach(b => b.onclick = () => productForm(b.dataset.edit));
     $$("[data-del]", $("#pTable")).forEach(b => b.onclick = () => confirmDialog("Excluir este item do catálogo?", async () => {
@@ -426,7 +438,7 @@ function viewKits(root) {
     <div id="kTable" style="margin-top:12px"></div>
   </div>`;
   $("#kTable").innerHTML = kits.length ? tbl(
-    ["Kit", "Composição", "Custo dos itens", "Adicional", "Custo total", "Preço venda", "Margem", "Montáveis", "Ações"],
+    ["Kit", "Composição", "Custo dos itens", "Adicional", "Custo total", "Preço venda", "Margem (R$ · %)", "Montáveis", "Ações"],
     kits.map(k => {
       const base = (k.items || []).reduce((s, it) => s + num(STATE.products[it.productId]?.avgCost) * num(it.qty), 0);
       const total = base + num(k.extraCost);
@@ -436,7 +448,7 @@ function viewKits(root) {
         <td>${(k.items || []).map(it => `${num(it.qty)}× ${esc(STATE.products[it.productId]?.name || "item removido")}`).join("<br>") || "—"}</td>
         <td class="right">${money(base)}</td><td class="right">${money(k.extraCost)}</td>
         <td class="right"><strong>${money(total)}</strong></td><td class="right">${money(k.price)}</td>
-        <td class="right"><span class="pill ${marg >= 0 ? "ok" : "dan"}">${money(marg)}</span></td>
+        <td class="right">${marginCell(marg, num(k.price) > 0 ? marg / num(k.price) * 100 : 0, num(k.price) > 0, total > 0 ? marg / total * 100 : null)}</td>
         <td>${kitAvailable(k)}</td>
         <td><button class="btn btn-sm" data-edit="${k.id}">Editar</button>
             <button class="btn btn-sm btn-danger" data-del="${k.id}">Excluir</button></td></tr>`;
@@ -514,19 +526,24 @@ function kitForm(id) {
 /* ================= ESTOQUE / COMPRAS (preço médio) ================= */
 function viewEstoque(root) {
   const entries = list(STATE.entries).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  const prods = list(STATE.products).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  const totalCost = prods.reduce((s, p) => s + num(p.qty) * num(p.avgCost), 0);
+  const totalSale = prods.reduce((s, p) => s + num(p.qty) * (num(p.promo) || num(p.price)), 0);
+
   root.innerHTML = `
   <div class="stats">
-    ${stat("Valor total em estoque", money(stockValue()))}
-    ${stat("Itens distintos", String(list(STATE.products).length))}
+    ${stat("Valor total em estoque (custo)", money(totalCost), prods.length + " item(ns)")}
+    ${stat("Valor potencial de venda", money(totalSale))}
+    ${stat("Margem potencial", money(totalSale - totalCost), totalSale > 0 ? pct((totalSale - totalCost) / totalSale * 100) + " sobre a venda" : "")}
     ${stat("Entradas registradas", String(entries.length))}
   </div>
+
   <div class="card">
     <div class="card-head"><h3>Entrada de mercadoria (compra)</h3></div>
     <p class="muted">Ao registrar a entrada, o custo médio é recalculado automaticamente:
       (qtd atual × custo médio + qtd comprada × custo unitário) ÷ (qtd total).</p>
     <div class="grid3" style="margin-top:12px">
-      <label class="field"><span>Produto</span><select id="e_prod">${list(STATE.products)
-        .sort((a,b)=>(a.name||"").localeCompare(b.name||""))
+      <label class="field"><span>Produto</span><select id="e_prod">${prods
         .map(p => `<option value="${p.id}">${esc(p.name)} (estoque: ${num(p.qty)} · médio ${money(p.avgCost)})</option>`).join("")}</select></label>
       <label class="field"><span>Quantidade comprada</span><input id="e_qty" type="number" step="0.001" placeholder="10"></label>
       <label class="field"><span>Valor total da remessa (R$)</span><input id="e_total" type="number" step="0.01" placeholder="250,00"></label>
@@ -540,16 +557,80 @@ function viewEstoque(root) {
     <div class="card" style="margin-top:12px;background:var(--panel-2)"><div id="e_preview" class="muted">Preencha os campos para ver a simulação do novo custo médio.</div></div>
     <div style="margin-top:12px"><button class="btn btn-primary" id="e_save">Registrar entrada</button></div>
   </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h3>Posição de estoque — todos os produtos</h3><div style="flex:1"></div>
+      <div class="toolbar"><input id="sSearch" placeholder="Buscar produto, SKU ou categoria" style="min-width:240px" /></div>
+    </div>
+    <div id="sTable" style="margin-top:12px"></div>
+  </div>
+
   <div class="card">
     <div class="card-head"><h3>Histórico de entradas</h3></div>
-    ${entries.length ? tbl(["Data", "Produto", "Qtd", "Custo unit.", "Total", "Custo médio anterior", "Novo custo médio", "Fornecedor"],
-      entries.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${esc(STATE.products[e.productId]?.name || e.productName || "—")}</td>
-      <td>${num(e.qty)}</td><td class="right">${money(e.unitCost)}</td><td class="right">${money(e.total)}</td>
-      <td class="right">${money(e.prevAvg)}</td><td class="right"><strong>${money(e.newAvg)}</strong></td>
-      <td>${esc(e.supplier || "—")}</td></tr>`).join(""))
-      : `<div class="empty">Nenhuma entrada registrada.</div>`}
+    <p class="muted">Ao editar ou excluir uma entrada, o estoque e o custo médio do produto são recalculados (a entrada é desfeita e, se for o caso, reaplicada com os novos valores).</p>
+    <div id="eTable" style="margin-top:12px"></div>
   </div>`;
 
+  /* ---------- posição de estoque ---------- */
+  const drawStock = () => {
+    const q = ($("#sSearch").value || "").toLowerCase();
+    const rows = prods.filter(p => !q || [p.name, p.sku, p.barcode, p.category, p.brand, p.model]
+      .some(v => (v || "").toLowerCase().includes(q)));
+    $("#sTable").innerHTML = rows.length ? tbl(
+      ["Produto", "SKU", "Categoria", "Local", "Qtd", "Mínimo", "Custo médio", "Custo total", "Preço venda", "Margem un. (R$ · %)", "Venda total", "Margem total (R$ · %)", "Entradas", "Ações"],
+      rows.map(p => {
+        const m = margin(p);
+        const qty = num(p.qty);
+        const cost = qty * num(p.avgCost);
+        const sale = qty * (num(p.promo) || num(p.price));
+        const nEnt = entries.filter(e => e.productId === p.id).length;
+        return `<tr>
+          <td><strong>${esc(p.name)}</strong><br><small class="muted">${esc(p.brand || "")} ${esc(p.model || "")}</small></td>
+          <td>${esc(p.sku || "—")}</td><td>${esc(p.category || "—")}</td><td>${esc(p.location || "—")}</td>
+          <td><span class="pill ${qty <= num(p.minQty || 0) ? "dan" : "ok"}">${qty} ${esc(p.unit || "un")}</span></td>
+          <td>${num(p.minQty || 0)}</td>
+          <td class="right">${money(p.avgCost)}</td>
+          <td class="right">${money(cost)}</td>
+          <td class="right">${money(num(p.promo) || num(p.price))}</td>
+          <td class="right">${marginCell(m.value, m.pct, m.price > 0, m.markup)}</td>
+          <td class="right">${money(sale)}</td>
+          <td class="right">${marginCell(sale - cost, sale > 0 ? (sale - cost) / sale * 100 : 0, sale > 0)}</td>
+          <td>${nEnt}</td>
+          <td><button class="btn btn-sm" data-pedit="${p.id}">Editar</button></td></tr>`;
+      }).join("")
+    ) : `<div class="empty">Nenhum produto encontrado.</div>`;
+    $$("[data-pedit]", $("#sTable")).forEach(b => b.onclick = () => productForm(b.dataset.pedit));
+  };
+  $("#sSearch").oninput = drawStock;
+  drawStock();
+
+  /* ---------- histórico com editar / excluir ---------- */
+  $("#eTable").innerHTML = entries.length ? tbl(
+    ["Data", "Produto", "Qtd", "Custo unit.", "Frete", "Total", "Custo médio anterior", "Novo custo médio", "Fornecedor", "Documento", "Ações"],
+    entries.map(e => `<tr><td>${fmtDate(e.date)}</td>
+      <td>${esc(STATE.products[e.productId]?.name || e.productName || "—")}</td>
+      <td>${num(e.qty)}</td><td class="right">${money(e.unitCost)}</td><td class="right">${money(e.freight)}</td>
+      <td class="right">${money(e.total)}</td>
+      <td class="right">${money(e.prevAvg)}</td><td class="right"><strong>${money(e.newAvg)}</strong></td>
+      <td>${esc(e.supplier || "—")}</td><td>${esc(e.doc || "—")}</td>
+      <td><button class="btn btn-sm" data-eedit="${e.id}">Editar</button>
+          <button class="btn btn-sm btn-danger" data-edel="${e.id}">Excluir</button></td></tr>`).join("")
+  ) : `<div class="empty">Nenhuma entrada registrada.</div>`;
+
+  $$("[data-eedit]", $("#eTable")).forEach(b => b.onclick = () => entryForm(b.dataset.eedit));
+  $$("[data-edel]", $("#eTable")).forEach(b => b.onclick = () => {
+    const e = { id: b.dataset.edel, ...STATE.entries[b.dataset.edel] };
+    confirmDialog(`Excluir a entrada de ${num(e.qty)} un de "${STATE.products[e.productId]?.name || e.productName || "produto"}"? O estoque e o custo médio serão desfeitos.`, async () => {
+      const rev = revertEntry(e);
+      if (rev) await update(ref(db, "products/" + e.productId), rev);
+      await remove(ref(db, "entries/" + e.id));
+      toast("Entrada excluída e estoque ajustado", "ok");
+      renderView();
+    });
+  });
+
+  /* ---------- registrar nova entrada ---------- */
   const preview = () => {
     const p = STATE.products[$("#e_prod").value]; if (!p) return;
     const q = num($("#e_qty").value);
@@ -593,6 +674,69 @@ function viewEstoque(root) {
   preview();
 }
 
+/* Desfaz o efeito de uma entrada no produto (estoque + custo médio) */
+function revertEntry(e) {
+  const p = STATE.products[e.productId];
+  if (!p) return null;
+  const curQty = num(p.qty), curAvg = num(p.avgCost);
+  const qty = Math.max(0, curQty - num(e.qty));
+  const valor = curQty * curAvg - num(e.qty) * num(e.unitCost);
+  const avgCost = qty > 0 ? Math.max(0, valor / qty) : 0;
+  return { qty: Number(qty.toFixed(4)), avgCost: Number(avgCost.toFixed(4)) };
+}
+
+/* Edição de uma entrada já lançada */
+function entryForm(id) {
+  const e = { id, ...STATE.entries[id] };
+  const p = STATE.products[e.productId] || {};
+  openModal("Editar entrada", `
+    <p class="muted">Produto: <strong>${esc(p.name || e.productName || "—")}</strong></p>
+    <div class="grid3">
+      <label class="field"><span>Quantidade</span><input id="x_qty" type="number" step="0.001" value="${num(e.qty)}"></label>
+      <label class="field"><span>Custo unitário (R$)</span><input id="x_unit" type="number" step="0.01" value="${num(e.unitCost)}"></label>
+      <label class="field"><span>Frete rateado (R$)</span><input id="x_freight" type="number" step="0.01" value="${num(e.freight)}"></label>
+      <label class="field"><span>Fornecedor</span><input id="x_supplier" value="${esc(e.supplier || "")}"></label>
+      <label class="field"><span>Documento</span><input id="x_doc" value="${esc(e.doc || "")}"></label>
+      <label class="field"><span>Data</span><input id="x_date" type="date" value="${esc(e.date || todayISO())}"></label>
+    </div>
+    <div class="card" style="margin-top:12px;background:var(--panel-2)"><div id="x_preview" class="muted"></div></div>
+  `, `<button class="btn" id="mCancel">Cancelar</button><button class="btn btn-primary" id="mSave">Salvar alterações</button>`);
+
+  const base = revertEntry(e) || { qty: 0, avgCost: 0 };
+  const calc = () => {
+    const q = num($("#x_qty").value), unit = num($("#x_unit").value);
+    const newQty = base.qty + q;
+    const newAvg = newQty > 0 ? (base.qty * base.avgCost + q * unit) / newQty : 0;
+    return { q, unit, newQty, newAvg };
+  };
+  const draw = () => {
+    const c = calc();
+    $("#x_preview").innerHTML = `Sem esta entrada o estoque seria <strong>${base.qty}</strong> com custo médio ${money(base.avgCost)}.
+      Com os valores atuais: estoque <strong>${c.newQty}</strong> · custo médio <strong style="color:var(--primary)">${money(c.newAvg)}</strong>.`;
+  };
+  ["x_qty", "x_unit"].forEach(i => $("#" + i).oninput = draw);
+  draw();
+
+  $("#mCancel").onclick = closeModal;
+  $("#mSave").onclick = async () => {
+    const c = calc();
+    if (c.q <= 0) return toast("Informe a quantidade", "err");
+    if (c.unit <= 0) return toast("Informe o custo unitário", "err");
+    await update(ref(db, "products/" + e.productId), {
+      qty: Number(c.newQty.toFixed(4)), avgCost: Number(c.newAvg.toFixed(4))
+    });
+    await update(ref(db, "entries/" + id), {
+      qty: c.q, unitCost: Number(c.unit.toFixed(4)), total: Number((c.q * c.unit).toFixed(2)),
+      freight: num($("#x_freight").value), prevAvg: base.avgCost, newAvg: Number(c.newAvg.toFixed(4)),
+      supplier: $("#x_supplier").value.trim(), doc: $("#x_doc").value.trim(),
+      date: $("#x_date").value || todayISO(), updatedAt: Date.now(), editedBy: STATE.user?.email || ""
+    });
+    closeModal();
+    toast("Entrada atualizada e estoque recalculado", "ok");
+    renderView();
+  };
+}
+
 /* ================= VENDAS ================= */
 function viewVendas(root) {
   const sales = list(STATE.sales).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
@@ -600,12 +744,12 @@ function viewVendas(root) {
   <div class="card">
     <div class="card-head"><h3>Vendas</h3><div style="flex:1"></div>
       <button class="btn btn-primary" id="sNew">+ Nova venda</button></div>
-    ${sales.length ? tbl(["Data", "Cliente", "Itens", "Pagamento", "Custo", "Total", "Lucro", "Ações"],
+    ${sales.length ? tbl(["Data", "Cliente", "Itens", "Pagamento", "Custo", "Total", "Lucro (R$ · %)", "Ações"],
       sales.map(s => `<tr><td>${fmtDate(s.date)}</td><td>${esc(s.customer || "—")}</td>
       <td>${(s.items || []).map(i => `${num(i.qty)}× ${esc(i.name)}`).join("<br>")}</td>
       <td>${esc(s.payment || "—")}</td><td class="right">${money(s.cost)}</td>
       <td class="right"><strong>${money(s.total)}</strong></td>
-      <td class="right"><span class="pill ${num(s.total) - num(s.cost) >= 0 ? "ok" : "dan"}">${money(num(s.total) - num(s.cost))}</span></td>
+      <td class="right">${marginCell(num(s.total) - num(s.cost), num(s.total) > 0 ? (num(s.total) - num(s.cost)) / num(s.total) * 100 : 0, num(s.total) > 0)}</td>
       <td><button class="btn btn-sm btn-danger" data-del="${s.id}">Excluir</button></td></tr>`).join(""))
       : `<div class="empty">Nenhuma venda registrada.</div>`}
   </div>`;
@@ -957,8 +1101,9 @@ function viewRelatorios(root) {
         `<div class="bar-row"><span>${fmtDate(d)}</span><div class="bar"><i style="width:${(v / maxDay * 100).toFixed(1)}%"></i></div><span class="right">${money(v)}</span></div>`).join("")}</div>`
         : `<div class="empty">Sem vendas no período.</div>`}</div>
     <div class="card"><div class="card-head"><h3>Produtos e kits mais vendidos</h3></div>
-      ${rk.length ? tbl(["Item", "Qtd", "Faturamento", "Lucro"], rk.map(([n, v]) =>
-        `<tr><td>${esc(n)}</td><td>${v.qty}</td><td class="right">${money(v.total)}</td><td class="right">${money(v.profit)}</td></tr>`).join(""))
+      ${rk.length ? tbl(["Item", "Qtd", "Faturamento", "Lucro (R$ · %)"], rk.map(([n, v]) =>
+        `<tr><td>${esc(n)}</td><td>${v.qty}</td><td class="right">${money(v.total)}</td>
+        <td class="right">${marginCell(v.profit, v.total > 0 ? v.profit / v.total * 100 : 0, v.total > 0)}</td></tr>`).join(""))
         : `<div class="empty">Sem dados.</div>`}</div>
     <div class="card"><div class="card-head"><h3>Despesas por categoria</h3></div>
       ${exps.length ? tbl(["Categoria", "Lançamentos", "Total"], Object.entries(exps.reduce((m, e) => {
@@ -968,11 +1113,24 @@ function viewRelatorios(root) {
         `<tr><td>${esc(c)}</td><td>${v.n}</td><td class="right">${money(v.v)}</td></tr>`).join(""))
         : `<div class="empty">Sem despesas no período.</div>`}</div>
     <div class="card"><div class="card-head"><h3>Posição de estoque (atual)</h3></div>
-      ${tbl(["Produto", "Qtd", "Custo médio", "Valor total"], list(STATE.products)
-        .sort((a, b) => num(b.qty) * num(b.avgCost) - num(a.qty) * num(a.avgCost))
-        .map(p => `<tr><td>${esc(p.name)}</td><td>${num(p.qty)}</td><td class="right">${money(p.avgCost)}</td>
-        <td class="right">${money(num(p.qty) * num(p.avgCost))}</td></tr>`).join("") +
-        `<tr><td colspan="3"><strong>Total</strong></td><td class="right"><strong>${money(stockValue())}</strong></td></tr>`)}
+      ${(() => {
+        const ps = list(STATE.products).sort((a, b) => num(b.qty) * num(b.avgCost) - num(a.qty) * num(a.avgCost));
+        const totCost = ps.reduce((s2, p) => s2 + num(p.qty) * num(p.avgCost), 0);
+        const totSale = ps.reduce((s2, p) => s2 + num(p.qty) * (num(p.promo) || num(p.price)), 0);
+        return tbl(["Produto", "Qtd", "Custo médio", "Custo total", "Preço venda", "Margem un. (R$ · %)", "Venda total", "Margem total (R$ · %)"],
+          ps.map(p => {
+            const m = margin(p);
+            const c = num(p.qty) * m.cost, v = num(p.qty) * m.price;
+            return `<tr><td>${esc(p.name)}</td><td>${num(p.qty)}</td><td class="right">${money(m.cost)}</td>
+            <td class="right">${money(c)}</td><td class="right">${money(m.price)}</td>
+            <td class="right">${marginCell(m.value, m.pct, m.price > 0, m.markup)}</td>
+            <td class="right">${money(v)}</td>
+            <td class="right">${marginCell(v - c, v > 0 ? (v - c) / v * 100 : 0, v > 0)}</td></tr>`;
+          }).join("") +
+          `<tr><td colspan="3"><strong>Total</strong></td><td class="right"><strong>${money(totCost)}</strong></td>
+           <td colspan="2"></td><td class="right"><strong>${money(totSale)}</strong></td>
+           <td class="right"><strong>${money(totSale - totCost)}${totSale > 0 ? " · " + pct((totSale - totCost) / totSale * 100) : ""}</strong></td></tr>`);
+      })()}
     </div>`;
   }
   function exportCsv() {
