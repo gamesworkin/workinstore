@@ -1,6 +1,6 @@
 {
   "name": "Workin'Store | Portal",
-  "short_name": "WorkinStore",
+  "short_name": "Workin'Store",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -8,7 +8,7 @@
   "theme_color": "#0b0e14",
   "icons": [
     {
-      "src": "logo.png",
+      "src": "fav.ico",
       "sizes": "128x128",
       "type": "image/png",
       "purpose": "any maskable"
