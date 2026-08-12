@@ -1,8 +1,8 @@
 {
-  "name": "Workin'Store - Sistema Gerencial",
+  "name": "Workin'Store - Portal",
   "short_name": "WorkinStore",
-  "start_url": "/admin/",
-  "scope": "/admin/",
+  "start_url": /",
+  "scope": "",
   "display": "standalone",
   "background_color": "#0b0e14",
   "theme_color": "#0b0e14",
