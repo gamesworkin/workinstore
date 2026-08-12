@@ -157,3 +157,12 @@ tbody tr:hover{background:var(--panel-2)}
 .chk{display:flex;align-items:center;gap:8px;font-size:13px}
 .chk input{width:auto}
 .perm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
+
+/* ================= Foto de perfil / financeiro ================= */
+.avatar{overflow:hidden}
+.avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+.toolbar[data-period]{display:inline-flex;gap:6px;padding:0;margin:0}
+.toolbar[data-period] input,.toolbar[data-period] select{min-width:130px}
+.toolbar[data-period] input:disabled{opacity:.55}
+.bars .bar i{transition:width .2s ease}
+@media print{ .sidebar,.topbar,.toolbar{display:none !important} .content{padding:0} }
