@@ -1,7 +1,7 @@
 {
-  "name": "Workin'Store - Portal",
+  "name": "Workin'Store | Portal",
   "short_name": "WorkinStore",
-  "start_url": /",
+  "start_url": "",
   "scope": "",
   "display": "standalone",
   "background_color": "#0b0e14",
