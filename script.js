@@ -35,7 +35,12 @@ const state = {
   page: 1,
   perPage: 12,
   editingId: null,
-  menuEditingId: null
+  menuEditingId: null,
+  banners: [],
+  bannerEditingId: null,
+  bannerIndex: 0,
+  bannerTimer: null,
+  search: ""
 };
 
 /* ============================================================
@@ -89,6 +94,24 @@ function closeModal(id) {
   document.body.style.overflow = "";
 }
 
+function normalize(str) {
+  return String(str || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function byOrder(a, b) {
+  const oa = typeof a.order === "number" ? a.order : 9999;
+  const ob = typeof b.order === "number" ? b.order : 9999;
+  if (oa === ob) return String(a.title || a.name || "").localeCompare(String(b.title || b.name || ""));
+  return oa - ob;
+}
+
+function nextOrder(list) {
+  return list.reduce((max, i) => Math.max(max, typeof i.order === "number" ? i.order : 0), 0) + 1;
+}
+
 function getCheckedValues(selector) {
   return Array.from(document.querySelectorAll(selector + ":checked")).map((cb) => cb.value);
 }
@@ -111,18 +134,31 @@ auth.onAuthStateChanged((user) => {
 
 function updateAuthUI() {
   const loginBtn = document.getElementById("login-btn");
-  const logoutBtn = document.getElementById("logout-btn");
-  const adminPanel = document.getElementById("admin-panel");
+  const dot = document.getElementById("restricted-dot");
   if (state.isAdmin) {
     if (loginBtn) loginBtn.classList.add("hidden");
-    if (logoutBtn) logoutBtn.classList.remove("hidden");
-    if (adminPanel) adminPanel.classList.remove("hidden");
+    if (dot) dot.title = "Painel administrativo";
     showToast("Bem-vindo, admin!", "success");
+    openAdminModal();
   } else {
     if (loginBtn) loginBtn.classList.remove("hidden");
-    if (logoutBtn) logoutBtn.classList.add("hidden");
-    if (adminPanel) adminPanel.classList.add("hidden");
+    if (dot) dot.title = "Área restrita";
+    closeModal("admin-modal");
   }
+}
+
+/* Abre o painel administrativo (mesmo botão discreto do login) */
+function openAdminModal() {
+  renderAdminProdutos();
+  renderAdminMenu();
+  renderAdminBanners();
+  switchTab("produtos-tab");
+  openModal("admin-modal");
+}
+
+function handleRestrictedClick() {
+  if (state.isAdmin) openAdminModal();
+  else openModal("login-modal");
 }
 
 
@@ -167,16 +203,24 @@ function logout() {
 function loadData() {
   db.ref("produtos").on("value", (snap) => {
     const data = snap.val() || {};
-    state.produtos = Object.entries(data).map(([id, p]) => ({ id, ...p }));
+    state.produtos = Object.entries(data).map(([id, p]) => ({ id, ...p })).sort(byOrder);
     state.page = 1;
     renderProdutos();
+    renderAdminProdutos();
   });
 
   db.ref("menu").on("value", (snap) => {
     const data = snap.val() || {};
-    state.menu = Object.entries(data).map(([id, m]) => ({ id, ...m }));
+    state.menu = Object.entries(data).map(([id, m]) => ({ id, ...m })).sort(byOrder);
     renderMenu();
     renderAdminMenu();
+  });
+
+  db.ref("banners").on("value", (snap) => {
+    const data = snap.val() || {};
+    state.banners = Object.entries(data).map(([id, b]) => ({ id, ...b })).sort(byOrder);
+    renderBanners();
+    renderAdminBanners();
   });
 
   db.ref("footer").on("value", (snap) => {
@@ -241,8 +285,8 @@ function renderMenu() {
   const mobile = document.getElementById("mobile-menu-list");
   if (!desktop) return;
 
-  const topItems = state.menu.filter((m) => !m.parentId);
-  const children = (parentId) => state.menu.filter((m) => m.parentId === parentId);
+  const topItems = state.menu.filter((m) => !m.parentId).sort(byOrder);
+  const children = (parentId) => state.menu.filter((m) => m.parentId === parentId).sort(byOrder);
 
   desktop.innerHTML = topItems.map((item) => buildDesktopItem(item, children)).join("");
   mobile.innerHTML = topItems.map((item, idx) => buildMobileItem(item, idx, children)).join("");
@@ -320,24 +364,38 @@ function renderAdminMenu() {
   const parentSelect = document.getElementById("menu-parent");
   if (!list) return;
 
-  list.innerHTML = state.menu.map((item) => {
-    const parent = state.menu.find((m) => m.id === item.parentId);
-    return `
-      <div class="admin-list-item">
+  const buildRow = (item, isChild, index) => `
+      <div class="admin-list-item draggable${isChild ? " sub-indent" : ""}" draggable="true" data-id="${item.id}">
+        <span class="drag-handle" title="Arraste para reordenar">⠿</span>
+        <input type="number" class="order-input" min="1" step="1" value="${index + 1}" data-id="${item.id}" title="Posição (digite o número e pressione Enter)">
         <div>
           <strong>${escapeHtml(item.name)}</strong>
           <br><small>${item.link ? "Link: " + escapeHtml(item.link) : "Sem link (pai de submenu)"}</small>
-          <br><small>${parent ? "Pai: " + escapeHtml(parent.name) : "Item de topo"}</small>
+          <br><small>${isChild ? "Subitem" : "Item de topo"}</small>
         </div>
         <div class="admin-list-actions">
           <button class="btn-save" onclick="editMenuItem('${item.id}')">Editar</button>
           <button class="btn-danger" onclick="deleteMenuItem('${item.id}')">Excluir</button>
         </div>
-      </div>
-    `;
-  }).join("");
+      </div>`;
 
-  const topItems = state.menu.filter((m) => !m.parentId);
+  const tops = state.menu.filter((m) => !m.parentId).sort(byOrder);
+  list.innerHTML = `<div class="admin-drag-list" data-parent="">
+      ${tops.map((t, ti) => buildRow(t, false, ti) + (
+        state.menu.filter((c) => c.parentId === t.id).length
+          ? `<div class="admin-drag-list admin-list-group" data-parent="${t.id}">
+               ${state.menu.filter((c) => c.parentId === t.id).sort(byOrder).map((c, ci) => buildRow(c, true, ci)).join("")}
+             </div>`
+          : ""
+      )).join("")}
+    </div>`;
+
+  list.querySelectorAll(".admin-drag-list").forEach((container) => {
+    enableDragSort(container, (ids) => persistOrder("menu", ids));
+    enableOrderInputs(container, (ids) => persistOrder("menu", ids));
+  });
+
+  const topItems = state.menu.filter((m) => !m.parentId).sort(byOrder);
   parentSelect.innerHTML = `<option value="">Nenhum (item de topo)</option>` +
     topItems.map((m) => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join("");
 
@@ -360,7 +418,12 @@ function saveMenuItem(e) {
     return;
   }
 
-  const data = { name, link, parentId };
+  const existing = state.menu.find((m) => m.id === state.menuEditingId);
+  const order = existing && typeof existing.order === "number"
+    ? existing.order
+    : nextOrder(state.menu.filter((m) => (m.parentId || null) === parentId));
+
+  const data = { name, link, parentId, order };
   const ref = state.menuEditingId
     ? db.ref("menu/" + state.menuEditingId)
     : db.ref("menu").push();
@@ -402,19 +465,50 @@ function resetMenuForm() {
 /* ============================================================
    PRODUTOS
    ============================================================ */
+function getFilteredProdutos() {
+  const q = normalize(state.search).trim();
+  if (!q) return state.produtos;
+  const terms = q.split(/\s+/);
+  return state.produtos.filter((p) => {
+    const haystack = normalize([p.title, p.description, p.cities].join(" "));
+    return terms.every((t) => haystack.includes(t));
+  });
+}
+
 function renderProdutos() {
   const grid = document.getElementById("produtos-grid");
-  const total = state.produtos.length;
+  const list = getFilteredProdutos();
+  const total = list.length;
   const start = (state.page - 1) * state.perPage;
-  const pageItems = state.produtos.slice(start, start + state.perPage);
+  const pageItems = list.slice(start, start + state.perPage);
 
   if (!total) {
-    grid.innerHTML = `<p class="empty" style="color:var(--text-muted);grid-column:1/-1;text-align:center;padding:3rem 0;">Nenhum produto cadastrado ainda.</p>`;
+    grid.innerHTML = state.search
+      ? `<p class="empty" style="color:var(--text-muted);grid-column:1/-1;text-align:center;padding:3rem 0;">Nenhum produto encontrado para "${escapeHtml(state.search)}".</p>`
+      : `<p class="empty" style="color:var(--text-muted);grid-column:1/-1;text-align:center;padding:3rem 0;">Nenhum produto cadastrado ainda.</p>`;
   } else {
     grid.innerHTML = pageItems.map((p) => buildCard(p)).join("");
   }
 
+  const info = document.getElementById("search-info");
+  if (info) {
+    if (state.search.trim()) {
+      info.textContent = `${total} produto(s) encontrado(s) para "${state.search.trim()}".`;
+      info.classList.remove("hidden");
+    } else {
+      info.classList.add("hidden");
+    }
+  }
+
   renderPagination(total);
+}
+
+function handleSearch(value) {
+  state.search = value || "";
+  state.page = 1;
+  const clearBtn = document.getElementById("search-clear");
+  if (clearBtn) clearBtn.classList.toggle("hidden", !state.search);
+  renderProdutos();
 }
 
 function buildCard(p) {
@@ -450,7 +544,7 @@ function renderPagination(total) {
 }
 
 function setPage(page) {
-  const pages = Math.ceil(state.produtos.length / state.perPage) || 1;
+  const pages = Math.ceil(getFilteredProdutos().length / state.perPage) || 1;
   if (page < 1 || page > pages) return;
   state.page = page;
   renderProdutos();
@@ -483,8 +577,10 @@ function openProdutoModal(id) {
 function renderAdminProdutos() {
   const list = document.getElementById("produtos-list");
   if (!list) return;
-  list.innerHTML = state.produtos.map((p) => `
-    <div class="admin-list-item">
+  list.innerHTML = state.produtos.map((p, i) => `
+    <div class="admin-list-item draggable" draggable="true" data-id="${p.id}" data-group="produtos">
+      <span class="drag-handle" title="Arraste para reordenar">⠿</span>
+      <input type="number" class="order-input" min="1" step="1" value="${i + 1}" data-id="${p.id}" title="Posição (digite o número e pressione Enter)">
       <div>
         <strong>${escapeHtml(p.title)}</strong>
         <br><small>${formatMoney(p.price)} — ${escapeHtml(p.description || "").substring(0, 60)}${p.description && p.description.length > 60 ? "..." : ""}</small>
@@ -495,6 +591,9 @@ function renderAdminProdutos() {
       </div>
     </div>
   `).join("");
+
+  enableDragSort(list, (ids) => persistOrder("produtos", ids));
+  enableOrderInputs(list, (ids) => persistOrder("produtos", ids));
 }
 
 function renderTriggersOptions() {
@@ -529,7 +628,10 @@ async function saveProduto(e) {
     return;
   }
 
-  const data = { title, description, cities, price, buyLink, image, triggers };
+  const existing = state.produtos.find((x) => x.id === state.editingId);
+  const order = existing && typeof existing.order === "number" ? existing.order : nextOrder(state.produtos);
+
+  const data = { title, description, cities, price, buyLink, image, triggers, order };
   const ref = state.editingId
     ? db.ref("produtos/" + state.editingId)
     : db.ref("produtos").push();
@@ -623,6 +725,296 @@ function switchTab(tabId) {
   document.getElementById(tabId).classList.add("active");
 
   if (tabId === "produtos-tab") renderAdminProdutos();
+  if (tabId === "menu-tab") renderAdminMenu();
+  if (tabId === "banners-tab") renderAdminBanners();
+}
+
+/* ============================================================
+   DRAG AND DROP (ORDENAÇÃO MANUAL)
+   ============================================================ */
+function enableDragSort(container, onDrop) {
+  if (!container) return;
+  const items = Array.from(container.children).filter((el) => el.classList.contains("draggable"));
+
+  items.forEach((item) => {
+    item.addEventListener("dragstart", (e) => {
+      if (!state.isAdmin) return e.preventDefault();
+      if (e.target && e.target.classList && e.target.classList.contains("order-input")) return e.preventDefault();
+      container.dataset.dragging = item.dataset.id;
+      item.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", item.dataset.id);
+    });
+
+    item.addEventListener("dragend", () => {
+      item.classList.remove("dragging");
+      container.querySelectorAll(".drag-over").forEach((el) => el.classList.remove("drag-over"));
+      delete container.dataset.dragging;
+      refreshOrderInputs(container);
+      onDrop(getContainerIds(container));
+    });
+
+    item.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      const draggingId = container.dataset.dragging;
+      if (!draggingId || draggingId === item.dataset.id) return;
+      const dragged = container.querySelector(`.draggable[data-id="${draggingId}"]`);
+      if (!dragged || dragged.parentElement !== container) return;
+      const rect = item.getBoundingClientRect();
+      const after = e.clientY > rect.top + rect.height / 2;
+      // mantém eventuais submenus junto do item pai
+      const block = [item];
+      let next = item.nextElementSibling;
+      if (next && next.classList.contains("admin-list-group")) block.push(next);
+      const draggedBlock = [dragged];
+      let dnext = dragged.nextElementSibling;
+      if (dnext && dnext.classList.contains("admin-list-group")) draggedBlock.push(dnext);
+
+      const refNode = after ? block[block.length - 1].nextSibling : block[0];
+      draggedBlock.forEach((node) => container.insertBefore(node, refNode));
+    });
+  });
+}
+
+/* Ordenação dinâmica por números */
+function getContainerBlocks(container) {
+  const blocks = [];
+  Array.from(container.children).forEach((el) => {
+    if (el.classList.contains("draggable")) {
+      blocks.push([el]);
+    } else if (blocks.length) {
+      blocks[blocks.length - 1].push(el);
+    }
+  });
+  return blocks;
+}
+
+function getContainerIds(container) {
+  return getContainerBlocks(container).map((b) => b[0].dataset.id);
+}
+
+function refreshOrderInputs(container) {
+  getContainerBlocks(container).forEach((block, index) => {
+    const input = block[0].querySelector(".order-input");
+    if (input) input.value = index + 1;
+  });
+}
+
+function moveBlockTo(container, id, targetIndex) {
+  const blocks = getContainerBlocks(container);
+  const from = blocks.findIndex((b) => b[0].dataset.id === id);
+  if (from < 0) return false;
+  const target = Math.max(0, Math.min(blocks.length - 1, targetIndex));
+  if (target === from) return false;
+  const [block] = blocks.splice(from, 1);
+  blocks.splice(target, 0, block);
+  const frag = document.createDocumentFragment();
+  blocks.forEach((b) => b.forEach((node) => frag.appendChild(node)));
+  container.appendChild(frag);
+  const moved = container.querySelector(`.draggable[data-id="${id}"]`);
+  if (moved) {
+    moved.classList.add("order-moved");
+    setTimeout(() => moved.classList.remove("order-moved"), 700);
+  }
+  return true;
+}
+
+function enableOrderInputs(container, onChange) {
+  if (!container) return;
+  container.querySelectorAll(".order-input").forEach((input) => {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        input.blur();
+      }
+    });
+    input.addEventListener("change", () => {
+      if (!state.isAdmin) return;
+      const id = input.dataset.id;
+      const value = parseInt(input.value, 10);
+      if (isNaN(value)) return refreshOrderInputs(container);
+      const changed = moveBlockTo(container, id, value - 1);
+      refreshOrderInputs(container);
+      if (changed) onChange(getContainerIds(container));
+    });
+  });
+}
+
+function persistOrder(path, ids) {
+  if (!state.isAdmin || !ids || !ids.length) return;
+  const updates = {};
+  ids.forEach((id, index) => {
+    updates[id + "/order"] = index + 1;
+  });
+  db.ref(path).update(updates)
+    .then(() => showToast("Ordem atualizada!", "success"))
+    .catch((err) => showToast("Erro ao ordenar: " + err.message, "error"));
+}
+
+/* ============================================================
+   BANNERS (SLIDER DO RODAPÉ)
+   ============================================================ */
+function renderBanners() {
+  const slider = document.getElementById("banner-slider");
+  const track = document.getElementById("banner-track");
+  const dots = document.getElementById("banner-dots");
+  if (!slider || !track) return;
+
+  const banners = state.banners.filter((b) => b.image);
+
+  if (state.bannerTimer) {
+    clearInterval(state.bannerTimer);
+    state.bannerTimer = null;
+  }
+
+  if (!banners.length) {
+    slider.classList.add("hidden");
+    track.innerHTML = "";
+    dots.innerHTML = "";
+    return;
+  }
+
+  slider.classList.remove("hidden");
+  slider.classList.toggle("single", banners.length === 1);
+
+  track.innerHTML = banners.map((b) => {
+    const img = `<img src="${escapeHtml(b.image)}" alt="${escapeHtml(b.title || "Banner")}" loading="lazy">`;
+    return `<div class="banner-slide">${b.link ? `<a href="${escapeHtml(b.link)}" target="_blank" rel="noopener">${img}</a>` : img}</div>`;
+  }).join("");
+
+  dots.innerHTML = banners.map((_, i) =>
+    `<button class="banner-dot${i === 0 ? " active" : ""}" data-index="${i}" aria-label="Ir para banner ${i + 1}"></button>`
+  ).join("");
+
+  dots.querySelectorAll(".banner-dot").forEach((dot) => {
+    dot.addEventListener("click", () => goToBanner(Number(dot.dataset.index)));
+  });
+
+  state.bannerIndex = 0;
+  updateBannerPosition();
+  if (banners.length > 1) startBannerAuto();
+}
+
+function updateBannerPosition() {
+  const track = document.getElementById("banner-track");
+  const dots = document.getElementById("banner-dots");
+  if (!track) return;
+  track.style.transform = `translateX(-${state.bannerIndex * 100}%)`;
+  if (dots) {
+    dots.querySelectorAll(".banner-dot").forEach((d, i) => {
+      d.classList.toggle("active", i === state.bannerIndex);
+    });
+  }
+}
+
+function goToBanner(index) {
+  const count = state.banners.filter((b) => b.image).length;
+  if (!count) return;
+  state.bannerIndex = (index + count) % count;
+  updateBannerPosition();
+  startBannerAuto();
+}
+
+function nextBanner() { goToBanner(state.bannerIndex + 1); }
+function prevBanner() { goToBanner(state.bannerIndex - 1); }
+
+function startBannerAuto() {
+  if (state.bannerTimer) clearInterval(state.bannerTimer);
+  const count = state.banners.filter((b) => b.image).length;
+  if (count < 2) return;
+  state.bannerTimer = setInterval(() => {
+    state.bannerIndex = (state.bannerIndex + 1) % count;
+    updateBannerPosition();
+  }, 5000);
+}
+
+function renderAdminBanners() {
+  const list = document.getElementById("banners-list");
+  if (!list) return;
+
+  if (!state.banners.length) {
+    list.innerHTML = `<p style="color:var(--text-muted);">Nenhum banner cadastrado. Enquanto não houver banners, a área do rodapé fica oculta.</p>`;
+    return;
+  }
+
+  list.innerHTML = state.banners.map((b, i) => `
+    <div class="admin-list-item draggable" draggable="true" data-id="${b.id}">
+      <span class="drag-handle" title="Arraste para reordenar">⠿</span>
+      <input type="number" class="order-input" min="1" step="1" value="${i + 1}" data-id="${b.id}" title="Posição (digite o número e pressione Enter)">
+      <div>
+        <img class="banner-thumb" src="${escapeHtml(b.image)}" alt="${escapeHtml(b.title || "Banner")}">
+        <br><strong>${escapeHtml(b.title || "Sem título")}</strong>
+        <br><small>${b.link ? "Link: " + escapeHtml(b.link) : "Sem link"}</small>
+      </div>
+      <div class="admin-list-actions">
+        <button class="btn-save" onclick="editBanner('${b.id}')">Editar</button>
+        <button class="btn-danger" onclick="deleteBanner('${b.id}')">Excluir</button>
+      </div>
+    </div>
+  `).join("");
+
+  enableDragSort(list, (ids) => persistOrder("banners", ids));
+  enableOrderInputs(list, (ids) => persistOrder("banners", ids));
+}
+
+async function saveBanner(e) {
+  e.preventDefault();
+  if (!state.isAdmin) return;
+
+  const file = document.getElementById("banner-file").files[0];
+  const url = document.getElementById("banner-url").value.trim();
+  const title = document.getElementById("banner-title").value.trim();
+  const link = document.getElementById("banner-link").value.trim();
+
+  let image = url;
+  if (file) image = await toBase64(file);
+
+  if (!image) {
+    showToast("Envie uma imagem ou informe uma URL.", "error");
+    return;
+  }
+
+  const existing = state.banners.find((b) => b.id === state.bannerEditingId);
+  const order = existing && typeof existing.order === "number" ? existing.order : nextOrder(state.banners);
+
+  const data = { image, title, link, order };
+  const ref = state.bannerEditingId
+    ? db.ref("banners/" + state.bannerEditingId)
+    : db.ref("banners").push();
+
+  ref.set(data)
+    .then(() => {
+      showToast("Banner salvo!", "success");
+      resetBannerForm();
+    })
+    .catch((err) => showToast("Erro: " + err.message, "error"));
+}
+
+function editBanner(id) {
+  const b = state.banners.find((x) => x.id === id);
+  if (!b) return;
+  state.bannerEditingId = id;
+  document.getElementById("banner-url").value = b.image && b.image.startsWith("data:") ? "" : (b.image || "");
+  document.getElementById("banner-title").value = b.title || "";
+  document.getElementById("banner-link").value = b.link || "";
+  document.getElementById("banner-form-title").textContent = "Editar banner";
+  document.getElementById("banner-cancel").classList.remove("hidden");
+  switchTab("banners-tab");
+}
+
+function deleteBanner(id) {
+  if (!state.isAdmin) return;
+  if (!confirm("Excluir este banner?")) return;
+  db.ref("banners/" + id).remove()
+    .then(() => showToast("Banner removido.", "info"))
+    .catch((err) => showToast("Erro: " + err.message, "error"));
+}
+
+function resetBannerForm() {
+  state.bannerEditingId = null;
+  document.getElementById("banner-form").reset();
+  document.getElementById("banner-form-title").textContent = "Adicionar banner";
+  document.getElementById("banner-cancel").classList.add("hidden");
 }
 
 /* ============================================================
@@ -636,7 +1028,20 @@ document.addEventListener("DOMContentLoaded", () => {
   if (loginBtn) loginBtn.addEventListener("click", () => openModal("login-modal"));
   document.getElementById("logout-btn").addEventListener("click", logout);
 
-  document.getElementById("restricted-dot").addEventListener("click", () => openModal("login-modal"));
+  document.getElementById("restricted-dot").addEventListener("click", handleRestrictedClick);
+
+  const searchInput = document.getElementById("produto-search");
+  if (searchInput) searchInput.addEventListener("input", (e) => handleSearch(e.target.value));
+  const searchClear = document.getElementById("search-clear");
+  if (searchClear) searchClear.addEventListener("click", () => {
+    document.getElementById("produto-search").value = "";
+    handleSearch("");
+  });
+
+  document.getElementById("banner-form").addEventListener("submit", saveBanner);
+  document.getElementById("banner-cancel").addEventListener("click", resetBannerForm);
+  document.getElementById("banner-prev").addEventListener("click", prevBanner);
+  document.getElementById("banner-next").addEventListener("click", nextBanner);
 
   document.getElementById("produto-form").addEventListener("submit", saveProduto);
   document.getElementById("produto-cancel").addEventListener("click", resetProdutoForm);
@@ -665,6 +1070,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-produtos-tab").addEventListener("click", () => switchTab("produtos-tab"));
   document.getElementById("btn-menu-tab").addEventListener("click", () => switchTab("menu-tab"));
   document.getElementById("btn-brand-tab").addEventListener("click", () => switchTab("brand-tab"));
+  document.getElementById("btn-banners-tab").addEventListener("click", () => switchTab("banners-tab"));
   document.getElementById("btn-footer-tab").addEventListener("click", () => switchTab("footer-tab"));
 
   window.addEventListener("scroll", () => {
