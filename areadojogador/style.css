@@ -874,3 +874,328 @@ body {
 .whatsapp-btn-float:hover {
     transform: scale(1.1);
 }
+
+/* ==========================================================================
+   NOVOS MÓDULOS: PAINEL ADMIN EM MODAL, E-MAIL INTERNO, AVATAR, QR CODE
+   ========================================================================== */
+
+.header-acoes { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.header-nome-jogador { font-size: 0.9rem; }
+
+.btn-header-mini {
+    background: #161c26; border: 1px solid #00ff66; color: #00ff66;
+    padding: 6px 12px; font-size: 0.78rem; border-radius: 4px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; position: relative;
+}
+.btn-header-mini:hover { background: rgba(0,255,102,0.12); }
+
+.badge-contador {
+    background: #ff3333; color: #fff; border-radius: 10px;
+    font-size: 0.65rem; padding: 1px 6px; font-weight: bold;
+}
+
+.avatar-circulo {
+    width: 24px; height: 24px; border-radius: 50%; background: #0b0e14;
+    border: 1px solid #00ff66; color: #00ff66; font-size: 0.7rem; font-weight: bold;
+    display: inline-flex; align-items: center; justify-content: center;
+    overflow: hidden; flex-shrink: 0;
+}
+.avatar-circulo img { width: 100%; height: 100%; object-fit: cover; }
+
+.avatar-upload-area {
+    display: flex; gap: 14px; align-items: center; margin-bottom: 18px;
+    background: #0b0e14; border: 1px solid #242f41; border-radius: 8px; padding: 12px;
+}
+.avatar-preview-grande {
+    width: 74px; height: 74px; border-radius: 50%; object-fit: cover;
+    border: 2px solid #00ff66; background: #161c26; flex-shrink: 0;
+}
+.rotulo-form { color: #8899a6; font-size: 0.8rem; display: block; margin: 10px 0 4px; }
+.mini-status { color: #8899a6; font-size: 0.72rem; margin-top: 6px; }
+
+/* Menu hambúrguer adaptativo do cliente */
+.btn-hamburguer {
+    display: none; width: 100%; background: #121824; border: 1px solid #00ff66;
+    color: #00ff66; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer;
+}
+.nav-dinamica-container.modo-hamburguer .btn-hamburguer { display: block; }
+.nav-dinamica-container.modo-hamburguer .nav-dinamica-list { display: none; flex-direction: column; }
+.nav-dinamica-container.modo-hamburguer.aberto .nav-dinamica-list { display: flex; }
+.nav-dinamica-container.modo-hamburguer .nav-dinamica-item { width: 100%; }
+.nav-dinamica-container.modo-hamburguer .submenu-dinamico { position: static; width: 100%; }
+
+/* Botão flutuante de sugestão */
+.fab-sugestao {
+    position: fixed; bottom: 92px; right: 20px; width: 56px; height: 56px;
+    border-radius: 50%; border: 2px solid #00ff66; background: #121824;
+    color: #00ff66; font-size: 1.5rem; cursor: pointer; z-index: 9999;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+.fab-sugestao:hover { background: rgba(0,255,102,0.12); }
+
+.whatsapp-btn-float {
+    position: fixed; bottom: 20px; right: 20px; background: #25d366;
+    width: 60px; height: 60px; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; z-index: 9999;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+/* Abas roláveis reutilizáveis */
+.tabs-scroll {
+    display: flex; gap: 4px; overflow-x: auto; background: #0b0e14;
+    padding: 5px; border-radius: 6px; margin-bottom: 15px; -webkit-overflow-scrolling: touch;
+}
+.tabs-scroll .tab-btn {
+    flex: 0 0 auto; white-space: nowrap; font-size: 0.78rem; padding: 9px 12px;
+    border-radius: 4px; border-bottom: none;
+}
+.tabs-scroll .tab-btn.active { background: rgba(0,255,102,0.1); border-bottom: none; margin-bottom: 0; }
+
+/* Modais grandes */
+.modal-largo { max-width: 780px !important; width: 96%; }
+.modal-admin-full { max-width: 1100px !important; width: 97%; max-height: 92vh; overflow-y: auto; }
+.pane-admin, .pane-email { display: none; }
+.pane-admin.active, .pane-email.active { display: block; }
+
+/* Dashboard gerencial */
+.titulo-secao { color: #00ff66; margin: 20px 0 12px; font-size: 1.1rem; }
+.grid-kpis {
+    display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.kpi-card {
+    background: #121824; border: 1px solid #242f41; border-left: 4px solid #00ff66;
+    border-radius: 8px; padding: 14px;
+}
+.kpi-card span { display: block; font-size: 0.72rem; color: #8899a6; text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi-card strong { display: block; font-size: 1.5rem; color: #fff; margin-top: 6px; word-break: break-word; }
+.kpi-card.alerta { border-left-color: #ffcc00; }
+.kpi-card.perigo { border-left-color: #ff3333; }
+
+.atalhos-admin { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin: 20px 0 40px; }
+.btn-atalho-admin {
+    background: #121824; border: 1px solid #242f41; color: #fff; padding: 14px;
+    border-radius: 8px; cursor: pointer; font-weight: bold; text-align: left;
+}
+.btn-atalho-admin:hover { border-color: #00ff66; color: #00ff66; }
+
+.tabela-relatorio { width: 100%; overflow-x: auto; margin-bottom: 12px; }
+.tabela-relatorio table { width: 100%; border-collapse: collapse; font-size: 0.82rem; min-width: 420px; }
+.tabela-relatorio th, .tabela-relatorio td { padding: 8px; border-bottom: 1px solid #242f41; text-align: left; }
+.tabela-relatorio th { color: #00ff66; text-transform: uppercase; font-size: 0.7rem; }
+
+/* Construtor de menu com arrasto */
+.punho-arrasto {
+    cursor: grab; touch-action: none; color: #8899a6; font-size: 1.1rem;
+    padding: 0 6px; user-select: none; flex-shrink: 0;
+}
+.arrastando { opacity: 0.55; border: 1px dashed #00ff66 !important; }
+.opcao-inline { display: flex; align-items: center; gap: 6px; color: #8899a6; font-size: 0.8rem; margin-bottom: 8px; }
+.opcao-inline input { width: auto; margin: 0; }
+
+/* Pagamento: copia e cola + QR */
+.caixa-pagamento-extra {
+    background: #0b0e14; border: 1px solid #242f41; border-radius: 6px;
+    padding: 12px; margin-bottom: 12px; text-align: left;
+}
+.rotulo-mini { font-size: 0.7rem; color: #8899a6; text-transform: uppercase; display: block; margin-bottom: 6px; }
+.texto-copia-cola {
+    width: 100%; background: #121824; border: 1px solid #242f41; color: #00ff66;
+    font-family: monospace; font-size: 0.75rem; border-radius: 4px; padding: 8px; resize: vertical;
+}
+.img-qrcode { width: 190px; max-width: 100%; aspect-ratio: 1/1; object-fit: contain; background: #fff; border-radius: 6px; padding: 6px; }
+.img-qrcode-preview { width: 88px; height: 88px; object-fit: contain; background: #fff; border-radius: 6px; border: 1px solid #242f41; }
+.upload-qr-area { display: flex; gap: 12px; align-items: center; background: #0b0e14; border: 1px solid #242f41; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+
+.lightbox-qr {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+    z-index: 100000; align-items: center; justify-content: center; padding: 20px;
+}
+.lightbox-qr.active { display: flex; }
+.lightbox-qr-inner { text-align: center; }
+.lightbox-qr-inner img { width: min(80vw, 380px); aspect-ratio: 1/1; object-fit: contain; background: #fff; border-radius: 10px; padding: 12px; }
+
+/* E-mail interno */
+.lista-emails { max-height: 55vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.item-email {
+    background: #0b0e14; border: 1px solid #242f41; border-left: 3px solid #242f41;
+    border-radius: 6px; padding: 12px; cursor: pointer;
+}
+.item-email:hover { border-color: #00ff66; }
+.item-email.nao-lido { border-left-color: #00ff66; background: #101b18; }
+.item-email h5 { color: #fff; font-size: 0.92rem; margin-bottom: 4px; }
+.meta-email { color: #8899a6; font-size: 0.75rem; margin-bottom: 8px; }
+.corpo-email { color: #dfe7ee; font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; background: #0b0e14; border: 1px solid #242f41; border-radius: 6px; padding: 12px; }
+.leitor-email h4 { color: #00ff66; margin: 10px 0 4px; }
+.vazio-lista { color: #8899a6; font-size: 0.85rem; text-align: center; padding: 20px; }
+
+#modal-painel-admin select, #modal-email-interno select, #modal-sugestao select,
+#modal-painel-admin textarea, #modal-email-interno textarea, #modal-sugestao textarea,
+#modal-painel-admin input, #modal-email-interno input, #modal-sugestao input {
+    width: 100%; background: #0b0e14; border: 1px solid #242f41; color: #fff;
+    border-radius: 4px; padding: 10px; font-size: 0.9rem; margin-bottom: 10px;
+    font-family: inherit;
+}
+
+#modal-painel-admin select:focus, #modal-email-interno select:focus, #modal-sugestao select:focus,
+#modal-painel-admin textarea:focus, #modal-email-interno textarea:focus, #modal-sugestao textarea:focus,
+#modal-painel-admin input:focus, #modal-email-interno input:focus, #modal-sugestao input:focus {
+    outline: none; border-color: #00ff66;
+}
+
+#modal-painel-admin textarea, #modal-email-interno textarea, #modal-sugestao textarea {
+    resize: vertical; min-height: 110px; line-height: 1.5;
+}
+
+#modal-painel-admin ::placeholder, #modal-email-interno ::placeholder, #modal-sugestao ::placeholder {
+    color: #61707e;
+}
+
+/* Modal de sugestão */
+#modal-sugestao .modal-form-content { padding: 25px; }
+#form-sugestao { display: flex; flex-direction: column; margin-top: 5px; }
+#form-sugestao .instrucao { margin-bottom: 12px; }
+#form-sugestao .btn-gamer { margin-top: 12px; }
+
+/* Gerenciamento de mensagens do usuário */
+.barra-gerenciar-mensagens {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;
+}
+.btn-mini-msg {
+    background: #0b0e14; border: 1px solid #2a394f; color: #cfd9e4;
+    border-radius: 4px; padding: 7px 10px; font-size: 0.75rem; font-weight: bold;
+    cursor: pointer; transition: all 0.2s;
+}
+.btn-mini-msg:hover { border-color: #00ff66; color: #00ff66; }
+.btn-mini-msg.perigo { color: #ff6666; border-color: #442020; }
+.btn-mini-msg.perigo:hover { border-color: #ff3333; color: #ff3333; }
+.acoes-item-email { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.barra-acoes-mensagem { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+.barra-acoes-mensagem .btn-gamer { width: auto; padding: 10px 16px; }
+.form-editar-mensagem { margin-top: 14px; border-top: 1px solid #1f2a3c; padding-top: 12px; }
+.tag-editada { color: #ffcc44; font-size: 0.7rem; font-weight: bold; }
+
+@media (max-width: 600px) {
+    .app-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .header-acoes { width: 100%; }
+    .kpi-card strong { font-size: 1.25rem; }
+    .fab-sugestao { bottom: 88px; width: 50px; height: 50px; font-size: 1.25rem; }
+}
+
+/* ==========================================================================
+   ROLAGEM INVISÍVEL GLOBAL (funciona, mas sem barra visível)
+   ========================================================================== */
+* {
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* IE / Edge legado */
+}
+*::-webkit-scrollbar {              /* Chrome / Safari / Edge */
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent;
+}
+
+/* Todos os modais rolam internamente quando o conteúdo é maior que a tela */
+.modal-form {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.modal-form-content {
+    max-height: 92vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+.modal-admin-full { max-height: 92vh; overflow-y: auto; }
+.modal-jogos { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.modal-jogos .modal-content {
+    max-height: 92vh;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+#modal-details-container-gamer { overflow-y: auto; }
+.lista-emails, .tabs-scroll, .tabela-relatorio { -webkit-overflow-scrolling: touch; }
+
+/* ==========================================================================
+   ANIMAÇÃO DE CARREGAMENTO (LOGIN / CADASTRO E DEMAIS BOTÕES)
+   ========================================================================== */
+@keyframes girar-spinner { to { transform: rotate(360deg); } }
+
+.btn-gamer.carregando,
+.btn-gamer:disabled {
+    cursor: not-allowed;
+    opacity: 0.85;
+}
+
+.btn-gamer.carregando {
+    position: relative;
+    color: transparent !important;
+    pointer-events: none;
+}
+
+.btn-gamer.carregando::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid rgba(2, 6, 13, 0.35);
+    border-top-color: #02060d;
+    border-radius: 50%;
+    animation: girar-spinner 0.7s linear infinite;
+}
+
+/* Sobreposição de carregamento dentro do card de autenticação */
+.auth-container { position: relative; }
+.overlay-carregando {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    background: rgba(11, 14, 20, 0.72);
+    backdrop-filter: blur(2px);
+    border-radius: 8px;
+    z-index: 10;
+}
+.overlay-carregando.active { display: flex; }
+.overlay-carregando .aro-carregando {
+    width: 46px;
+    height: 46px;
+    border: 3px solid rgba(0, 255, 102, 0.2);
+    border-top-color: #00ff66;
+    border-radius: 50%;
+    animation: girar-spinner 0.8s linear infinite;
+}
+.overlay-carregando span {
+    color: #00ff66;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    font-weight: bold;
+}
+
+/* ==========================================================================
+   ORDENAÇÃO NUMÉRICA DO CONSTRUTOR DE MENU
+   ========================================================================== */
+.input-ordem {
+    width: 58px !important;
+    flex: 0 0 58px;
+    text-align: center;
+    margin-bottom: 0 !important;
+    background: #0b0e14 !important;
+    border: 1px solid #00ff66 !important;
+    color: #00ff66 !important;
+    border-radius: 4px;
+    padding: 8px 4px !important;
+    font-weight: bold;
+    font-size: 0.85rem !important;
+    -moz-appearance: textfield;
+}
+.input-ordem::-webkit-outer-spin-button,
+.input-ordem::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.arrastando { opacity: 0.55; border: 1px dashed #00ff66 !important; }
+.alvo-arrasto { outline: 2px dashed #00ff66; outline-offset: 2px; }
