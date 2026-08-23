@@ -114,6 +114,14 @@ async function abrirModalPerfil() {
         if (perfil) {
             document.getElementById('profile-edit-name').value = perfil.nome || "";
             document.getElementById('profile-edit-lastname').value = perfil.sobrenome || "";
+
+            // Contato: e-mail somente leitura + WhatsApp com máscara, cidade e UF
+            inicializarCamposContato();
+            const emailAtual = (firebase.auth().currentUser?.email) || perfil.email || "";
+            definirValorCampo('profile-edit-email', emailAtual);
+            definirValorCampo('profile-edit-whatsapp', formatarWhatsApp(perfil.whatsapp || ""));
+            definirValorCampo('profile-edit-cidade', perfil.cidade || "");
+            definirValorCampo('profile-edit-uf', perfil.uf || "");
             
             // Inicializa a cor padrão baseada no que está na nuvem
             corPerfilTemporaria = perfil.cor_tema || "#ff0000";
@@ -1314,6 +1322,9 @@ function setupEventListeners() {
             
             const novoNome = document.getElementById('profile-edit-name').value.trim();
             const novoSobrenome = document.getElementById('profile-edit-lastname').value.trim();
+            const novoWhatsapp = lerValorCampo('profile-edit-whatsapp');
+            const novaCidade = lerValorCampo('profile-edit-cidade');
+            const novaUf = lerValorCampo('profile-edit-uf');
             const btnTemaAtivo = document.querySelector('.profile-theme-btn.active');
             let temaFinal = document.body.className; 
             
@@ -1325,6 +1336,9 @@ function setupEventListeners() {
             if (!novoNome || !novoSobrenome) {
                 return alert("Os campos Nome e Sobrenome não podem ficar vazios!");
             }
+            if (novoWhatsapp && !whatsappEhValido(novoWhatsapp)) {
+                return alert("Informe um WhatsApp válido com DDD, no formato (99) 99999-9999.");
+            }
             
             const btnSaveProf = document.getElementById('btn-save-profile-changes');
             btnSaveProf.innerText = "Salvando..."; btnSaveProf.disabled = true;
@@ -1333,6 +1347,9 @@ function setupEventListeners() {
                 const dadosAtualizados = {
                     nome: novoNome,
                     sobrenome: novoSobrenome,
+                    whatsapp: apenasDigitos(novoWhatsapp),
+                    cidade: novaCidade,
+                    uf: novaUf,
                     cor_tema: corPerfilTemporaria || "#ff0000",
                     tema: temaFinal
                 };
@@ -1458,9 +1475,18 @@ if (waButton) {
             const email = document.getElementById('register-email').value.trim().toLowerCase();
             const senha = document.getElementById('register-pass').value.trim();
             const senhaConfirm = document.getElementById('register-pass-confirm').value.trim();
+            const whatsapp = lerValorCampo('register-whatsapp');
+            const cidade = lerValorCampo('register-cidade');
+            const uf = lerValorCampo('register-uf');
             
             if(!nome || !sobrenome || !email || !senha) {
                 return alert("Por favor, preencha todos os campos do cadastro!");
+            }
+            if(!whatsapp || !cidade || !uf) {
+                return alert("Informe também o seu WhatsApp, a cidade e a UF.");
+            }
+            if(!whatsappEhValido(whatsapp)) {
+                return alert("Informe um WhatsApp válido com DDD, no formato (99) 99999-9999.");
             }
             
             // TRAVA DE PROVEDOR REAL: Aplica a validação do front-end
@@ -1486,6 +1512,10 @@ if (waButton) {
                 const novoPerfil = {
                     nome: nome,
                     sobrenome: sobrenome,
+                    email: email,
+                    whatsapp: apenasDigitos(whatsapp),
+                    cidade: cidade,
+                    uf: uf,
                     cor_tema: "#ff0000",
                     tema: "",
                     firebaseUrl: `${urlBaseBanco}/usuarios/${novoUid}/midias.json`
@@ -1516,6 +1546,7 @@ if (waButton) {
 
 // INICIALIZAÇÃO DO ECOSSISTEMA
 document.addEventListener('DOMContentLoaded', () => {
+    inicializarCamposContato();
     configurarEventosLogin();
     setupEventListeners();
     checkSession();
@@ -1531,6 +1562,87 @@ document.addEventListener('DOMContentLoaded', () => {
    ========================================================================== */
 
 const EMAIL_ADMIN_MASTER = "admin@admin.com";
+
+/* ==========================================
+   UFs DO BRASIL, MÁSCARA DE WHATSAPP E CAMPOS DE CONTATO
+   ========================================== */
+const UFS_BRASIL = [
+    { sigla: "AC", nome: "Acre" }, { sigla: "AL", nome: "Alagoas" },
+    { sigla: "AP", nome: "Amapá" }, { sigla: "AM", nome: "Amazonas" },
+    { sigla: "BA", nome: "Bahia" }, { sigla: "CE", nome: "Ceará" },
+    { sigla: "DF", nome: "Distrito Federal" }, { sigla: "ES", nome: "Espírito Santo" },
+    { sigla: "GO", nome: "Goiás" }, { sigla: "MA", nome: "Maranhão" },
+    { sigla: "MT", nome: "Mato Grosso" }, { sigla: "MS", nome: "Mato Grosso do Sul" },
+    { sigla: "MG", nome: "Minas Gerais" }, { sigla: "PA", nome: "Pará" },
+    { sigla: "PB", nome: "Paraíba" }, { sigla: "PR", nome: "Paraná" },
+    { sigla: "PE", nome: "Pernambuco" }, { sigla: "PI", nome: "Piauí" },
+    { sigla: "RJ", nome: "Rio de Janeiro" }, { sigla: "RN", nome: "Rio Grande do Norte" },
+    { sigla: "RS", nome: "Rio Grande do Sul" }, { sigla: "RO", nome: "Rondônia" },
+    { sigla: "RR", nome: "Roraima" }, { sigla: "SC", nome: "Santa Catarina" },
+    { sigla: "SP", nome: "São Paulo" }, { sigla: "SE", nome: "Sergipe" },
+    { sigla: "TO", nome: "Tocantins" }
+];
+
+// Preenche todos os <select data-uf-select> do site com as 27 UFs
+function preencherSelectsDeUF() {
+    document.querySelectorAll("select[data-uf-select]").forEach(sel => {
+        if (sel.dataset.ufPreenchido === "1") return;
+        const valorAtual = sel.value;
+        sel.innerHTML = '<option value="">UF</option>' +
+            UFS_BRASIL.map(uf => `<option value="${uf.sigla}">${uf.sigla} - ${uf.nome}</option>`).join("");
+        sel.dataset.ufPreenchido = "1";
+        if (valorAtual) sel.value = valorAtual;
+    });
+}
+
+// Aplica a máscara (99) 99999-9999 aceitando apenas números
+function formatarWhatsApp(valor) {
+    const d = (valor || "").replace(/\D/g, "").slice(0, 11);
+    if (d.length === 0) return "";
+    if (d.length <= 2) return `(${d}`;
+    if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+    if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+    return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+function apenasDigitos(valor) {
+    return (valor || "").replace(/\D/g, "");
+}
+
+function whatsappEhValido(valor) {
+    const d = apenasDigitos(valor);
+    return d.length === 10 || d.length === 11;
+}
+
+// Liga a máscara numérica em todos os campos marcados com data-mask="whatsapp"
+function ativarMascarasWhatsApp() {
+    document.querySelectorAll('[data-mask="whatsapp"]').forEach(campo => {
+        if (campo.dataset.maskAtiva === "1") return;
+        campo.dataset.maskAtiva = "1";
+        const aplicar = () => { campo.value = formatarWhatsApp(campo.value); };
+        campo.addEventListener("input", aplicar);
+        campo.addEventListener("blur", aplicar);
+        campo.addEventListener("keypress", (ev) => {
+            if (ev.key.length === 1 && /\D/.test(ev.key)) ev.preventDefault();
+        });
+    });
+}
+
+function inicializarCamposContato() {
+    preencherSelectsDeUF();
+    ativarMascarasWhatsApp();
+}
+
+function definirValorCampo(id, valor) {
+    const el = document.getElementById(id);
+    if (el) el.value = valor || "";
+}
+
+function lerValorCampo(id) {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : "";
+}
+
 let fotoPerfilTemporaria = null;      // null = não alterada nesta sessão do modal
 let videoIdEmExibicao = null;
 let configGlobalSite = {};
@@ -1987,6 +2099,15 @@ function aplicarConfigGlobal() {
 
 function alternarBotoesAdminMaster() {
     const ehAdmin = ehAdminMaster();
+    // O menu roxo "Gerencial" só existe para o administrador admin@admin.com
+    ["btn-open-master", "btn-open-master-mobile"].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.style.display = ehAdmin ? "" : "none";
+    });
+    if (!ehAdmin) {
+        document.getElementById("master-modal")?.classList.add("hidden");
+        document.getElementById("master-edit-user-modal")?.classList.add("hidden");
+    }
     document.getElementById("btn-open-master")?.classList.toggle("hidden", !ehAdmin);
     document.getElementById("btn-open-master-mobile")?.classList.toggle("hidden", !ehAdmin);
 }
@@ -1994,6 +2115,7 @@ function alternarBotoesAdminMaster() {
 function abrirPainelMaster() {
     if (!ehAdminMaster()) return alert("Acesso restrito ao administrador.");
     document.getElementById("master-modal")?.classList.remove("hidden");
+    inicializarCamposContato();
     trocarAbaMaster("m-users-tab", "tab-trigger-m-users");
     renderizarUsuariosMaster();
     preencherFormularioEstiloMaster();
@@ -2069,6 +2191,10 @@ function abrirEdicaoUsuarioMaster(uid) {
     document.getElementById("mu-name").value = p.nome || "";
     document.getElementById("mu-lastname").value = p.sobrenome || "";
     document.getElementById("mu-email").value = p.email || "";
+    inicializarCamposContato();
+    definirValorCampo("mu-whatsapp", formatarWhatsApp(p.whatsapp || ""));
+    definirValorCampo("mu-cidade", p.cidade || "");
+    definirValorCampo("mu-uf", p.uf || "");
     document.getElementById("mu-photo").value = p.foto || "";
     document.getElementById("mu-theme").value = p.tema || "";
     document.getElementById("mu-color").value = p.cor_tema || "#ff0000";
@@ -2077,10 +2203,15 @@ function abrirEdicaoUsuarioMaster(uid) {
 
 async function salvarUsuarioMaster() {
     if (!uidUsuarioEmEdicaoMaster) return;
+    const whatsMaster = lerValorCampo("mu-whatsapp");
+    if (whatsMaster && !whatsappEhValido(whatsMaster)) return alert("WhatsApp inválido. Use o formato (99) 99999-9999.");
     const dados = {
         nome: document.getElementById("mu-name").value.trim(),
         sobrenome: document.getElementById("mu-lastname").value.trim(),
         email: document.getElementById("mu-email").value.trim(),
+        whatsapp: apenasDigitos(lerValorCampo("mu-whatsapp")),
+        cidade: lerValorCampo("mu-cidade"),
+        uf: lerValorCampo("mu-uf"),
         foto: document.getElementById("mu-photo").value.trim(),
         tema: document.getElementById("mu-theme").value,
         cor_tema: document.getElementById("mu-color").value
@@ -2110,7 +2241,12 @@ async function cadastrarUsuarioPeloMaster() {
     const sobrenome = document.getElementById("master-new-lastname").value.trim();
     const email = document.getElementById("master-new-email").value.trim().toLowerCase();
     const senha = document.getElementById("master-new-pass").value.trim();
+    const whatsapp = lerValorCampo("master-new-whatsapp");
+    const cidade = lerValorCampo("master-new-cidade");
+    const uf = lerValorCampo("master-new-uf");
     if (!nome || !email || senha.length < 6) return alert("Preencha nome, e-mail e uma senha de no mínimo 6 caracteres.");
+    if (!whatsapp || !cidade || !uf) return alert("Informe também o WhatsApp, a cidade e a UF do novo usuário.");
+    if (!whatsappEhValido(whatsapp)) return alert("WhatsApp inválido. Use o formato (99) 99999-9999.");
 
     const btn = document.getElementById("btn-master-create-user");
     btn.innerText = "Cadastrando..."; btn.disabled = true;
@@ -2125,6 +2261,8 @@ async function cadastrarUsuarioPeloMaster() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 nome, sobrenome, email,
+                whatsapp: apenasDigitos(whatsapp),
+                cidade, uf,
                 cor_tema: configGlobalSite.corPadrao || "#ff0000",
                 tema: configGlobalSite.temaPadrao || "",
                 foto: "",
@@ -2133,7 +2271,7 @@ async function cadastrarUsuarioPeloMaster() {
         });
         await appSecundario.auth().signOut();
         alert(`Usuário ${nome} cadastrado com sucesso!`);
-        ["master-new-name", "master-new-lastname", "master-new-email", "master-new-pass"].forEach(id => document.getElementById(id).value = "");
+        ["master-new-name", "master-new-lastname", "master-new-email", "master-new-pass", "master-new-whatsapp", "master-new-cidade", "master-new-uf"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
         trocarAbaMaster("m-users-tab", "tab-trigger-m-users");
         renderizarUsuariosMaster();
     } catch (e) {

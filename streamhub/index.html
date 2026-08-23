@@ -63,6 +63,18 @@
                     <input type="email" id="register-email" placeholder="E-mail" required>
                 </div>
                 <div class="input-group">
+                    <i class="fab fa-whatsapp"></i>
+                    <input type="tel" id="register-whatsapp" data-mask="whatsapp" inputmode="numeric" maxlength="15" placeholder="WhatsApp (99) 99999-9999" required>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-city"></i>
+                    <input type="text" id="register-cidade" placeholder="Cidade" required>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-map-marked-alt"></i>
+                    <select id="register-uf" data-uf-select required></select>
+                </div>
+                <div class="input-group">
                     <i class="fas fa-lock"></i>
                     <input type="password" id="register-pass" placeholder="Senha (mínimo 6 caracteres)" required>
                 </div>
@@ -372,6 +384,27 @@
                 </div>
 
                 <div class="profile-field">
+                    <label for="profile-edit-email">E-mail (não editável)</label>
+                    <input type="email" id="profile-edit-email" class="profile-input" readonly disabled>
+                </div>
+
+                <div class="profile-fields-grid">
+                    <div class="profile-field">
+                        <label for="profile-edit-whatsapp">WhatsApp</label>
+                        <input type="tel" id="profile-edit-whatsapp" class="profile-input" data-mask="whatsapp" inputmode="numeric" maxlength="15" placeholder="(99) 99999-9999">
+                    </div>
+                    <div class="profile-field">
+                        <label for="profile-edit-uf">UF</label>
+                        <select id="profile-edit-uf" class="profile-input" data-uf-select></select>
+                    </div>
+                </div>
+
+                <div class="profile-field">
+                    <label for="profile-edit-cidade">Cidade</label>
+                    <input type="text" id="profile-edit-cidade" class="profile-input" placeholder="Sua cidade">
+                </div>
+
+                <div class="profile-field">
                     <label>Tema de Fundo</label>
                     <div class="profile-themes-grid">
                         <button type="button" class="tab-btn profile-theme-btn" data-theme="youtube"><i class="fab fa-youtube"></i> YouTube</button>
@@ -451,6 +484,9 @@
                     <div class="input-block"><label>Nome</label><input type="text" id="master-new-name" placeholder="Nome"></div>
                     <div class="input-block"><label>Sobrenome</label><input type="text" id="master-new-lastname" placeholder="Sobrenome"></div>
                     <div class="input-block"><label>E-mail</label><input type="email" id="master-new-email" placeholder="email@dominio.com"></div>
+                    <div class="input-block"><label>WhatsApp</label><input type="tel" id="master-new-whatsapp" data-mask="whatsapp" inputmode="numeric" maxlength="15" placeholder="(99) 99999-9999"></div>
+                    <div class="input-block"><label>Cidade</label><input type="text" id="master-new-cidade" placeholder="Cidade"></div>
+                    <div class="input-block"><label>UF</label><select id="master-new-uf" data-uf-select></select></div>
                     <div class="input-block"><label>Senha (mínimo 6 caracteres)</label><input type="password" id="master-new-pass" placeholder="Senha inicial"></div>
                     <p style="font-size:0.8rem; color:var(--text-gray); margin:5px 0 15px 0;">O usuário é criado no Firebase Auth e já recebe o seu próprio acervo no banco, sem desconectar a sua sessão de administrador.</p>
                     <button id="btn-master-create-user" class="btn-success-block">Cadastrar Novo Usuário</button>
@@ -507,6 +543,9 @@
                 <div class="input-block"><label>Nome</label><input type="text" id="mu-name"></div>
                 <div class="input-block"><label>Sobrenome</label><input type="text" id="mu-lastname"></div>
                 <div class="input-block"><label>E-mail (referência)</label><input type="text" id="mu-email"></div>
+                <div class="input-block"><label>WhatsApp</label><input type="tel" id="mu-whatsapp" data-mask="whatsapp" inputmode="numeric" maxlength="15" placeholder="(99) 99999-9999"></div>
+                <div class="input-block"><label>Cidade</label><input type="text" id="mu-cidade" placeholder="Cidade"></div>
+                <div class="input-block"><label>UF</label><select id="mu-uf" data-uf-select></select></div>
                 <div class="input-block"><label>Foto (link ou base64)</label><input type="text" id="mu-photo"></div>
                 <div class="input-block"><label>Tema (vazio = YouTube)</label>
                     <select id="mu-theme" class="admin-input">

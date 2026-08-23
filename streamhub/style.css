@@ -1351,3 +1351,274 @@ body::-webkit-scrollbar,
     #profile-modal .photo-actions { align-items: stretch; text-align: center; }
     #profile-modal .btn-photo-remove { text-align: center; }
 }
+
+/* ==========================================
+   PADRONIZAÇÃO GLOBAL DE TODAS AS CAIXAS DE TEXTO
+   (inputs, selects e textareas de todo o site)
+   ========================================== */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+input[type="number"],
+input[type="search"],
+input[type="url"],
+input[type="date"],
+select,
+textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 11px 12px;
+    border-radius: 6px;
+    background: var(--bg-main) !important;
+    color: var(--text-white) !important;
+    border: 1px solid var(--border-color) !important;
+    font-family: inherit;
+    font-size: 0.92rem;
+    line-height: 1.2;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+textarea {
+    min-height: 70px;
+    resize: vertical;
+    line-height: 1.35;
+}
+
+select {
+    cursor: pointer;
+    padding-right: 34px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-gray) 50%),
+                      linear-gradient(135deg, var(--text-gray) 50%, transparent 50%);
+    background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--theme-color) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--theme-color) 28%, transparent);
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: var(--text-gray);
+    opacity: 1;
+}
+
+input[readonly],
+input[disabled],
+select[disabled],
+textarea[readonly] {
+    background: var(--bg-card) !important;
+    color: var(--text-gray) !important;
+    cursor: not-allowed;
+    opacity: 1;
+}
+
+/* Campos que ficam dentro de um grupo com ícone precisam de recuo à esquerda */
+.input-group {
+    position: relative;
+}
+.input-group > i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-gray);
+    font-size: 0.95rem;
+    pointer-events: none;
+    z-index: 2;
+}
+.input-group > input,
+.input-group > select {
+    padding-left: 38px;
+}
+.input-group > i ~ input:focus,
+.input-group > i ~ select:focus {
+    border-color: var(--theme-color) !important;
+}
+
+/* Campos com tipos especiais não devem esticar */
+input[type="checkbox"],
+input[type="radio"],
+input[type="color"],
+input[type="range"] {
+    width: auto;
+    padding: 0;
+    background: transparent !important;
+    border: none !important;
+    -webkit-appearance: auto;
+    appearance: auto;
+}
+input[type="color"] {
+    width: 60px;
+    height: 34px;
+    cursor: pointer;
+}
+input[type="file"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 10px;
+    border-radius: 6px;
+    background: var(--bg-main);
+    color: var(--text-gray);
+    border: 1px dashed var(--border-color);
+    font-size: 0.8rem;
+}
+
+/* Barras de pesquisa mantêm o desenho embutido, apenas herdando o padrão */
+.search-bar input {
+    padding: 11px 14px 11px 38px;
+    border-radius: 22px;
+}
+.sidebar-search input {
+    margin-bottom: 15px;
+    border-radius: 6px;
+}
+.photo-actions input[type="text"] { font-size: 0.82rem; padding: 9px 10px; }
+.action-card-json textarea { font-family: monospace; font-size: 0.8rem; }
+
+/* Compatibilidade com o tema claro */
+body.theme-claro input[type="text"],
+body.theme-claro input[type="email"],
+body.theme-claro input[type="password"],
+body.theme-claro input[type="tel"],
+body.theme-claro input[type="number"],
+body.theme-claro input[type="search"],
+body.theme-claro input[type="url"],
+body.theme-claro input[type="date"],
+body.theme-claro select,
+body.theme-claro textarea {
+    background: #afafaf !important;
+    color: #050505 !important;
+    border: 1px solid #858585 !important;
+}
+body.theme-claro input[readonly],
+body.theme-claro input[disabled],
+body.theme-claro select[disabled] {
+    background: #9a9a9a !important;
+    color: #3d3d3d !important;
+}
+body.theme-claro input::placeholder,
+body.theme-claro textarea::placeholder {
+    color: #4a4a4a;
+}
+
+/* ==========================================
+   CORREÇÃO: .hidden deve sempre vencer os utilitários
+   de dispositivo (o menu "Gerencial" só aparece para o admin)
+   ========================================== */
+.hidden,
+.btn-desktop-only.hidden,
+.btn-mobile-only.hidden,
+.dropdown-item-btn.hidden {
+    display: none !important;
+}
+
+/* ==========================================
+   ROLAGEM INVISÍVEL EM TODAS AS JANELAS
+   (modais, menus, painéis e listas)
+   Aplicada por último para sobrescrever
+   regras anteriores sem quebrar layout.
+   ========================================== */
+
+/* Overlays: permitem rolar o conteúdo caso a tela seja muito baixa */
+.modal-overlay,
+#profile-modal.profile-modal-overlay {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+
+/* Toda caixa de modal fica limitada à altura da tela e rola por dentro */
+.modal-box,
+.profile-modal-card {
+    max-height: calc(100vh - 40px);
+    max-height: calc(100dvh - 40px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    margin: auto;
+}
+
+/* Modais compactos (edição de usuário do admin, editar mídia) */
+.modal-box.edit-box { height: auto; }
+.modal-box.admin-box { height: 85vh; height: 85dvh; }
+
+/* Corpos roláveis: barra invisível + inércia no toque */
+.modal-body,
+.profile-modal-body,
+.master-users-list,
+.channels-list-wrapper,
+.comments-list,
+.sidebar-panel,
+.dropdown-content-menu,
+.split-manage-layout,
+.login-box,
+#admin-users-request-list,
+#crud-tree-list,
+#channels-scroll-container,
+#master-edit-user-modal .modal-body,
+#master-modal .modal-body,
+#admin-modal .modal-body,
+#edit-media-modal .modal-body {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+}
+
+.modal-body::-webkit-scrollbar,
+.profile-modal-body::-webkit-scrollbar,
+.master-users-list::-webkit-scrollbar,
+.dropdown-content-menu::-webkit-scrollbar,
+.login-box::-webkit-scrollbar,
+.comments-list::-webkit-scrollbar,
+.sidebar-panel::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+}
+
+/* Cabeçalhos e rodapés nunca encolhem, só o meio rola */
+.modal-header,
+.profile-modal-header,
+.modal-footer-btns,
+.profile-modal-footer,
+.tab-nav {
+    flex-shrink: 0;
+}
+
+/* Menus drop-down muito longos passam a rolar */
+.dropdown-content-menu {
+    max-height: 70vh;
+    max-height: 70dvh;
+}
+
+/* Tela de login também rola em telas baixas */
+.login-container {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.login-box {
+    max-height: calc(100vh - 40px);
+    max-height: calc(100dvh - 40px);
+}
+
+@media (max-width: 768px) {
+    .modal-box,
+    .profile-modal-card {
+        max-height: calc(100vh - 20px);
+        max-height: calc(100dvh - 20px);
+    }
+    .modal-box.admin-box { height: calc(100dvh - 20px); }
+    .dropdown-content-menu { max-height: 60dvh; }
+}
