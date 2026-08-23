@@ -19,6 +19,45 @@ if (!firebase.apps.length) {
 }
 
 const googleProvider = new firebase.auth.GoogleAuthProvider();
+// Escopo necessário para que o usuário possa comentar nos vídeos com a própria conta Google
+googleProvider.addScope("https://www.googleapis.com/auth/youtube.force-ssl");
+googleProvider.setCustomParameters({ prompt: "select_account" });
+
+// Token OAuth do Google (permite publicar comentários no YouTube)
+let googleAccessToken = null;
+try { googleAccessToken = sessionStorage.getItem("gToken") || null; } catch (e) { googleAccessToken = null; }
+
+function guardarTokenGoogle(resultado) {
+    try {
+        const token = resultado?.credential?.accessToken;
+        if (token) {
+            googleAccessToken = token;
+            try { sessionStorage.setItem("gToken", token); } catch (e) {}
+        }
+        const foto = resultado?.user?.photoURL;
+        if (foto) { try { sessionStorage.setItem("gFoto", foto); } catch (e) {} }
+    } catch (e) {}
+}
+
+function usuarioEhDoGoogle() {
+    const u = firebase.auth().currentUser;
+    return !!u && (u.providerData || []).some(p => p && p.providerId === "google.com");
+}
+// ==========================================
+// ACESSO SEGURO AO REALTIME DATABASE
+// Anexa o token de autenticação do usuário logado em
+// todas as chamadas (obrigatório com regras seguras ativas)
+// ==========================================
+async function dbFetch(url, opcoes) {
+    const usuario = firebase.auth().currentUser;
+    if (usuario) {
+        const token = await usuario.getIdToken();
+        const separador = url.includes("?") ? "&" : "?";
+        url = `${url}${separador}auth=${encodeURIComponent(token)}`;
+    }
+    return fetch(url, opcoes);
+}
+
 
 // Configurações globais dinâmicas (A URL do banco continua vindo por usuário)
 let CONFIG = { YT_API_KEY: YT_API_KEY_GLOBAL, FIREBASE_URL: "" };
@@ -34,6 +73,8 @@ let currentTrackIndex = 0;
 let ytPlayer = null;
 let lastYtSearchResults = [];
 let lastLocalSearchResults = []; 
+let lastLocalCatResults = [];
+let lastLocalSubResults = [];
 let activeEditingIndex = null;
 let canalSelecionadoProvisorio = null;
 
@@ -67,7 +108,7 @@ async function abrirModalPerfil() {
 
     try {
         const urlBaseBanco = firebaseConfig.databaseURL.replace(/\/$/, "");
-        let res = await fetch(`${urlBaseBanco}/usuarios/${currentUserUid}.json`);
+        let res = await dbFetch(`${urlBaseBanco}/usuarios/${currentUserUid}.json`);
         let perfil = await res.json();
         
         if (perfil) {
@@ -153,7 +194,7 @@ async function salvarPreferenciaNoFirebase(dadosModificados) {
     if (!currentUserUid || !firebaseConfig.databaseURL) return;
     try {
         const urlBaseBanco = firebaseConfig.databaseURL.replace(/\/$/, "");
-        await fetch(`${urlBaseBanco}/usuarios/${currentUserUid}.json`, {
+        await dbFetch(`${urlBaseBanco}/usuarios/${currentUserUid}.json`, {
             method: "PATCH",
             body: JSON.stringify(dadosModificados),
             headers: { 'Content-Type': 'application/json' }
@@ -168,7 +209,7 @@ function checkSession() {
             
             try {
                 const urlBaseBanco = firebaseConfig.databaseURL.replace(/\/$/, "");
-                let resPerfil = await fetch(`${urlBaseBanco}/usuarios/${currentUserUid}.json`);
+                let resPerfil = await dbFetch(`${urlBaseBanco}/usuarios/${currentUserUid}.json`);
                 let perfil = await resPerfil.json();
                 
                 if (!perfil) {
@@ -182,9 +223,15 @@ function checkSession() {
                         sobrenome: sobrenome,
                         cor_tema: "#ff0000",
                         tema: "",
+                        foto: user.photoURL || "",
                         firebaseUrl: `${urlBaseBanco}/usuarios/${currentUserUid}/midias.json`
                     };
                     await salvarPreferenciaNoFirebase(perfil);
+                }
+                // Se entrou com o Google e ainda não tem foto salva, usa o avatar da conta Google
+                else if (!perfil.foto && user.photoURL) {
+                    perfil.foto = user.photoURL;
+                    await salvarPreferenciaNoFirebase({ foto: user.photoURL });
                 }
                 
                 CONFIG.FIREBASE_URL = perfil.firebaseUrl;
@@ -328,7 +375,7 @@ async function initApp() { await carregarCanaisDinamicos(); await recarregarDado
 
 async function recarregarDadosDoBanco() {
     try {
-        const res = await fetch(CONFIG.FIREBASE_URL); const data = await res.json(); database = [];
+        const res = await dbFetch(CONFIG.FIREBASE_URL); const data = await res.json(); database = [];
         if (data) {
             if (Array.isArray(data)) { database = data.filter(item => item !== null); } 
             else { Object.keys(data).forEach(key => { if (data[key]) database.push({ idFirebase: key, ...data[key] }); }); }
@@ -339,7 +386,7 @@ async function recarregarDadosDoBanco() {
 
 async function carregarCanaisDinamicos() {
     try { 
-        const res = await fetch(obterUrlBaseCanais()); 
+        const res = await dbFetch(obterUrlBaseCanais()); 
         if (!res.ok) { canaisDinamicos = {}; return; }
         const data = await res.json(); 
         canaisDinamicos = data || {}; 
@@ -422,18 +469,56 @@ function renderMosaic() {
             bcSrc.classList.remove('hidden');
             bcSrc.innerHTML = ` &gt; <i class="fas fa-search"></i> Resultados Locais para: "${document.getElementById('search-internal-input').value}"`;
         }
-        
-        if (lastLocalSearchResults.length === 0) {
-            grid.innerHTML = '<h3 style="color: var(--text-gray); padding: 20px;">Nenhuma mídia encontrada no seu acervo local.</h3>';
+
+        const totalResultados = lastLocalSearchResults.length + lastLocalCatResults.length + lastLocalSubResults.length;
+        if (totalResultados === 0) {
+            grid.innerHTML = '<h3 style="color: var(--text-gray); padding: 20px;">Nada encontrado no seu acervo local (mídias, categorias ou subcategorias).</h3>';
             return;
         }
 
-        currentPlaylist = lastLocalSearchResults;
+        const tituloGrupo = (texto) => {
+            const h = document.createElement('div');
+            h.className = 'local-result-group-title';
+            h.innerText = texto;
+            grid.appendChild(h);
+        };
 
-        lastLocalSearchResults.forEach((track, index) => {
-            const realIndex = database.findIndex(dbItem => dbItem.link === track.link && dbItem.título === track.título);
-            grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, realIndex));
-        });
+        // Categorias encontradas na pesquisa local
+        if (lastLocalCatResults.length > 0) {
+            tituloGrupo(`Categorias (${lastLocalCatResults.length})`);
+            lastLocalCatResults.forEach(cat => {
+                const nodeName = btoa(unescape(encodeURIComponent(cat))).replace(/=/g, "");
+                const match = database.find(item => item.categoria === cat);
+                const capa = match ? match.capa : (canaisDinamicos[nodeName] ? canaisDinamicos[nodeName].thumb : '');
+                const card = createCard(cat, capa, false, false, () => {
+                    selectedCategory = cat; selectedSubcategory = ''; currentView = 'subcategories'; renderMosaic();
+                }, -1);
+                card.insertAdjacentHTML('afterbegin', '<span class="local-kind-badge"><i class="fas fa-folder"></i> Categoria</span>');
+                grid.appendChild(card);
+            });
+        }
+
+        // Subcategorias encontradas na pesquisa local
+        if (lastLocalSubResults.length > 0) {
+            tituloGrupo(`Subcategorias (${lastLocalSubResults.length})`);
+            lastLocalSubResults.forEach(par => {
+                const match = database.find(item => item.categoria === par.categoria && item.subcategoria === par.subcategoria);
+                const card = createCard(`${par.subcategoria}`, match ? match.capa : '', false, false, () => {
+                    selectedCategory = par.categoria; selectedSubcategory = par.subcategoria; currentView = 'tracks'; renderMosaic();
+                }, -1);
+                card.insertAdjacentHTML('afterbegin', `<span class="local-kind-badge"><i class="fas fa-video"></i> ${par.categoria}</span>`);
+                grid.appendChild(card);
+            });
+        }
+
+        if (lastLocalSearchResults.length > 0) {
+            tituloGrupo(`Mídias (${lastLocalSearchResults.length})`);
+            currentPlaylist = lastLocalSearchResults;
+            lastLocalSearchResults.forEach((track, index) => {
+                const realIndex = database.findIndex(dbItem => dbItem.link === track.link && dbItem.título === track.título);
+                grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, realIndex));
+            });
+        }
     }
 }
 
@@ -810,8 +895,8 @@ async function renomearCategoriaCompleta(antiga, nova) {
             const newNodeName = btoa(unescape(encodeURIComponent(nova))).replace(/=/g, ""); 
             let urlNovoCanal = obterUrlBaseCanais().replace(".json", `/${newNodeName}.json`);
             let urlAntigoCanal = obterUrlBaseCanais().replace(".json", `/${oldNodeName}.json`);
-            await fetch(urlNovoCanal, { method: "PUT", body: JSON.stringify(canaisDinamicos[oldNodeName]) }); 
-            await fetch(urlAntigoCanal, { method: "DELETE" }); 
+            await dbFetch(urlNovoCanal, { method: "PUT", body: JSON.stringify(canaisDinamicos[oldNodeName]) }); 
+            await dbFetch(urlAntigoCanal, { method: "DELETE" }); 
         } 
         await recarregarDadosDoBanco(); 
         renderCrudManager(); 
@@ -880,7 +965,7 @@ async function saveMediaToDatabase(e) {
 async function processarInjecaoDeDadosAcumulativa(novosItens) {
     if(!Array.isArray(novosItens) || novosItens.length === 0) return alert("Nenhum dado válido para importar.");
     try {
-        const res = await fetch(CONFIG.FIREBASE_URL); const data = await res.json(); let bancoAtual = [];
+        const res = await dbFetch(CONFIG.FIREBASE_URL); const data = await res.json(); let bancoAtual = [];
         if (data) {
             if (Array.isArray(data)) bancoAtual = data.filter(item => item !== null);
             else Object.keys(data).forEach(k => { if(data[k]) bancoAtual.push(data[k]); });
@@ -900,7 +985,7 @@ async function processarInjecaoDeDadosAcumulativa(novosItens) {
 
 async function empurrarBancoIntegralParaServidor() {
     const loteLimpoParaSalvar = database.map(({idFirebase, ...resto}) => resto);
-    let resposta = await fetch(CONFIG.FIREBASE_URL, { method: "PUT", body: JSON.stringify(loteLimpoParaSalvar), headers: { 'Content-Type': 'application/json' } });
+    let resposta = await dbFetch(CONFIG.FIREBASE_URL, { method: "PUT", body: JSON.stringify(loteLimpoParaSalvar), headers: { 'Content-Type': 'application/json' } });
     if (!resposta.ok) throw new Error("Erro na gravação remota do banco.");
 }
 
@@ -912,7 +997,7 @@ async function deletarCategoriaCompleta(cat) {
         await empurrarBancoIntegralParaServidor(); 
         const nodeName = btoa(unescape(encodeURIComponent(cat))).replace(/=/g, "");
         let urlCanalIndividual = obterUrlBaseCanais().replace(".json", `/${nodeName}.json`);
-        await fetch(urlCanalIndividual, { method: 'DELETE' }); 
+        await dbFetch(urlCanalIndividual, { method: 'DELETE' }); 
         currentView = 'categories'; 
         selectedCategory = ''; 
         selectedSubcategory = ''; 
@@ -953,7 +1038,7 @@ async function renderizarListaUsuariosPedidosExclusao() {
     
     try {
         let urlRaizLimpa = firebaseConfig.databaseURL.replace(/\/$/, "");
-        let res = await fetch(`${urlRaizLimpa}/usuarios.json`);
+        let res = await dbFetch(`${urlRaizLimpa}/usuarios.json`);
         
         if (!res.ok) {
             container.innerHTML = `<p style='color:#e74c3c; padding:10px; font-weight:bold;'>❌ Erro de HTTP no Firebase: ${res.status}</p>`;
@@ -1029,7 +1114,7 @@ async function processarExclusaoDefinitivaPeloMaster(uidUsuarioAlvo) {
     
     try {
         const urlBaseBanco = firebaseConfig.databaseURL.replace(/\/$/, "");
-        await fetch(`${urlBaseBanco}/usuarios/${uidUsuarioAlvo}.json`, { method: "DELETE" });
+        await dbFetch(`${urlBaseBanco}/usuarios/${uidUsuarioAlvo}.json`, { method: "DELETE" });
         alert("Dados do Realtime Database removidos com sucesso!");
         renderizarListaUsuariosPedidosExclusao();
     } catch(e) {
@@ -1056,6 +1141,7 @@ function setupEventListeners() {
             btnGoogle.disabled = true;
 
             firebase.auth().signInWithPopup(googleProvider)
+                .then((resultado) => { guardarTokenGoogle(resultado); })
                 .catch((error) => {
                     alert("Erro ao logar com o Google: " + error.message);
                     btnGoogle.innerHTML = '<i class="fab fa-google"></i> Entrar com o Google';
@@ -1122,7 +1208,7 @@ function setupEventListeners() {
                 const nodeName = btoa(unescape(encodeURIComponent(catDestino))).replace(/=/g, "");
                 let urlCanalIndividual = obterUrlBaseCanais().replace(".json", `/${nodeName}.json`);
                 
-                await fetch(urlCanalIndividual, { method: "PUT", body: JSON.stringify(payload) });
+                await dbFetch(urlCanalIndividual, { method: "PUT", body: JSON.stringify(payload) });
                 
                 alert(`Canal vinculado com sucesso na categoria "${catDestino}"!`);
                 
@@ -1304,6 +1390,27 @@ function setupEventListeners() {
                 return titulo.toLowerCase().includes(termo) || categoria.toLowerCase().includes(termo) || subcategoria.toLowerCase().includes(termo);
             });
 
+            // Cataloga também categorias e subcategorias que combinam com o termo
+            const todasCategorias = [...new Set(database.map(i => i.categoria).filter(Boolean))];
+            Object.keys(canaisDinamicos).forEach(key => {
+                try { const c = decodeURIComponent(escape(atob(key))); if (c && !todasCategorias.includes(c)) todasCategorias.push(c); } catch (err) {}
+            });
+            lastLocalCatResults = todasCategorias.filter(c => c.toLowerCase().includes(termo)).sort();
+
+            const paresVistos = new Set();
+            lastLocalSubResults = [];
+            database.forEach(i => {
+                const cat = i.categoria || "", sub = i.subcategoria || "";
+                if (!sub) return;
+                const chave = cat + "||" + sub;
+                if (paresVistos.has(chave)) return;
+                if (sub.toLowerCase().includes(termo) || (cat.toLowerCase().includes(termo) && !lastLocalCatResults.includes(cat))) {
+                    paresVistos.add(chave);
+                    lastLocalSubResults.push({ categoria: cat, subcategoria: sub });
+                }
+            });
+            lastLocalSubResults.sort((a, b) => a.subcategoria.localeCompare(b.subcategoria));
+
             currentView = 'search_local_results'; renderMosaic();
             if (window.innerWidth <= 768) document.getElementById('sidebar')?.classList.remove('open');
         }
@@ -1384,7 +1491,7 @@ if (waButton) {
                     firebaseUrl: `${urlBaseBanco}/usuarios/${novoUid}/midias.json`
                 };
                 
-                await fetch(`${urlBaseBanco}/usuarios/${novoUid}.json`, {
+                await dbFetch(`${urlBaseBanco}/usuarios/${novoUid}.json`, {
                     method: "PATCH",
                     body: JSON.stringify(novoPerfil),
                     headers: { 'Content-Type': 'application/json' }
@@ -1412,4 +1519,797 @@ document.addEventListener('DOMContentLoaded', () => {
     configurarEventosLogin();
     setupEventListeners();
     checkSession();
+});
+
+/* ==========================================================================
+   MÓDULO DE NOVOS RECURSOS (ADITIVO)
+   - Foto de perfil via upload (base64) ou link
+   - Comentários retráteis dos vídeos no player (YouTube Data API)
+   - Player arrastável e redimensionável
+   - Painel gerencial completo para admin@admin.com
+   Nenhuma função original foi alterada.
+   ========================================================================== */
+
+const EMAIL_ADMIN_MASTER = "admin@admin.com";
+let fotoPerfilTemporaria = null;      // null = não alterada nesta sessão do modal
+let videoIdEmExibicao = null;
+let configGlobalSite = {};
+let uidUsuarioEmEdicaoMaster = null;
+
+function urlRaizBanco() {
+    return firebaseConfig.databaseURL.replace(/\/$/, "");
+}
+
+function ehAdminMaster() {
+    const u = firebase.auth().currentUser;
+    return !!u && (u.email || "").toLowerCase() === EMAIL_ADMIN_MASTER;
+}
+
+function avatarPadrao() {
+    return "https://placehold.co/120x120/222222/ffffff?text=%F0%9F%91%A4";
+}
+
+/* ---------------------- FOTO DE PERFIL ---------------------- */
+
+// Converte o arquivo enviado em base64 já redimensionado (evita estourar o banco)
+function converterArquivoParaBase64(file, maxLado = 320) {
+    return new Promise((resolve, reject) => {
+        if (!file.type.startsWith("image/")) return reject(new Error("O arquivo escolhido não é uma imagem."));
+        if (file.size > 8 * 1024 * 1024) return reject(new Error("Imagem muito grande (máximo 8MB)."));
+        const reader = new FileReader();
+        reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+                let { width, height } = img;
+                const escala = Math.min(1, maxLado / Math.max(width, height));
+                width = Math.round(width * escala);
+                height = Math.round(height * escala);
+                const canvas = document.createElement("canvas");
+                canvas.width = width; canvas.height = height;
+                canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL("image/jpeg", 0.82));
+            };
+            img.onerror = () => reject(new Error("Não foi possível ler a imagem."));
+            img.src = reader.result;
+        };
+        reader.onerror = () => reject(new Error("Falha ao ler o arquivo."));
+        reader.readAsDataURL(file);
+    });
+}
+
+function aplicarFotoNoTopo(foto) {
+    const badge = document.getElementById("user-profile-display");
+    if (!badge) return;
+    let img = badge.querySelector("img.avatar-top");
+    const icone = badge.querySelector("i.fa-user-circle");
+    if (foto) {
+        if (!img) {
+            img = document.createElement("img");
+            img.className = "avatar-top";
+            badge.insertBefore(img, badge.firstChild);
+        }
+        img.src = foto;
+        if (icone) icone.style.display = "none";
+    } else {
+        if (img) img.remove();
+        if (icone) icone.style.display = "";
+    }
+}
+
+function preencherFotoNoModalPerfil(foto) {
+    fotoPerfilTemporaria = null;
+    const prev = document.getElementById("profile-photo-preview");
+    const inputUrl = document.getElementById("profile-photo-url");
+    if (prev) prev.src = foto || avatarPadrao();
+    if (inputUrl) inputUrl.value = foto && !foto.startsWith("data:") ? foto : "";
+}
+
+async function carregarPerfilAtual() {
+    if (!currentUserUid) return null;
+    try {
+        const res = await dbFetch(`${urlRaizBanco()}/usuarios/${currentUserUid}.json`);
+        return await res.json();
+    } catch (e) { return null; }
+}
+
+/* ---------------------- COMENTÁRIOS DO PLAYER ---------------------- */
+
+function formatarDataComentario(iso) {
+    try { return new Date(iso).toLocaleDateString("pt-BR"); } catch (e) { return ""; }
+}
+
+async function carregarComentariosDoVideo(videoId) {
+    const lista = document.getElementById("comments-list");
+    if (!lista) return;
+    if (!videoId) {
+        lista.innerHTML = `<p class="comments-empty">Comentários disponíveis apenas para vídeos do YouTube.</p>`;
+        return;
+    }
+    lista.innerHTML = `<p class="comments-empty"><i class="fas fa-spinner fa-spin"></i> Carregando comentários...</p>`;
+    try {
+        const url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&maxResults=30&order=relevance&textFormat=plainText&videoId=${videoId}&key=${CONFIG.YT_API_KEY}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.error) {
+            lista.innerHTML = `<p class="comments-empty">Não foi possível carregar (o vídeo pode estar com comentários desativados).</p>`;
+            return;
+        }
+        if (!data.items || data.items.length === 0) {
+            lista.innerHTML = `<p class="comments-empty">Nenhum comentário encontrado para este vídeo.</p>`;
+            return;
+        }
+        lista.innerHTML = "";
+        data.items.forEach(item => {
+            const c = item.snippet.topLevelComment.snippet;
+            const div = document.createElement("div");
+            div.className = "comment-item";
+            const texto = (c.textDisplay || "").replace(/[<>]/g, "");
+            div.innerHTML = `
+                <img src="${c.authorProfileImageUrl}" alt="">
+                <div class="comment-body">
+                    <div class="comment-author">${c.authorDisplayName}
+                        <span class="comment-meta">${formatarDataComentario(c.publishedAt)} · <i class="fas fa-thumbs-up"></i> ${c.likeCount || 0}</span>
+                    </div>
+                    <div class="comment-text"></div>
+                </div>`;
+            div.querySelector(".comment-text").innerText = texto;
+            lista.appendChild(div);
+        });
+    } catch (e) {
+        lista.innerHTML = `<p class="comments-empty">Erro de rede ao buscar comentários.</p>`;
+    }
+}
+
+function comentariosEstaoVisiveis() {
+    const painel = document.getElementById("player-comments");
+    return painel && !painel.classList.contains("hidden");
+}
+
+let alturaPlayerAntesDosComentarios = null;
+
+// Altura padrão generosa do painel (ajustável pelo usuário arrastando a alça)
+function alturaPadraoComentarios() {
+    const salvo = parseInt(localStorage.getItem("alturaComentarios") || "0", 10);
+    if (salvo && salvo > 150) return Math.min(salvo, Math.round(window.innerHeight * 0.85));
+    return Math.round(window.innerHeight * (window.innerWidth <= 768 ? 0.6 : 0.55));
+}
+
+function aplicarAlturaComentarios(px) {
+    const painel = document.getElementById("player-comments");
+    if (!painel) return;
+    const min = 180;
+    const max = Math.round(window.innerHeight * 0.85);
+    const altura = Math.min(Math.max(Math.round(px), min), max);
+    painel.style.setProperty("--comments-height", altura + "px");
+    painel.style.height = altura + "px";
+    try { localStorage.setItem("alturaComentarios", String(altura)); } catch (e) {}
+    return altura;
+}
+
+// Ao abrir os comentários, o player ganha o espaço extra (não encolhe o vídeo)
+function ajustarAlturaDoPlayerComComentarios(abrir, alturaComentarios) {
+    const player = document.getElementById("player-container");
+    if (!player || !player.classList.contains("player-free")) return;
+    if (abrir) {
+        const atual = player.getBoundingClientRect().height;
+        if (alturaPlayerAntesDosComentarios === null) alturaPlayerAntesDosComentarios = atual;
+        const desejada = Math.min(alturaPlayerAntesDosComentarios + alturaComentarios + 40, Math.round(window.innerHeight * 0.94));
+        player.style.setProperty("height", desejada + "px", "important");
+        const topo = Math.max(0, Math.min(player.getBoundingClientRect().top, window.innerHeight - desejada));
+        player.style.setProperty("top", topo + "px", "important");
+    } else if (alturaPlayerAntesDosComentarios !== null) {
+        player.style.setProperty("height", alturaPlayerAntesDosComentarios + "px", "important");
+        alturaPlayerAntesDosComentarios = null;
+    }
+}
+
+function alternarPainelComentarios(forcarAbrir) {
+    const painel = document.getElementById("player-comments");
+    const player = document.getElementById("player-container");
+    if (!painel) return;
+    const abrir = typeof forcarAbrir === "boolean" ? forcarAbrir : painel.classList.contains("hidden");
+    painel.classList.toggle("hidden", !abrir);
+    if (player) player.classList.toggle("with-comments", abrir);
+    const btn = document.getElementById("btn-toggle-comments");
+    if (btn) btn.style.color = abrir ? "var(--theme-color)" : "";
+    if (abrir) {
+        const altura = aplicarAlturaComentarios(alturaPadraoComentarios());
+        ajustarAlturaDoPlayerComComentarios(true, altura);
+        carregarComentariosDoVideo(videoIdEmExibicao);
+        montarCaixaDeComentario();
+    } else {
+        ajustarAlturaDoPlayerComComentarios(false, 0);
+    }
+}
+
+// Alça de redimensionamento do painel de comentários (mouse e toque)
+function configurarRedimensionamentoComentarios() {
+    const alca = document.getElementById("comments-resizer");
+    const painel = document.getElementById("player-comments");
+    if (!alca || !painel) return;
+    let arrastando = false, startY = 0, baseH = 0;
+    const ponto = (ev) => (ev.touches && ev.touches[0] ? ev.touches[0] : ev);
+
+    const iniciar = (ev) => {
+        arrastando = true;
+        startY = ponto(ev).clientY;
+        baseH = painel.getBoundingClientRect().height;
+        ev.preventDefault();
+    };
+    const mover = (ev) => {
+        if (!arrastando) return;
+        const delta = startY - ponto(ev).clientY;
+        const nova = aplicarAlturaComentarios(baseH + delta);
+        ajustarAlturaDoPlayerComComentarios(true, nova);
+        ev.preventDefault();
+    };
+    const finalizar = () => { arrastando = false; };
+
+    alca.addEventListener("mousedown", iniciar);
+    alca.addEventListener("touchstart", iniciar, { passive: false });
+    document.addEventListener("mousemove", mover);
+    document.addEventListener("touchmove", mover, { passive: false });
+    document.addEventListener("mouseup", finalizar);
+    document.addEventListener("touchend", finalizar);
+}
+
+/* ------- COMENTAR NOS VÍDEOS COM A CONTA GOOGLE ------- */
+
+async function pedirLoginGoogleParaComentar() {
+    try {
+        const usuario = firebase.auth().currentUser;
+        let resultado;
+        if (usuario && !usuarioEhDoGoogle()) {
+            // Conta de e-mail/senha: vincula a conta Google para liberar o comentário
+            try { resultado = await usuario.linkWithPopup(googleProvider); }
+            catch (err) { resultado = await usuario.reauthenticateWithPopup(googleProvider); }
+        } else if (usuario) {
+            resultado = await usuario.reauthenticateWithPopup(googleProvider);
+        } else {
+            resultado = await firebase.auth().signInWithPopup(googleProvider);
+        }
+        guardarTokenGoogle(resultado);
+        const foto = resultado?.user?.photoURL;
+        if (foto) {
+            const perfil = await carregarPerfilAtual();
+            if (!perfil || !perfil.foto) { await salvarPreferenciaNoFirebase({ foto }); aplicarFotoNoTopo(foto); }
+        }
+        montarCaixaDeComentario();
+        return true;
+    } catch (e) {
+        alert("Não foi possível autorizar sua conta Google para comentar: " + (e.message || e));
+        return false;
+    }
+}
+
+function montarCaixaDeComentario() {
+    const box = document.getElementById("comment-compose");
+    if (!box) return;
+    if (!videoIdEmExibicao) {
+        box.innerHTML = `<p class="comment-compose-hint">Comentários disponíveis apenas para vídeos do YouTube.</p>`;
+        return;
+    }
+    const podeComentar = usuarioEhDoGoogle() && !!googleAccessToken;
+    if (!podeComentar) {
+        box.innerHTML = `
+            <div class="compose-fields">
+                <p class="comment-compose-hint">Entre com o Google para comentar neste vídeo com a sua conta.</p>
+                <button type="button" id="btn-google-para-comentar" class="btn-google-comment">
+                    <i class="fab fa-google"></i> Entrar com o Google para comentar
+                </button>
+            </div>`;
+        return;
+    }
+    const usuario = firebase.auth().currentUser;
+    const foto = (usuario && usuario.photoURL) || avatarPadrao();
+    box.innerHTML = `
+        <img class="compose-avatar" src="${foto}" alt="">
+        <div class="compose-fields">
+            <textarea id="novo-comentario-texto" placeholder="Escreva um comentário público..."></textarea>
+            <div class="compose-actions">
+                <button type="button" id="btn-enviar-comentario" class="btn-send-comment"><i class="fas fa-paper-plane"></i> Comentar</button>
+            </div>
+        </div>`;
+}
+
+async function enviarComentarioNoVideo() {
+    const campo = document.getElementById("novo-comentario-texto");
+    const botao = document.getElementById("btn-enviar-comentario");
+    if (!campo || !videoIdEmExibicao) return;
+    const texto = campo.value.trim();
+    if (!texto) { campo.focus(); return; }
+    if (!googleAccessToken) { await pedirLoginGoogleParaComentar(); return; }
+    if (botao) { botao.disabled = true; botao.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; }
+    try {
+        const res = await fetch("https://www.googleapis.com/youtube/v3/commentThreads?part=snippet", {
+            method: "POST",
+            headers: { "Authorization": "Bearer " + googleAccessToken, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                snippet: { videoId: videoIdEmExibicao, topLevelComment: { snippet: { textOriginal: texto } } }
+            })
+        });
+        const dados = await res.json();
+        if (dados.error) {
+            if (res.status === 401 || res.status === 403) {
+                googleAccessToken = null;
+                try { sessionStorage.removeItem("gToken"); } catch (e) {}
+                alert("Sua autorização do Google expirou. Entre novamente com o Google para comentar.");
+                montarCaixaDeComentario();
+            } else {
+                alert("Não foi possível publicar o comentário: " + (dados.error.message || "erro desconhecido"));
+            }
+            return;
+        }
+        campo.value = "";
+        await carregarComentariosDoVideo(videoIdEmExibicao);
+    } catch (e) {
+        alert("Erro de rede ao publicar o comentário.");
+    } finally {
+        if (botao) { botao.disabled = false; botao.innerHTML = '<i class="fas fa-paper-plane"></i> Comentar'; }
+    }
+}
+
+// Intercepta o playTrack original para saber qual vídeo está tocando
+(function interceptarPlayTrack() {
+    if (typeof playTrack !== "function") return;
+    const original = playTrack;
+    playTrack = function (index) {
+        original(index);
+        try {
+            const track = currentPlaylist[index];
+            videoIdEmExibicao = track ? extractYoutubeId((track.link || "").trim()) : null;
+        } catch (e) { videoIdEmExibicao = null; }
+        if (comentariosEstaoVisiveis()) { carregarComentariosDoVideo(videoIdEmExibicao); montarCaixaDeComentario(); }
+    };
+})();
+
+/* ---------------------- PLAYER ARRASTÁVEL E REDIMENSIONÁVEL ---------------------- */
+
+function ativarModoPlayerLivre() {
+    const player = document.getElementById("player-container");
+    if (!player || player.classList.contains("player-free")) return;
+    const rect = player.getBoundingClientRect();
+    player.classList.add("player-free");
+    player.style.setProperty("left", rect.left + "px", "important");
+    player.style.setProperty("top", rect.top + "px", "important");
+    player.style.setProperty("width", rect.width + "px", "important");
+    player.style.setProperty("height", rect.height + "px", "important");
+    player.style.setProperty("bottom", "auto", "important");
+    player.style.setProperty("right", "auto", "important");
+}
+
+function limitarDentroDaTela(player) {
+    const rect = player.getBoundingClientRect();
+    let left = rect.left, top = rect.top;
+    left = Math.min(Math.max(left, -rect.width + 120), window.innerWidth - 120);
+    top = Math.min(Math.max(top, 0), window.innerHeight - 60);
+    player.style.setProperty("left", left + "px", "important");
+    player.style.setProperty("top", top + "px", "important");
+}
+
+function configurarPlayerLivre() {
+    const player = document.getElementById("player-container");
+    const header = player?.querySelector(".player-header");
+    const resizer = document.getElementById("player-resizer");
+    if (!player || !header || !resizer) return;
+
+    let modo = null, startX = 0, startY = 0, baseLeft = 0, baseTop = 0, baseW = 0, baseH = 0;
+
+    const ponto = (e) => e.touches && e.touches[0] ? e.touches[0] : e;
+
+    const iniciar = (e, novoModo) => {
+        if (configGlobalSite.playerLivre === false) return;
+        if (e.target.closest("button") || e.target.closest("input")) return;
+        ativarModoPlayerLivre();
+        const p = ponto(e);
+        const rect = player.getBoundingClientRect();
+        modo = novoModo;
+        startX = p.clientX; startY = p.clientY;
+        baseLeft = rect.left; baseTop = rect.top; baseW = rect.width; baseH = rect.height;
+        document.body.style.userSelect = "none";
+    };
+
+    const mover = (e) => {
+        if (!modo) return;
+        const p = ponto(e);
+        const dx = p.clientX - startX;
+        const dy = p.clientY - startY;
+        if (modo === "drag") {
+            player.style.setProperty("left", (baseLeft + dx) + "px", "important");
+            player.style.setProperty("top", (baseTop + dy) + "px", "important");
+        } else {
+            player.style.setProperty("width", Math.max(280, baseW + dx) + "px", "important");
+            player.style.setProperty("height", Math.max(200, baseH + dy) + "px", "important");
+        }
+        if (e.cancelable) e.preventDefault();
+    };
+
+    const finalizar = () => {
+        if (!modo) return;
+        modo = null;
+        document.body.style.userSelect = "";
+        limitarDentroDaTela(player);
+    };
+
+    header.addEventListener("mousedown", (e) => iniciar(e, "drag"));
+    header.addEventListener("touchstart", (e) => iniciar(e, "drag"), { passive: false });
+    resizer.addEventListener("mousedown", (e) => { e.stopPropagation(); iniciar(e, "resize"); });
+    resizer.addEventListener("touchstart", (e) => { e.stopPropagation(); iniciar(e, "resize"); }, { passive: false });
+
+    document.addEventListener("mousemove", mover);
+    document.addEventListener("touchmove", mover, { passive: false });
+    document.addEventListener("mouseup", finalizar);
+    document.addEventListener("touchend", finalizar);
+
+    // Duplo clique no cabeçalho volta o player para a posição/tamanho padrão
+    header.addEventListener("dblclick", () => {
+        player.classList.remove("player-free");
+        ["left", "top", "width", "height", "bottom", "right"].forEach(p => player.style.removeProperty(p));
+    });
+}
+
+/* ---------------------- CONFIGURAÇÃO GLOBAL DO SITE ---------------------- */
+
+async function carregarConfigGlobal() {
+    try {
+        const res = await dbFetch(`${urlRaizBanco()}/config_global.json`);
+        configGlobalSite = (await res.json()) || {};
+    } catch (e) { configGlobalSite = {}; }
+    aplicarConfigGlobal();
+}
+
+function aplicarConfigGlobal() {
+    const c = configGlobalSite || {};
+    const mostrar = (el, cond) => { if (el) el.classList.toggle("hidden", cond === false); };
+
+    mostrar(document.querySelector(".theme-switcher-float"), c.temas);
+    const wa = document.querySelector(".whatsapp-float");
+    if (wa) wa.style.display = c.whatsapp === false ? "none" : "";
+    mostrar(document.getElementById("btn-toggle-comments"), c.comentarios);
+    if (c.comentarios === false) alternarPainelComentarios(false);
+
+    const linkCadastro = document.querySelector("#form-login-fluxo .toggle-login-p");
+    if (linkCadastro) linkCadastro.style.display = c.cadastro === false ? "none" : "";
+    const btnGoogle = document.getElementById("btn-google-login");
+    if (btnGoogle) btnGoogle.style.display = c.google === false ? "none" : "";
+
+    const podeAdmin = c.adminUsuarios !== false || ehAdminMaster();
+    document.getElementById("btn-open-admin")?.classList.toggle("hidden", !podeAdmin);
+    document.getElementById("btn-open-admin-mobile")?.classList.toggle("hidden", !podeAdmin);
+
+    if (c.siteNome) {
+        const titulo = document.getElementById("bc-root");
+        if (titulo) titulo.innerText = c.siteNome;
+    }
+}
+
+/* ---------------------- PAINEL GERENCIAL DO ADMIN ---------------------- */
+
+function alternarBotoesAdminMaster() {
+    const ehAdmin = ehAdminMaster();
+    document.getElementById("btn-open-master")?.classList.toggle("hidden", !ehAdmin);
+    document.getElementById("btn-open-master-mobile")?.classList.toggle("hidden", !ehAdmin);
+}
+
+function abrirPainelMaster() {
+    if (!ehAdminMaster()) return alert("Acesso restrito ao administrador.");
+    document.getElementById("master-modal")?.classList.remove("hidden");
+    trocarAbaMaster("m-users-tab", "tab-trigger-m-users");
+    renderizarUsuariosMaster();
+    preencherFormularioEstiloMaster();
+}
+
+function trocarAbaMaster(alvo, botao) {
+    const modal = document.getElementById("master-modal");
+    if (!modal) return;
+    modal.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    modal.querySelectorAll(".tab-content").forEach(c => c.classList.add("hidden"));
+    document.getElementById(botao)?.classList.add("active");
+    document.getElementById(alvo)?.classList.remove("hidden");
+}
+
+let cacheUsuariosMaster = {};
+
+async function renderizarUsuariosMaster() {
+    const cont = document.getElementById("master-users-list");
+    if (!cont) return;
+    cont.innerHTML = `<p class="comments-empty"><i class="fas fa-spinner fa-spin"></i> Carregando usuários...</p>`;
+    try {
+        const res = await dbFetch(`${urlRaizBanco()}/usuarios.json`);
+        const data = (await res.json()) || {};
+        cacheUsuariosMaster = data;
+        desenharListaUsuariosMaster(document.getElementById("master-search-user")?.value || "");
+    } catch (e) {
+        cont.innerHTML = `<p class="comments-empty">Erro ao carregar a lista de usuários.</p>`;
+    }
+}
+
+function desenharListaUsuariosMaster(filtro) {
+    const cont = document.getElementById("master-users-list");
+    if (!cont) return;
+    const termo = (filtro || "").toLowerCase().trim();
+    cont.innerHTML = "";
+    const uids = Object.keys(cacheUsuariosMaster || {});
+    let exibidos = 0;
+
+    uids.forEach(uid => {
+        const p = cacheUsuariosMaster[uid];
+        if (!p || typeof p !== "object") return;
+        const texto = `${p.nome || ""} ${p.sobrenome || ""} ${p.email || ""} ${uid}`.toLowerCase();
+        if (termo && !texto.includes(termo)) return;
+        exibidos++;
+
+        const row = document.createElement("div");
+        row.className = "master-user-row";
+        row.innerHTML = `
+            <img src="${p.foto || avatarPadrao()}" alt="">
+            <div class="master-user-info">
+                <strong>${p.nome || "Sem nome"} ${p.sobrenome || ""}
+                    ${(p.email || "").toLowerCase() === EMAIL_ADMIN_MASTER ? '<span class="tag-admin">ADMIN</span>' : ""}
+                    ${p.solicitou_exclusao ? '<span class="tag-exclusao">PEDIU EXCLUSÃO</span>' : ""}
+                </strong>
+                <small>${p.email ? p.email + " · " : ""}UID: ${uid}</small>
+            </div>
+            <div class="master-user-actions">
+                <button class="crud-btn btn-edit" data-uid="${uid}" title="Editar usuário"><i class="fas fa-user-pen"></i></button>
+                <button class="crud-btn btn-del" data-del="${uid}" title="Apagar dados do usuário"><i class="fas fa-trash"></i></button>
+            </div>`;
+        row.querySelector("[data-uid]").onclick = () => abrirEdicaoUsuarioMaster(uid);
+        row.querySelector("[data-del]").onclick = () => excluirUsuarioMaster(uid);
+        cont.appendChild(row);
+    });
+
+    if (exibidos === 0) cont.innerHTML = `<p class="comments-empty">Nenhum usuário encontrado.</p>`;
+}
+
+function abrirEdicaoUsuarioMaster(uid) {
+    const p = cacheUsuariosMaster[uid] || {};
+    uidUsuarioEmEdicaoMaster = uid;
+    document.getElementById("mu-uid").value = uid;
+    document.getElementById("mu-name").value = p.nome || "";
+    document.getElementById("mu-lastname").value = p.sobrenome || "";
+    document.getElementById("mu-email").value = p.email || "";
+    document.getElementById("mu-photo").value = p.foto || "";
+    document.getElementById("mu-theme").value = p.tema || "";
+    document.getElementById("mu-color").value = p.cor_tema || "#ff0000";
+    document.getElementById("master-edit-user-modal")?.classList.remove("hidden");
+}
+
+async function salvarUsuarioMaster() {
+    if (!uidUsuarioEmEdicaoMaster) return;
+    const dados = {
+        nome: document.getElementById("mu-name").value.trim(),
+        sobrenome: document.getElementById("mu-lastname").value.trim(),
+        email: document.getElementById("mu-email").value.trim(),
+        foto: document.getElementById("mu-photo").value.trim(),
+        tema: document.getElementById("mu-theme").value,
+        cor_tema: document.getElementById("mu-color").value
+    };
+    try {
+        await dbFetch(`${urlRaizBanco()}/usuarios/${uidUsuarioEmEdicaoMaster}.json`, {
+            method: "PATCH", body: JSON.stringify(dados), headers: { "Content-Type": "application/json" }
+        });
+        alert("Usuário atualizado com sucesso!");
+        document.getElementById("master-edit-user-modal")?.classList.add("hidden");
+        renderizarUsuariosMaster();
+    } catch (e) { alert("Erro ao salvar usuário: " + e.message); }
+}
+
+async function excluirUsuarioMaster(uid) {
+    if (!confirm("Apagar TODOS os dados deste usuário no banco? (a credencial no Firebase Auth deve ser removida no console)")) return;
+    try {
+        await dbFetch(`${urlRaizBanco()}/usuarios/${uid}.json`, { method: "DELETE" });
+        document.getElementById("master-edit-user-modal")?.classList.add("hidden");
+        renderizarUsuariosMaster();
+    } catch (e) { alert("Erro ao apagar dados."); }
+}
+
+// Cria contas sem derrubar a sessão do admin (usa uma instância secundária do Firebase)
+async function cadastrarUsuarioPeloMaster() {
+    const nome = document.getElementById("master-new-name").value.trim();
+    const sobrenome = document.getElementById("master-new-lastname").value.trim();
+    const email = document.getElementById("master-new-email").value.trim().toLowerCase();
+    const senha = document.getElementById("master-new-pass").value.trim();
+    if (!nome || !email || senha.length < 6) return alert("Preencha nome, e-mail e uma senha de no mínimo 6 caracteres.");
+
+    const btn = document.getElementById("btn-master-create-user");
+    btn.innerText = "Cadastrando..."; btn.disabled = true;
+    let appSecundario = firebase.apps.find(a => a.name === "adminSecundario");
+    if (!appSecundario) appSecundario = firebase.initializeApp(firebaseConfig, "adminSecundario");
+
+    try {
+        const cred = await appSecundario.auth().createUserWithEmailAndPassword(email, senha);
+        const novoUid = cred.user.uid;
+        await dbFetch(`${urlRaizBanco()}/usuarios/${novoUid}.json`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                nome, sobrenome, email,
+                cor_tema: configGlobalSite.corPadrao || "#ff0000",
+                tema: configGlobalSite.temaPadrao || "",
+                foto: "",
+                firebaseUrl: `${urlRaizBanco()}/usuarios/${novoUid}/midias.json`
+            })
+        });
+        await appSecundario.auth().signOut();
+        alert(`Usuário ${nome} cadastrado com sucesso!`);
+        ["master-new-name", "master-new-lastname", "master-new-email", "master-new-pass"].forEach(id => document.getElementById(id).value = "");
+        trocarAbaMaster("m-users-tab", "tab-trigger-m-users");
+        renderizarUsuariosMaster();
+    } catch (e) {
+        alert("Erro ao cadastrar usuário: " + e.message);
+    } finally {
+        btn.innerText = "Cadastrar Novo Usuário"; btn.disabled = false;
+    }
+}
+
+function preencherFormularioEstiloMaster() {
+    const c = configGlobalSite || {};
+    const cor = c.corPadrao || "#ff0000";
+    const inputCor = document.getElementById("master-color-input");
+    if (inputCor) inputCor.value = cor;
+    const hex = document.getElementById("master-color-hex");
+    if (hex) hex.innerText = cor.toUpperCase();
+    const nome = document.getElementById("master-site-name");
+    if (nome) nome.value = c.siteNome || "StreamHub";
+
+    document.querySelectorAll(".master-theme-btn").forEach(b => {
+        const val = b.getAttribute("data-theme") === "youtube" ? "" : `theme-${b.getAttribute("data-theme")}`;
+        b.classList.toggle("active", val === (c.temaPadrao || ""));
+    });
+
+    const mapa = {
+        "fn-comentarios": "comentarios", "fn-temas": "temas", "fn-whatsapp": "whatsapp",
+        "fn-cadastro": "cadastro", "fn-google": "google",
+        "fn-admin-users": "adminUsuarios", "fn-player-livre": "playerLivre"
+    };
+    Object.keys(mapa).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.checked = c[mapa[id]] !== false;
+    });
+}
+
+async function salvarConfigGlobal(parcial) {
+    try {
+        await dbFetch(`${urlRaizBanco()}/config_global.json`, {
+            method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(parcial)
+        });
+        configGlobalSite = { ...configGlobalSite, ...parcial };
+        aplicarConfigGlobal();
+        alert("Configurações salvas com sucesso!");
+    } catch (e) { alert("Erro ao salvar configurações globais."); }
+}
+
+/* ---------------------- EVENTOS DOS NOVOS RECURSOS ---------------------- */
+
+document.addEventListener("DOMContentLoaded", () => {
+    configurarPlayerLivre();
+    configurarRedimensionamentoComentarios();
+
+    // Foto de perfil: upload em base64
+    document.getElementById("profile-photo-file")?.addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+            const base64 = await converterArquivoParaBase64(file);
+            fotoPerfilTemporaria = base64;
+            document.getElementById("profile-photo-preview").src = base64;
+            document.getElementById("profile-photo-url").value = "";
+        } catch (err) { alert(err.message); }
+        e.target.value = "";
+    });
+
+    // Foto de perfil: via link
+    document.getElementById("profile-photo-url")?.addEventListener("input", (e) => {
+        const url = e.target.value.trim();
+        fotoPerfilTemporaria = url;
+        document.getElementById("profile-photo-preview").src = url || avatarPadrao();
+    });
+
+    document.addEventListener("click", async (e) => {
+        if (e.target.closest("#btn-remove-photo")) {
+            fotoPerfilTemporaria = "";
+            document.getElementById("profile-photo-preview").src = avatarPadrao();
+            document.getElementById("profile-photo-url").value = "";
+        }
+
+        // Salvar perfil: grava também a foto (o handler original salva o restante)
+        if (e.target.closest("#btn-save-profile-changes")) {
+            if (fotoPerfilTemporaria !== null) {
+                const foto = fotoPerfilTemporaria;
+                await salvarPreferenciaNoFirebase({ foto });
+                aplicarFotoNoTopo(foto);
+            }
+        }
+
+        // Comentários
+        if (e.target.closest("#btn-toggle-comments")) alternarPainelComentarios();
+        if (e.target.closest("#btn-reload-comments")) { carregarComentariosDoVideo(videoIdEmExibicao); montarCaixaDeComentario(); }
+        if (e.target.closest("#btn-google-para-comentar")) await pedirLoginGoogleParaComentar();
+        if (e.target.closest("#btn-enviar-comentario")) await enviarComentarioNoVideo();
+
+        // Painel gerencial
+        if (e.target.closest("#btn-open-master") || e.target.closest("#btn-open-master-mobile")) abrirPainelMaster();
+        if (e.target.closest("#btn-close-master")) document.getElementById("master-modal")?.classList.add("hidden");
+        if (e.target.closest("#tab-trigger-m-users")) { trocarAbaMaster("m-users-tab", "tab-trigger-m-users"); renderizarUsuariosMaster(); }
+        if (e.target.closest("#tab-trigger-m-new")) trocarAbaMaster("m-new-tab", "tab-trigger-m-new");
+        if (e.target.closest("#tab-trigger-m-style")) { trocarAbaMaster("m-style-tab", "tab-trigger-m-style"); preencherFormularioEstiloMaster(); }
+        if (e.target.closest("#tab-trigger-m-func")) { trocarAbaMaster("m-func-tab", "tab-trigger-m-func"); preencherFormularioEstiloMaster(); }
+        if (e.target.closest("#btn-master-reload-users")) renderizarUsuariosMaster();
+        if (e.target.closest("#btn-master-create-user")) cadastrarUsuarioPeloMaster();
+        if (e.target.closest("#btn-close-master-edit")) document.getElementById("master-edit-user-modal")?.classList.add("hidden");
+        if (e.target.closest("#btn-master-save-user")) salvarUsuarioMaster();
+        if (e.target.closest("#btn-master-delete-user")) excluirUsuarioMaster(uidUsuarioEmEdicaoMaster);
+
+        const btnTemaMaster = e.target.closest(".master-theme-btn");
+        if (btnTemaMaster) {
+            document.querySelectorAll(".master-theme-btn").forEach(b => b.classList.remove("active"));
+            btnTemaMaster.classList.add("active");
+        }
+
+        if (e.target.closest("#btn-master-save-style")) {
+            const ativo = document.querySelector(".master-theme-btn.active");
+            const tema = ativo ? (ativo.getAttribute("data-theme") === "youtube" ? "" : `theme-${ativo.getAttribute("data-theme")}`) : "";
+            salvarConfigGlobal({
+                temaPadrao: tema,
+                corPadrao: document.getElementById("master-color-input").value,
+                siteNome: document.getElementById("master-site-name").value.trim() || "StreamHub"
+            });
+        }
+
+        if (e.target.closest("#btn-master-save-func")) {
+            salvarConfigGlobal({
+                comentarios: document.getElementById("fn-comentarios").checked,
+                temas: document.getElementById("fn-temas").checked,
+                whatsapp: document.getElementById("fn-whatsapp").checked,
+                cadastro: document.getElementById("fn-cadastro").checked,
+                google: document.getElementById("fn-google").checked,
+                adminUsuarios: document.getElementById("fn-admin-users").checked,
+                playerLivre: document.getElementById("fn-player-livre").checked
+            });
+        }
+    });
+
+    document.getElementById("master-search-user")?.addEventListener("input", (e) => desenharListaUsuariosMaster(e.target.value));
+    document.getElementById("master-color-input")?.addEventListener("input", (e) => {
+        document.getElementById("master-color-hex").innerText = e.target.value.toUpperCase();
+    });
+
+    // Preenche a foto sempre que o modal de perfil for aberto
+    const observarPerfil = new MutationObserver(async () => {
+        const modal = document.getElementById("profile-modal");
+        if (modal && !modal.classList.contains("hidden") && fotoPerfilTemporaria === null) {
+            const perfil = await carregarPerfilAtual();
+            const fotoGoogle = firebase.auth().currentUser?.photoURL || "";
+            preencherFotoNoModalPerfil(perfil?.foto || fotoGoogle || "");
+        }
+    });
+    const modalPerfil = document.getElementById("profile-modal");
+    if (modalPerfil) observarPerfil.observe(modalPerfil, { attributes: true, attributeFilter: ["class"] });
+
+    // Sessão: avatar no topo, botões de admin e configuração global
+    firebase.auth().onAuthStateChanged(async (user) => {
+        alternarBotoesAdminMaster();
+        await carregarConfigGlobal();
+        if (!user) { aplicarFotoNoTopo(""); return; }
+        try {
+            const res = await dbFetch(`${urlRaizBanco()}/usuarios/${user.uid}.json`);
+            const perfil = (await res.json()) || {};
+            let fotoAtual = perfil.foto || "";
+            if (!fotoAtual && user.photoURL) {
+                fotoAtual = user.photoURL;
+                salvarPreferenciaNoFirebase({ foto: fotoAtual });
+            }
+            aplicarFotoNoTopo(fotoAtual);
+            if (!perfil.email) {
+                dbFetch(`${urlRaizBanco()}/usuarios/${user.uid}.json`, {
+                    method: "PATCH", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: user.email || "" })
+                });
+            }
+            if (!perfil.tema && configGlobalSite.temaPadrao) document.body.className = configGlobalSite.temaPadrao;
+            if (!perfil.cor_tema && configGlobalSite.corPadrao) aplicarCorTema(configGlobalSite.corPadrao);
+        } catch (e) { /* silencioso */ }
+        alternarBotoesAdminMaster();
+    });
 });

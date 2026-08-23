@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StreamHub by Di Workin'</title>
+	<link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/x-icon" href="fav.ico">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -118,6 +119,7 @@
                 <button id="btn-toggle-search-mobile" class="btn-icon btn-mobile-only" title="Pesquisar"><i class="fas fa-search"></i></button>
                 
                 <button id="btn-open-admin" class="btn-admin btn-desktop-only" title="Administração"><i class="fas fa-cog"></i> Admin</button>
+                <button id="btn-open-master" class="btn-admin btn-desktop-only hidden" title="Painel Gerencial do Administrador" style="background:#8e44ad;"><i class="fas fa-user-shield"></i> Gerencial</button>
                 <button id="btn-logout" class="btn-logout" title="Sair"><i class="fas fa-sign-out-alt"></i></button>
                 
                 <div class="admin-dropdown-wrapper btn-mobile-only">
@@ -125,6 +127,7 @@
                     
                     <div id="dropdown-menu-mobile" class="dropdown-content-menu hidden">
                         <button id="btn-open-admin-mobile" class="dropdown-item-btn"><i class="fas fa-tools"></i> Painel Admin</button>
+                        <button id="btn-open-master-mobile" class="dropdown-item-btn hidden"><i class="fas fa-user-shield"></i> Painel Gerencial</button>
                         <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 5px 0;">
                         <button id="btn-logout-mobile" class="dropdown-item-btn item-danger"><i class="fas fa-sign-out-alt"></i> Sair do App</button>
                     </div>
@@ -174,6 +177,7 @@
                         <input type="range" id="player-volume-slider" min="0" max="100" value="100" title="Controle de Volume">
                     </div>
                     
+                    <button id="btn-toggle-comments" class="btn-player-action" title="Mostrar/Ocultar Comentários"><i class="fas fa-comments"></i></button>
                     <button id="btn-close-player" class="btn-icon-close" title="Fechar Player"><i class="fas fa-times-circle"></i></button>
                 </div>
             </div>
@@ -182,6 +186,18 @@
                 <iframe id="universal-player" class="hidden" allow="autoplay; encrypted-media" allowfullscreen playsinline="1"></iframe>
                 <video id="raw-player" class="hidden" controls autoplay playsinline></video>
             </div>
+
+            <div id="player-comments" class="player-comments hidden">
+                <div id="comments-resizer" class="comments-resizer" title="Arraste para aumentar ou diminuir os comentários"></div>
+                <div class="comments-head">
+                    <span><i class="fas fa-comments"></i> Comentários do vídeo</span>
+                    <button id="btn-reload-comments" class="btn-player-action" title="Recarregar comentários"><i class="fas fa-rotate-right"></i></button>
+                </div>
+                <div id="comments-list" class="comments-list"></div>
+                <div id="comment-compose" class="comment-compose"></div>
+            </div>
+
+            <div id="player-resizer" class="player-resizer" title="Arraste para redimensionar"><i class="fas fa-up-right-and-down-left-from-center"></i></div>
         </div>
 
         <div class="theme-switcher-float">
@@ -323,51 +339,65 @@
         </div>
     </div>
 
-    <div id="profile-modal" class="modal hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 10000;">
-        <div class="admin-box" style="background: #1a252f; padding: 25px; border-radius: 8px; width: 90%; max-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); border: 1px solid #34495e;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h3 style="margin: 0; color: #fff; font-size: 1.2rem;"><i class="fas fa-user-edit" style="color: var(--theme-color); margin-right: 8px;"></i> Editar Meu Perfil</h3>
-                <button onclick="fecharModalPerfil()" style="background: transparent; border: none; color: #fff; font-size: 1.2rem; cursor: pointer;"><i class="fas fa-times"></i></button>
+    <div id="profile-modal" class="profile-modal-overlay hidden">
+        <div class="profile-modal-card">
+            <div class="profile-modal-header">
+                <h3><i class="fas fa-user-edit"></i> Editar Meu Perfil</h3>
+                <button type="button" onclick="fecharModalPerfil()" class="profile-close-btn" title="Fechar"><i class="fas fa-times"></i></button>
             </div>
-            
-            <form id="form-edit-perfil">
-                <div class="admin-input-group" style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 6px; color: var(--text-gray); font-size: 0.85rem;">Nome</label>
-                    <input type="text" id="profile-edit-name" class="admin-input" style="width: 100%; padding: 10px; border-radius: 4px; background: #2c3e50; color: #fff; border: 1px solid #34495e;" required>
-                </div>
-                
-                <div class="admin-input-group" style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 6px; color: var(--text-gray); font-size: 0.85rem;">Sobrenome</label>
-                    <input type="text" id="profile-edit-lastname" class="admin-input" style="width: 100%; padding: 10px; border-radius: 4px; background: #2c3e50; color: #fff; border: 1px solid #34495e;" required>
-                </div>
 
-                <div class="admin-input-group" style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 6px; color: var(--text-gray); font-size: 0.85rem;">Tema de Fundo</label>
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
-                        <button type="button" class="tab-btn profile-theme-btn" data-theme="youtube" style="padding: 8px; font-size: 0.8rem;"><i class="fab fa-youtube"></i> YouTube</button>
-                        <button type="button" class="tab-btn profile-theme-btn" data-theme="netflix" style="padding: 8px; font-size: 0.8rem;"><i class="fas fa-play"></i> Netflix</button>
-                        <button type="button" class="tab-btn profile-theme-btn" data-theme="futurista" style="padding: 8px; font-size: 0.8rem;"><i class="fas fa-bolt"></i> Cyberpunk</button>
-                        <button type="button" class="tab-btn profile-theme-btn" data-theme="claro" style="padding: 8px; font-size: 0.8rem;"><i class="fas fa-sun"></i> Claro</button>
+            <form id="form-edit-perfil" class="profile-modal-body">
+                <div class="profile-field">
+                    <label>Foto de Perfil</label>
+                    <div class="photo-row">
+                        <img id="profile-photo-preview" class="photo-preview" src="" alt="Foto de perfil">
+                        <div class="photo-actions">
+                            <label for="profile-photo-file" class="btn-photo-upload"><i class="fas fa-upload"></i> Enviar foto (upload)</label>
+                            <input type="file" id="profile-photo-file" accept="image/*" style="display:none;">
+                            <input type="text" id="profile-photo-url" class="profile-input" placeholder="ou cole o link da imagem (https://...)">
+                            <button type="button" id="btn-remove-photo" class="btn-photo-remove"><i class="fas fa-trash"></i> Remover foto</button>
+                        </div>
                     </div>
                 </div>
 
-                <div class="admin-input-group" style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 6px; color: var(--text-gray); font-size: 0.85rem;">Cor de Destaque (<span id="profile-theme-color-hex">#FF0000</span>)</label>
-                    <div id="profile-color-spectrum-bar" style="position: relative; width: 100%; height: 20px; border-radius: 4px; background: linear-gradient(to right, #000, #f00, #f0f, #00f, #0ff, #0f0, #ff0, #f00, #fff); cursor: crosshair; margin-bottom: 5px;">
-                        <div id="profile-color-spectrum-selector" style="position: absolute; top: -2px; left: 12%; width: 4px; height: 24px; background: #fff; border: 1px solid #000; border-radius: 2px;"></div>
+                <div class="profile-fields-grid">
+                    <div class="profile-field">
+                        <label for="profile-edit-name">Nome</label>
+                        <input type="text" id="profile-edit-name" class="profile-input" required>
                     </div>
-                    <button type="button" id="profile-btn-reset-theme" style="background: transparent; border: none; color: var(--text-gray); font-size: 0.75rem; cursor: pointer; padding: 0;"><i class="fas fa-undo"></i> Resetar para cor padrão</button>
+                    <div class="profile-field">
+                        <label for="profile-edit-lastname">Sobrenome</label>
+                        <input type="text" id="profile-edit-lastname" class="profile-input" required>
+                    </div>
                 </div>
-                
-                <div style="margin-bottom: 20px; padding: 10px; border: 1px dashed #e74c3c; border-radius: 4px; background: rgba(231, 76, 60, 0.05);">
-                    <button type="button" id="btn-request-delete-account" style="background: transparent; color: #e74c3c; border: none; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: bold; width: 100%; justify-content: center;">
+
+                <div class="profile-field">
+                    <label>Tema de Fundo</label>
+                    <div class="profile-themes-grid">
+                        <button type="button" class="tab-btn profile-theme-btn" data-theme="youtube"><i class="fab fa-youtube"></i> YouTube</button>
+                        <button type="button" class="tab-btn profile-theme-btn" data-theme="netflix"><i class="fas fa-play"></i> Netflix</button>
+                        <button type="button" class="tab-btn profile-theme-btn" data-theme="futurista"><i class="fas fa-bolt"></i> Cyberpunk</button>
+                        <button type="button" class="tab-btn profile-theme-btn" data-theme="claro"><i class="fas fa-sun"></i> Claro</button>
+                    </div>
+                </div>
+
+                <div class="profile-field">
+                    <label>Cor de Destaque (<span id="profile-theme-color-hex">#FF0000</span>)</label>
+                    <div id="profile-color-spectrum-bar" class="profile-spectrum-bar">
+                        <div id="profile-color-spectrum-selector" class="profile-spectrum-selector"></div>
+                    </div>
+                    <button type="button" id="profile-btn-reset-theme" class="profile-reset-color"><i class="fas fa-undo"></i> Resetar para cor padrão</button>
+                </div>
+
+                <div class="profile-danger-zone">
+                    <button type="button" id="btn-request-delete-account" class="profile-danger-btn">
                         <i class="fas fa-user-times"></i> Solicitar Exclusão da minha conta
                     </button>
                 </div>
-                
-                <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                    <button type="button" onclick="fecharModalPerfil()" style="background: #7f8c8d; border: none; color: #fff; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem;">Cancelar</button>
-                    <button type="button" id="btn-save-profile-changes" style="background: var(--theme-color); border: none; color: #fff; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem;">Salvar Alterações</button>
+
+                <div class="profile-modal-footer">
+                    <button type="button" onclick="fecharModalPerfil()" class="profile-btn-cancel">Cancelar</button>
+                    <button type="button" id="btn-save-profile-changes" class="profile-btn-save">Salvar Alterações</button>
                 </div>
             </form>
         </div>
@@ -389,6 +419,108 @@
             <div class="modal-footer-btns">
                 <button id="btn-cancel-edit-media-2" class="btn-default" style="border-radius:4px;">Cancelar</button>
                 <button id="btn-submit-edit-media" class="btn-success" style="border-radius:4px;">Salvar Mudanças</button>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="master-modal" class="modal-overlay hidden">
+        <div class="modal-box admin-box master-box">
+            <div class="modal-header">
+                <h2><i class="fas fa-user-shield"></i> Painel Gerencial (Administrador)</h2>
+                <button id="btn-close-master" class="btn-close">&times;</button>
+            </div>
+
+            <nav class="tab-nav">
+                <button id="tab-trigger-m-users" class="tab-btn active"><i class="fas fa-users"></i> Usuários</button>
+                <button id="tab-trigger-m-new" class="tab-btn"><i class="fas fa-user-plus"></i> Cadastrar Usuário</button>
+                <button id="tab-trigger-m-style" class="tab-btn"><i class="fas fa-palette"></i> Layout & Estilo</button>
+                <button id="tab-trigger-m-func" class="tab-btn"><i class="fas fa-sliders"></i> Funções do Site</button>
+            </nav>
+
+            <div class="modal-body">
+                <div id="m-users-tab" class="tab-content">
+                    <div class="form-row-inline">
+                        <input type="text" id="master-search-user" placeholder="Filtrar por nome, e-mail ou UID...">
+                        <button id="btn-master-reload-users" class="btn-secundary">Atualizar Lista</button>
+                    </div>
+                    <div id="master-users-list" class="master-users-list"></div>
+                </div>
+
+                <div id="m-new-tab" class="tab-content hidden">
+                    <div class="input-block"><label>Nome</label><input type="text" id="master-new-name" placeholder="Nome"></div>
+                    <div class="input-block"><label>Sobrenome</label><input type="text" id="master-new-lastname" placeholder="Sobrenome"></div>
+                    <div class="input-block"><label>E-mail</label><input type="email" id="master-new-email" placeholder="email@dominio.com"></div>
+                    <div class="input-block"><label>Senha (mínimo 6 caracteres)</label><input type="password" id="master-new-pass" placeholder="Senha inicial"></div>
+                    <p style="font-size:0.8rem; color:var(--text-gray); margin:5px 0 15px 0;">O usuário é criado no Firebase Auth e já recebe o seu próprio acervo no banco, sem desconectar a sua sessão de administrador.</p>
+                    <button id="btn-master-create-user" class="btn-success-block">Cadastrar Novo Usuário</button>
+                </div>
+
+                <div id="m-style-tab" class="tab-content hidden">
+                    <div class="action-card-json">
+                        <label><i class="fas fa-brush"></i> Tema padrão do site (novos usuários e quem não escolheu)</label>
+                        <div class="master-theme-grid">
+                            <button type="button" class="tab-btn master-theme-btn" data-theme="youtube"><i class="fab fa-youtube"></i> YouTube</button>
+                            <button type="button" class="tab-btn master-theme-btn" data-theme="netflix"><i class="fas fa-play"></i> Netflix</button>
+                            <button type="button" class="tab-btn master-theme-btn" data-theme="futurista"><i class="fas fa-bolt"></i> Cyberpunk</button>
+                            <button type="button" class="tab-btn master-theme-btn" data-theme="claro"><i class="fas fa-sun"></i> Claro</button>
+                        </div>
+                    </div>
+                    <div class="action-card-json">
+                        <label><i class="fas fa-droplet"></i> Cor de destaque padrão</label>
+                        <div class="master-color-row">
+                            <input type="color" id="master-color-input" value="#ff0000">
+                            <span id="master-color-hex">#FF0000</span>
+                        </div>
+                    </div>
+                    <div class="action-card-json">
+                        <label><i class="fas fa-heading"></i> Nome exibido do site</label>
+                        <input type="text" id="master-site-name" class="admin-input" placeholder="StreamHub">
+                    </div>
+                    <button id="btn-master-save-style" class="btn-success-block">Salvar Layout & Estilo Global</button>
+                </div>
+
+                <div id="m-func-tab" class="tab-content hidden">
+                    <div class="action-card-json master-switches">
+                        <label class="switch-row"><input type="checkbox" id="fn-comentarios" checked> Comentários dos vídeos no player</label>
+                        <label class="switch-row"><input type="checkbox" id="fn-temas" checked> Botões flutuantes de tema</label>
+                        <label class="switch-row"><input type="checkbox" id="fn-whatsapp" checked> Botão flutuante do WhatsApp</label>
+                        <label class="switch-row"><input type="checkbox" id="fn-cadastro" checked> Permitir novos cadastros na tela de login</label>
+                        <label class="switch-row"><input type="checkbox" id="fn-google" checked> Permitir login com Google</label>
+                        <label class="switch-row"><input type="checkbox" id="fn-admin-users" checked> Permitir que usuários usem o painel Admin (mídias)</label>
+                        <label class="switch-row"><input type="checkbox" id="fn-player-livre" checked> Player arrastável e redimensionável</label>
+                    </div>
+                    <button id="btn-master-save-func" class="btn-success-block">Salvar Funções do Site</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="master-edit-user-modal" class="modal-overlay hidden">
+        <div class="modal-box edit-box">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-pen"></i> Editar Usuário</h3>
+                <button id="btn-close-master-edit" class="btn-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="input-block"><label>UID</label><input type="text" id="mu-uid" readonly></div>
+                <div class="input-block"><label>Nome</label><input type="text" id="mu-name"></div>
+                <div class="input-block"><label>Sobrenome</label><input type="text" id="mu-lastname"></div>
+                <div class="input-block"><label>E-mail (referência)</label><input type="text" id="mu-email"></div>
+                <div class="input-block"><label>Foto (link ou base64)</label><input type="text" id="mu-photo"></div>
+                <div class="input-block"><label>Tema (vazio = YouTube)</label>
+                    <select id="mu-theme" class="admin-input">
+                        <option value="">YouTube</option>
+                        <option value="theme-netflix">Netflix</option>
+                        <option value="theme-futurista">Cyberpunk</option>
+                        <option value="theme-claro">Claro</option>
+                    </select>
+                </div>
+                <div class="input-block"><label>Cor de destaque</label><input type="color" id="mu-color" value="#ff0000"></div>
+            </div>
+            <div class="modal-footer-btns">
+                <button id="btn-master-delete-user" class="btn-default" style="border-radius:4px; background:#c0392b; color:#fff;">Apagar dados</button>
+                <button id="btn-master-save-user" class="btn-success" style="border-radius:4px;">Salvar Usuário</button>
             </div>
         </div>
     </div>
