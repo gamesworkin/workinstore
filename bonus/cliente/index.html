@@ -1,168 +1,430 @@
-<!DOCTYPE html> 
-<html lang="pt-BR">
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Workin'Store Games Bônus</title>
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Workin'Store | Bônus</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<meta name="description" content="Catálogo de jogos com informações detalhadas e links de download." />
+<link id="faviconTag" rel="icon" href="data:," />
+<link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
-    <canvas id="particleCanvas"></canvas>
-
-    <header>
-        <div class="logo">
-            <i class="fa-solid fa-gamepad"></i> <span>Workin'<span class="neon-text">Store</span></span>
-        </div>
-        
-        <button id="btnMenuToggle" class="btn-menu-toggle">
-            Categorias <i class="fa-solid fa-chevron-down"></i>
-        </button>
-
-        <nav id="navMenu">
-            <ul id="categoryMenu">
-                <li class="active" data-category="all">Todas as Categorias</li>
-            </ul>
-        </nav>
-        
-        <div class="admin-toggle">
-            <button id="btnHelp" class="btn-secondary" style="margin-right: 10px;"><i class="fa-solid fa-circle-question"></i> Ajuda</button>
-            <button id="btnToggleAdmin" class="btn-neon"><i class="fa-solid fa-lock"></i> Painel Admin</button>
-            <button id="btnLogout" class="btn-secondary hidden"><i class="fa-solid fa-right-from-bracket"></i> Sair</button>
-        </div>
-    </header>
-
-    <main class="container">
-        <div class="platform-filters" id="platformFiltersContainer"></div>
-
-        <section class="games-mosaic" id="gamesMosaic"></section>
-    </main>
-
-    <div class="modal" id="gameModal">
-        <div class="modal-content">
-            <span class="close-modal" id="btnCloseGameModal">&times;</span>
-            <div class="modal-body">
-                <div class="modal-cover-wrapper">
-                    <img id="modalCover" src="" alt="Capa do Jogo">
-                </div>
-                <div class="modal-info">
-                    <div>
-                        <h2 id="modalTitle">Título do Jogo</h2>
-                        <div id="modalBadgeContainer" style="margin-bottom: 15px;"></div>
-                        <p id="modalDescription">Descrição do Jogo...</p>
-                    </div>
-                    <a id="modalDownloadBtn" href="#" download class="btn-download">
-                        <i class="fa-solid fa-cloud-arrow-down"></i> BAIXAR AGORA
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal" id="helpModal">
-        <div class="modal-content help-content">
-            <span class="close-modal" id="btnCloseHelpModal">&times;</span>
-            <h2 class="neon-text" style="font-family: 'Orbitron', sans-serif; margin-bottom: 20px;"><i class="fa-solid fa-circle-question"></i> Central de Ajuda</h2>
-            <div class="help-scroll-body" style="max-height: 60vh; overflow-y: auto; text-align: left;">
-                <h3 style="color: var(--accent-neon); margin-top: 15px;">💾 Como baixar os jogos?</h3>
-                <p style="color: #7e7e94; margin-top: 5px; line-height: 1.5;">Navegue pelas categorias superiores ou filtre pelas plataformas. Ao clicar no card do jogo desejado, as informações detalhadas se abrirão e você poderá clicar em "Baixar Agora" para iniciar o download direto instantaneamente. Após o download, extraia o jogo e ponha na pasta DVD do seu pen-drive para rodar no opl. E para as capas, atualize a sua pasta ART do pen-drive pela pasta ART que irá compactada com o jogo. OBS: Alguns jogos já virão em .ISO não sendo preciso nenhuma extração, apenas jogar na pasta DVD do pendrive.</p>
-                
-                <h3 style="color: var(--accent-neon); margin-top: 15px;">🕹️ E o PlayStation 1, como faço?</h3>
-                <p style="color: #7e7e94; margin-top: 5px; line-height: 1.5;">Para baixar os jogos de PlayStation 1, siga os mesmos passos do PlayStation 2, mas, atente-se de por o arquivo VCD (arquivo ROM) na pasta POPS do seu pen-drive, atualizar a pasta APPS do seu pendrive por a que vai no arquivo zipado, para capas da mesma forma, atualize sua pasta ART pela que vai no arquivo compactado.</p>
-
-                <h3 style="color: var(--accent-neon); margin-top: 15px;">🧑🏻‍💻 Eu posso fazer login nesta página?</h3>
-                <p style="color: #7e7e94; margin-top: 5px; line-height: 1.5;">Não. O login desta página serve exclusivamente para nossa equipe interna para adição e remoção de conteúdos como gerenciar categorias, capas e informações dos jogos e patches bônus dos clientes da Workin'Store.</p>
-
-                <h3 style="color: var(--accent-neon); margin-top: 15px;">💲 Os jogos são pagos?</h3>
-                <p style="color: #7e7e94; margin-top: 5px; line-height: 1.5;">Não. Antes ou depois de baixar os jogos aqui, o usuário NÃO IRÁ PAGAR nada, pois, os jogos aqui indexados são bônus cedidos aos clientes da Workin'Store para que possam turbinar ainda mais o seu Kit OPL! 🚀</p>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal" id="loginModal">
-        <div class="modal-content login-content">
-            <span class="close-modal" id="btnCloseLoginModal">&times;</span>
-            <h2 class="neon-text" style="font-family: 'Orbitron', sans-serif; margin-bottom: 20px; text-align: center;">Painel de Controle</h2>
-            <form id="loginForm">
-                <div class="form-group">
-                    <label><i class="fa-solid fa-envelope"></i> E-mail Autenticado</label>
-                    <input type="email" id="loginEmail" required placeholder="seu-email@provedor.com">
-                </div>
-                <div class="form-group">
-                    <label><i class="fa-solid fa-key"></i> Senha</label>
-                    <input type="password" id="loginPassword" required placeholder="••••••••">
-                </div>
-                <button type="submit" id="btnLoginSubmit" class="btn-download" style="width: 100%; margin-top: 10px;">Acessar como ADMIN</button>
-            </form>
-        </div>
-    </div>
-
-    <section class="admin-panel hidden" id="adminPanel">
-        <div class="admin-header">
-            <h2><i class="fa-solid fa-folder-tree"></i> Gerenciador Total</h2>
-            <button id="btnCloseAdmin" class="btn-close-panel">&times;</button>
-        </div>
-        
-        <div class="admin-actions">
-            <button id="btnNewPatch" class="btn-neon"><i class="fa-solid fa-plus"></i> Novo Jogo</button>
-            <button id="btnExportJSON" class="btn-secondary"><i class="fa-solid fa-download"></i> Exportar Banco Completo</button>
-            <button id="btnImportJSON" class="btn-secondary"><i class="fa-solid fa-upload"></i> Importar JSON (.json)</button>
-            <input type="file" id="fileImport" accept=".json" style="display: none;">
-        </div>
-
-        <div id="patchFormContainer" class="form-container hidden">
-            <h3 id="formTitle" style="font-family: 'Orbitron', sans-serif; margin-bottom: 15px; color: var(--accent-neon);">Adicionar Novo Conteúdo</h3>
-            <form id="patchForm">
-                <input type="hidden" id="patchId">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Título do Jogo</label>
-                        <input type="text" id="inputTitle" required placeholder="Ex: Pro Evolution Soccer 2026">
-                    </div>
-                </div>
-                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <div class="form-group">
-                        <label>Plataforma</label>
-                        <input type="text" id="inputPlatform" required placeholder="Ex: PlayStation 2">
-                    </div>
-                    <div class="form-group">
-                        <label>Categoria</label>
-                        <input type="text" id="inputCategory" required placeholder="Ex: Futebol">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>URL da Capa</label>
-                    <input type="url" id="inputCover" required placeholder="https://...">
-                </div>
-                <div class="form-group">
-                    <label>Link de Download</label>
-                    <input type="url" id="inputDownload" required placeholder="https://...">
-                </div>
-                <div class="form-group">
-                    <label>Descrição do Jogo</label>
-                    <textarea id="inputDescription" rows="3" required placeholder="Descreva as modificações..."></textarea>
-                </div>
-                <div class="form-buttons">
-                    <button type="submit" class="btn-neon">Salvar Dados</button>
-                    <button type="button" id="btnCancelForm" class="btn-secondary">Cancelar</button>
-                </div>
-            </form>
-        </div>
-
-        <div class="tree-manager" id="treeManager"></div>
-    </section>
-
-    <a id="whatsappBtn" href="#" target="_blank" class="whatsapp-float" title="Fale Conosco no WhatsApp">
-        <i class="fa-brands fa-whatsapp"></i>
+<!-- ================= HEADER ================= -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#" id="brandLink">
+      <img id="logoSquare" class="logo-square" alt="Logo" hidden />
+      <img id="logoWord" class="logo-word" alt="Nome do site" hidden />
+      <span id="brandFallback" class="brand-fallback">Workin'Store | Bônus</span>
     </a>
 
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-    
-    <script src="app.js"></script>
+    <div class="topbar-actions">
+      <button id="menuToggle" class="menu-toggle" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="menuBar">
+        <span class="bars" aria-hidden="true"><i></i><i></i><i></i></span>
+      </button>
+      <div class="search-wrap">
+        <input id="searchInput" class="search" type="search" placeholder="Buscar por título, plataforma, código..." aria-label="Buscar jogo" />
+      </div>
+      <button id="filtersBtn" class="btn btn-ghost" aria-label="Filtros">⚙ Filtros</button>
+      <button id="helpBtn" class="icon-btn" title="Ajuda" aria-label="Ajuda">?</button>
+      <button id="themeBtn" class="icon-btn" title="Alternar tema" aria-label="Alternar tema">◐</button>
+      <button id="adminPanelBtn" class="btn btn-primary hidden">Painel admin</button>
+      <button id="logoutBtn" class="btn btn-ghost hidden">Sair</button>
+    </div>
+  </div>
+
+  <!-- Barra de menus dinâmica -->
+  <nav id="menuBar" class="menubar hidden" aria-label="Menu principal">
+    <div class="menubar-inner" id="menuBarInner"></div>
+  </nav>
+</header>
+
+<!-- ================= FILTROS ================= -->
+<div id="filtersPanel" class="filters hidden">
+  <div class="filters-inner">
+    <label class="f-field">Categoria
+      <select id="categoryFilter" class="select"><option value="">Todas</option></select>
+    </label>
+    <label class="f-field">Plataforma
+      <select id="platformFilter" class="select"><option value="">Todas</option></select>
+    </label>
+    <label class="f-field">Tag
+      <select id="tagFilter" class="select"><option value="">Todas</option></select>
+    </label>
+    <label class="f-field">Ano
+      <select id="yearFilter" class="select"><option value="">Todos</option></select>
+    </label>
+    <label class="f-field">Tamanho
+      <select id="sizeFilter" class="select">
+        <option value="">Qualquer</option>
+        <option value="0-1024">Até 1 GB</option>
+        <option value="1024-5120">1 – 5 GB</option>
+        <option value="5120-20480">5 – 20 GB</option>
+        <option value="20480-51200">20 – 50 GB</option>
+        <option value="51200-99999999">Acima de 50 GB</option>
+      </select>
+    </label>
+    <label class="f-field">Ordenar por
+      <select id="sortFilter" class="select">
+        <option value="az">Ordem alfabética (A → Z)</option>
+        <option value="za">Ordem alfabética (Z → A)</option>
+        <option value="size-asc">Tamanho (menor → maior)</option>
+        <option value="size-desc">Tamanho (maior → menor)</option>
+        <option value="year-desc">Ano (mais novo)</option>
+        <option value="year-asc">Ano (mais antigo)</option>
+        <option value="rating-desc">Nota (maior)</option>
+        <option value="recent">Adicionados recentemente</option>
+      </select>
+    </label>
+    <button id="clearFilters" class="btn btn-ghost">Limpar filtros</button>
+  </div>
+</div>
+
+<!-- ================= BODY ================= -->
+<main class="container">
+  <section class="hero">
+    <h1 id="heroTitle">Sua biblioteca de jogos</h1>
+    <p id="heroSubtitle">Clique em um jogo para ver detalhes e baixar.</p>
+  </section>
+
+  <p id="resultInfo" class="result-info muted small"></p>
+
+  <section id="gamesGrid" class="grid" aria-live="polite"></section>
+
+  <div id="emptyState" class="empty hidden">
+    <div class="empty-emoji">🎮</div>
+    <h2>Nenhum jogo por aqui ainda</h2>
+    <p>Assim que jogos forem cadastrados, eles aparecem nesta página.</p>
+  </div>
+
+  <nav id="publicPager" class="pager hidden" aria-label="Paginação do catálogo">
+    <button class="page-btn" data-pub-first title="Primeira">«</button>
+    <button class="page-btn" data-pub-prev title="Anterior">‹</button>
+    <span id="pageNumbers" class="page-numbers"></span>
+    <button class="page-btn" data-pub-next title="Próxima">›</button>
+    <button class="page-btn" data-pub-last title="Última">»</button>
+  </nav>
+</main>
+
+<footer class="footer">
+  <span id="footerText">© <span id="year"></span> Workin'Store | Bônus</span>
+</footer>
+
+<button id="discreetLoginBtn" class="discreet-login" title="Acesso restrito" aria-label="Acesso restrito">•</button>
+
+<!-- ================= MODAL: DETALHES DO JOGO ================= -->
+<div class="modal-backdrop" id="gameModal" hidden>
+  <div class="modal modal-game" role="dialog" aria-modal="true" aria-labelledby="gmTitle">
+    <button class="modal-close" data-close>×</button>
+    <div class="gm-cover"><img id="gmCover" alt="" /></div>
+    <div class="gm-body">
+      <h2 id="gmTitle"></h2>
+      <div id="gmMeta" class="gm-meta"></div>
+      <div id="gmTags" class="tags"></div>
+      <p id="gmDesc" class="gm-desc"></p>
+      <dl id="gmSpecs" class="specs"></dl>
+      <button type="button" id="gmDownload" class="modal-dl hidden"><span class="modal-dl-icon">⬇</span><span class="modal-dl-text">Baixar</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: LOGIN ================= -->
+<div class="modal-backdrop" id="loginModal" hidden>
+  <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+    <button class="modal-close" data-close>×</button>
+    <h2 id="loginTitle">Acesso administrativo</h2>
+    <p class="muted small">Área restrita. Não há cadastro público.</p>
+    <form id="loginForm" class="form">
+      <label>E-mail<input type="email" id="loginEmail" required autocomplete="username" enterkeyhint="next" /></label>
+      <label>Senha<input type="password" id="loginPass" required autocomplete="current-password" enterkeyhint="go" /></label>
+      <p id="loginError" class="error hidden"></p>
+      <button type="submit" id="loginSubmit" class="btn btn-primary btn-block">
+        <span class="spinner" hidden></span><span class="btn-label">Entrar</span>
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ================= MODAL: AJUDA ================= -->
+<div class="modal-backdrop" id="helpModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <button class="modal-close" data-close>×</button>
+    <h2 id="helpTitle">Como funciona</h2>
+    <div id="helpContent" class="prose"></div>
+  </div>
+</div>
+
+<!-- ================= MODAL: PAINEL ADMIN ================= -->
+<div class="modal-backdrop" id="adminModal" hidden>
+  <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
+    <button class="modal-close" data-close>×</button>
+    <h2 id="adminTitle">Painel administrativo</h2>
+
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-tab="tab-games" role="tab">Jogos</button>
+      <button class="tab" data-tab="tab-new" role="tab">Cadastrar</button>
+      <button class="tab" data-tab="tab-menus" role="tab">Menus</button>
+      <button class="tab" data-tab="tab-brand" role="tab">Identidade</button>
+      <button class="tab" data-tab="tab-theme" role="tab">Personalização</button>
+      <button class="tab" data-tab="tab-help" role="tab">Ajuda</button>
+      <button class="tab" data-tab="tab-backup" role="tab">Backup</button>
+    </div>
+
+    <!-- Aba: lista de jogos -->
+    <section id="tab-games" class="tabpanel active">
+      <div class="row-between">
+        <input id="adminSearch" class="search" type="search" placeholder="Filtrar por título, plataforma, código..." />
+        <select id="adminPerPage" class="select">
+          <option value="5">5 / página</option>
+          <option value="10" selected>10 / página</option>
+          <option value="20">20 / página</option>
+        </select>
+      </div>
+      <div class="admin-list" id="adminList"></div>
+      <nav class="pager" aria-label="Paginação da lista de jogos">
+        <button class="btn btn-ghost" data-adm-prev>‹ Anterior</button>
+        <span class="pager-info" data-adm-info></span>
+        <button class="btn btn-ghost" data-adm-next>Próxima ›</button>
+      </nav>
+    </section>
+
+    <!-- Aba: cadastro -->
+    <section id="tab-new" class="tabpanel">
+      <div class="steps" id="formSteps">
+        <span class="step active" data-step="1">1. Básico</span>
+        <span class="step" data-step="2">2. Detalhes</span>
+        <span class="step" data-step="3">3. Download</span>
+      </div>
+
+      <form id="gameForm" class="form" novalidate>
+        <input type="hidden" id="gameId" />
+
+        <fieldset class="form-step active" data-step="1">
+          <label>Título *<input id="fTitle" required /></label>
+          <div class="grid-2">
+            <label>Código único *<input id="fCode" placeholder="Ex: GV-0001" /></label>
+            <label>Categoria<input id="fCategory" list="catList" placeholder="Ex: Ação, RPG" /></label>
+          </div>
+          <datalist id="catList"></datalist>
+
+          <div class="imgfield" data-img="cover">
+            <span class="imgfield-title">Capa do jogo</span>
+            <div class="imgfield-tabs">
+              <button type="button" class="chip active" data-src="url">Link externo</button>
+              <button type="button" class="chip" data-src="upload">Upload (base64)</button>
+            </div>
+            <input class="img-url" id="fCover" type="url" placeholder="https://..." />
+            <label class="btn btn-ghost file-btn img-file-wrap hidden">⬆ Escolher imagem<input type="file" class="img-file" accept="image/*" hidden /></label>
+            <div class="img-preview"><img alt="" hidden /><span class="muted small img-size"></span></div>
+          </div>
+        </fieldset>
+
+        <fieldset class="form-step" data-step="2">
+          <label>Descrição<textarea id="fDesc" rows="4"></textarea></label>
+          <div class="grid-2">
+            <label>Ano<input id="fYear" type="number" min="1970" max="2099" /></label>
+            <label>Plataforma<input id="fPlatform" list="platList" placeholder="PC, PS5..." /></label>
+            <datalist id="platList"></datalist>
+            <label>Tamanho<input id="fSizeValue" type="number" step="0.1" min="0" placeholder="Ex: 12" /></label>
+            <label>Unidade
+              <select id="fSizeUnit" class="select">
+                <option value="MB">MB</option>
+                <option value="GB" selected>GB</option>
+              </select>
+            </label>
+            <label>Nota (0-10)<input id="fRating" type="number" step="0.1" min="0" max="10" /></label>
+          </div>
+          <label>Tags (separadas por vírgula)<input id="fTags" placeholder="multiplayer, offline" /></label>
+        </fieldset>
+
+        <fieldset class="form-step" data-step="3">
+          <label>Link de download *<input id="fDownload" type="url" required placeholder="https://..." /></label>
+          <label>Requisitos mínimos<textarea id="fReq" rows="3"></textarea></label>
+          <label class="checkline"><input type="checkbox" id="fDownloadBlank" checked /> Abrir link de download em nova aba</label>
+          <label class="checkline"><input type="checkbox" id="fPublished" checked /> Publicado no site</label>
+        </fieldset>
+
+        <p id="formError" class="error hidden"></p>
+
+        <div class="row-between form-nav">
+          <button type="button" class="btn btn-ghost" id="stepPrev">‹ Voltar</button>
+          <div class="row-gap">
+            <button type="button" class="btn btn-ghost" id="formReset">Limpar</button>
+            <button type="button" class="btn btn-primary" id="stepNext">Avançar ›</button>
+            <button type="submit" class="btn btn-primary hidden" id="formSave">Salvar jogo</button>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <!-- Aba: menus -->
+    <section id="tab-menus" class="tabpanel">
+      <p class="muted small">Os itens abaixo aparecem na barra de menus no topo do site.</p>
+      <form id="menuForm" class="form">
+        <input type="hidden" id="menuIndex" />
+        <div class="grid-2">
+          <label>Nome do menu *<input id="mLabel" placeholder="Ex: Início" /></label>
+          <label>Link / âncora *<input id="mUrl" placeholder="Ex: #gamesGrid ou https://..." /></label>
+        </div>
+        <div class="grid-2">
+          <label>Filtrar categoria (opcional)<input id="mCategory" placeholder="Ex: RPG" /></label>
+          <label class="checkline"><input type="checkbox" id="mBlank" /> Abrir em nova aba</label>
+        </div>
+        <div class="row-gap">
+          <button class="btn btn-primary" type="submit" id="menuSave">Adicionar menu</button>
+          <button class="btn btn-ghost" type="button" id="menuCancel">Cancelar edição</button>
+        </div>
+      </form>
+      <div class="admin-list" id="menuList"></div>
+    </section>
+
+    <!-- Aba: identidade -->
+    <section id="tab-brand" class="tabpanel">
+      <form id="brandForm" class="form">
+        <div class="imgfield" data-img="logoSquare">
+          <span class="imgfield-title">Logo quadrada (1:1)</span>
+          <div class="imgfield-tabs">
+            <button type="button" class="chip active" data-src="url">Link externo</button>
+            <button type="button" class="chip" data-src="upload">Upload (base64)</button>
+          </div>
+          <input class="img-url" id="bLogoSquare" type="url" placeholder="https://..." />
+          <label class="btn btn-ghost file-btn img-file-wrap hidden">⬆ Escolher imagem<input type="file" class="img-file" accept="image/*" hidden /></label>
+          <div class="img-preview"><img alt="" hidden /><span class="muted small img-size"></span></div>
+        </div>
+
+        <div class="imgfield" data-img="logoWord">
+          <span class="imgfield-title">Logo por extenso</span>
+          <div class="imgfield-tabs">
+            <button type="button" class="chip active" data-src="url">Link externo</button>
+            <button type="button" class="chip" data-src="upload">Upload (base64)</button>
+          </div>
+          <input class="img-url" id="bLogoWord" type="url" placeholder="https://..." />
+          <label class="btn btn-ghost file-btn img-file-wrap hidden">⬆ Escolher imagem<input type="file" class="img-file" accept="image/*" hidden /></label>
+          <div class="img-preview"><img alt="" hidden /><span class="muted small img-size"></span></div>
+        </div>
+
+        <div class="imgfield" data-img="favicon">
+          <span class="imgfield-title">Favicon</span>
+          <div class="imgfield-tabs">
+            <button type="button" class="chip active" data-src="url">Link externo</button>
+            <button type="button" class="chip" data-src="upload">Upload (base64)</button>
+          </div>
+          <input class="img-url" id="bFavicon" type="url" placeholder="https://..." />
+          <label class="btn btn-ghost file-btn img-file-wrap hidden">⬆ Escolher imagem<input type="file" class="img-file" accept="image/*" hidden /></label>
+          <div class="img-preview"><img alt="" hidden /><span class="muted small img-size"></span></div>
+        </div>
+
+        <label>Nome do site (fallback)<input id="bSiteName" /></label>
+        <div class="grid-2">
+          <label>Título do topo<input id="bHeroTitle" /></label>
+          <label>Subtítulo do topo<input id="bHeroSubtitle" /></label>
+        </div>
+        <label>Texto do rodapé<input id="bFooter" placeholder="© Workin'Store | Bônus" /></label>
+        <button class="btn btn-primary" type="submit">Salvar identidade</button>
+      </form>
+    </section>
+
+    <!-- Aba: personalização -->
+    <section id="tab-theme" class="tabpanel">
+      <form id="themeForm" class="form">
+        <div class="grid-2">
+          <label>Tema padrão do site
+            <select id="tDefault" class="select">
+              <option value="dark">Escuro</option>
+              <option value="light">Claro</option>
+            </select>
+          </label>
+          <label class="checkline"><input type="checkbox" id="tAllowToggle" checked /> Permitir visitante alternar o tema</label>
+        </div>
+
+        <h3 class="section-title">Cores — tema escuro</h3>
+        <div class="grid-3">
+          <label>Fundo<input type="color" id="tdBg" value="#0a0c12" /></label>
+          <label>Superfície<input type="color" id="tdSurface" value="#151a27" /></label>
+          <label>Borda<input type="color" id="tdBorder" value="#262d3d" /></label>
+          <label>Texto<input type="color" id="tdText" value="#eef2ff" /></label>
+          <label>Primária<input type="color" id="tdPrimary" value="#17e6a1" /></label>
+          <label>Destaque<input type="color" id="tdAccent" value="#7c5cff" /></label>
+        </div>
+
+        <h3 class="section-title">Cores — tema claro</h3>
+        <div class="grid-3">
+          <label>Fundo<input type="color" id="tlBg" value="#f5f7fb" /></label>
+          <label>Superfície<input type="color" id="tlSurface" value="#ffffff" /></label>
+          <label>Borda<input type="color" id="tlBorder" value="#dfe4ee" /></label>
+          <label>Texto<input type="color" id="tlText" value="#131722" /></label>
+          <label>Primária<input type="color" id="tlPrimary" value="#0aa87a" /></label>
+          <label>Destaque<input type="color" id="tlAccent" value="#5b3ff0" /></label>
+        </div>
+
+        <h3 class="section-title">Layout</h3>
+        <div class="grid-2">
+          <label>Fonte
+            <select id="tFont" class="select">
+              <option value='"Segoe UI", system-ui, -apple-system, sans-serif'>Segoe UI / Sistema</option>
+              <option value='Georgia, "Times New Roman", serif'>Serifada</option>
+              <option value='"Trebuchet MS", Verdana, sans-serif'>Trebuchet</option>
+              <option value='ui-monospace, "Cascadia Mono", Consolas, monospace'>Monoespaçada</option>
+            </select>
+          </label>
+          <label>Arredondamento dos cards (px)<input type="number" id="tRadius" min="0" max="30" value="14" /></label>
+        </div>
+
+        <div class="row-gap">
+          <button class="btn btn-primary" type="submit">Salvar personalização</button>
+          <button class="btn btn-ghost" type="button" id="themeReset">Restaurar padrão</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Aba: ajuda -->
+    <section id="tab-help" class="tabpanel">
+      <form id="helpForm" class="form">
+        <label>Conteúdo de ajuda (uma linha por parágrafo)
+          <textarea id="hContent" rows="10"></textarea>
+        </label>
+        <button class="btn btn-primary" type="submit">Salvar ajuda</button>
+      </form>
+    </section>
+
+    <!-- Aba: backup -->
+    <section id="tab-backup" class="tabpanel">
+      <p class="muted small">Exporte um JSON com jogos, menus, identidade, tema e ajuda.</p>
+      <div class="row-gap wrap">
+        <button class="btn btn-primary" id="exportBtn">⬇ Exportar JSON</button>
+        <label class="btn btn-ghost file-btn">⬆ Importar JSON<input type="file" id="importFile" accept="application/json" hidden /></label>
+        <select id="importMode" class="select">
+          <option value="merge">Mesclar (mantém existentes)</option>
+          <option value="replace">Substituir tudo</option>
+        </select>
+      </div>
+      <pre id="backupLog" class="log"></pre>
+    </section>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* Detecta navegadores antigos (inclui Windows 32 bits com Chrome/Firefox legados
+   e IE11) e carrega a versao ES5 + polyfills em vez do arquivo moderno. */
+(function () {
+  var legacy = false;
+  try {
+    new Function("var f = async (a = 1, ...b) => { let c = a?.b ?? 0; for (const x of b) c += x; return c; };")();
+    if (!window.Promise || !window.fetch || !window.Map || !Array.prototype.includes || !Object.assign) legacy = true;
+  } catch (e) { legacy = true; }
+  var src = legacy ? "app.legacy.js" : "app.js";
+  if (legacy) document.documentElement.className += " legacy-mode";
+  if (legacy) document.write('<scr' + 'ipt src="polyfills.js"><\/scr' + 'ipt>');
+  document.write('<scr' + 'ipt src="' + src + '"><\/scr' + 'ipt>');
+})();
+</script>
 </body>
 </html>
