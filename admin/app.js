@@ -8,7 +8,8 @@ import {
   sendPasswordResetEmail, createUserWithEmailAndPassword, updateProfile
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getDatabase, ref, set, get, push, update, remove, onValue
+  getDatabase, ref, set, get, push, update, remove, onValue, onDisconnect,
+  query, orderByChild, limitToLast, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 /* ------------------------------------------------------------------
@@ -87,7 +88,7 @@ const STATE = {
 const PERMS = [
   ["dashboard", "Dashboard"], ["produtos", "Cadastro de Itens"], ["kits", "Kits"],
   ["estoque", "Estoque / Compras"], ["vendas", "Vendas"], ["financeiro", "Financeiro"],
-  ["despesas", "Despesas Gerais"], ["relatorios", "Relatórios"],
+  ["despesas", "Despesas Gerais"], ["relatorios", "Relatórios"], ["mensagens", "Mensagens"],
   ["usuarios", "Usuários & Permissões"], ["config", "Configurações"]
 ];
 
@@ -140,6 +141,7 @@ $("#logoutBtn").onclick = () => signOut(auth);
 onAuthStateChanged(auth, async user => {
   STATE.unsubs.forEach(u => u()); STATE.unsubs = [];
   if (!user) {
+    stopMessaging();
     STATE.user = null;
     $("#app").classList.add("hidden");
     $("#loginScreen").classList.remove("hidden");
@@ -173,6 +175,7 @@ onAuthStateChanged(auth, async user => {
   $("#app").classList.remove("hidden");
   $("#loginPass").value = "";
   bindData();
+  startMessaging();
   renderShell();
 });
 
@@ -180,13 +183,30 @@ function can(p) { return STATE.isAdmin || p === "perfil" || p === "dashboard" ? 
 
 /* ================= Bindings do Realtime Database ================= */
 function bindNode(path, key, cb) {
-  const un = onValue(ref(db, path), s => { STATE[key] = s.val() || {}; cb && cb(); });
+  const un = onValue(ref(db, path), s => { STATE[key] = s.val() || {}; cb && cb(); },
+    err => {
+      console.error("Falha ao ler /" + path, err);
+      toast(`Sem permissão para ler "${path}" no banco. Ajuste as regras do Realtime Database.`, "err");
+    });
   STATE.unsubs.push(un);
 }
 function bindData() {
-  const rerender = () => { if (STATE.ready) renderView(); };
+  const rerender = () => {
+    if (!STATE.ready) return;
+    renderView();
+    reconcilePayables(true).then(nCreated => { if (nCreated) renderView(); });
+    autoSettleDuePayables();
+    autoSettleDueReceivables();
+    checkReceivableAlerts();
+  };
   ["products", "kits", "entries", "sales", "payables", "receivables", "expenses", "users", "settings", "accounts", "fin"]
     .forEach(k => bindNode(k, k, rerender));
+  // mantém o perfil (permissões, cargo de chat, silenciamento) sempre atualizado
+  bindNode("users", "users", () => {
+    const me = STATE.users[STATE.user?.uid];
+    if (me) { STATE.profile = { ...STATE.profile, ...me }; STATE.perms = me.perms || STATE.perms; }
+    refreshMsgBadge();
+  });
   STATE.ready = true;
 }
 function loadPublicSettings() {
@@ -209,6 +229,7 @@ function renderShell() {
     b.classList.toggle("hidden", !can(b.dataset.perm));
     b.onclick = () => { STATE.view = b.dataset.view; $("#sidebar").classList.remove("open"); renderView(); };
   });
+  refreshMsgBadge();
   renderView();
 }
 function applySettingsUI() {
@@ -221,7 +242,8 @@ const VIEWS = {
   dashboard: ["Dashboard", viewDashboard], produtos: ["Cadastro de Itens", viewProdutos],
   kits: ["Kits", viewKits], estoque: ["Estoque / Compras", viewEstoque], vendas: ["Vendas", viewVendas],
   financeiro: ["Financeiro", viewFinanceiro], despesas: ["Despesas Gerais", viewDespesas],
-  relatorios: ["Relatórios", viewRelatorios], usuarios: ["Usuários & Permissões", viewUsuarios],
+  relatorios: ["Relatórios", viewRelatorios], mensagens: ["Mensagens", viewMensagens],
+  usuarios: ["Usuários & Permissões", viewUsuarios],
   perfil: ["Perfil", viewPerfil], config: ["Configurações", viewConfig]
 };
 function renderView() {
@@ -325,9 +347,15 @@ async function finRemoveByRef(refKind, refId) {
 /* ---- Filtros de período reutilizáveis: diário / mensal / anual / personalizado ---- */
 const PERIOD_STORE = {};
 const lastDayOfMonth = ym => new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).toISOString().slice(0, 10);
-function periodBar(id, def = "month") {
+function periodSeed(mode) {
   const t = todayISO();
-  const s = PERIOD_STORE[id] || (PERIOD_STORE[id] = { mode: def, from: t.slice(0, 8) + "01", to: lastDayOfMonth(t.slice(0, 7)) });
+  if (mode === "all") return { mode, from: "", to: "" };
+  if (mode === "day") return { mode, from: t, to: t };
+  if (mode === "year") return { mode, from: t.slice(0, 4) + "-01-01", to: t.slice(0, 4) + "-12-31" };
+  return { mode, from: t.slice(0, 8) + "01", to: lastDayOfMonth(t.slice(0, 7)) };
+}
+function periodBar(id, def = "month") {
+  const s = PERIOD_STORE[id] || (PERIOD_STORE[id] = periodSeed(def));
   return `<div class="toolbar" data-period="${id}">
     <select id="${id}_mode" title="Período">
       ${[["day", "Diário (hoje)"], ["month", "Mensal"], ["year", "Anual"], ["all", "Tudo"], ["custom", "Personalizado"]]
@@ -399,6 +427,8 @@ function viewDashboard(root) {
   const recPend = list(STATE.receivables).filter(r => r.status !== "recebido");
   const payPend = list(STATE.payables).filter(r => r.status !== "pago");
   const lowStock = prods.filter(p => num(p.qty) <= num(p.minQty || 0));
+  const nextPay = list(STATE.payables).filter(r => r.status !== "pago" && r.due).sort((a, b) => (a.due || "").localeCompare(b.due || "")).slice(0, 8);
+  const nextRec = list(STATE.receivables).filter(r => r.status !== "recebido" && r.due).sort((a, b) => (a.due || "").localeCompare(b.due || "")).slice(0, 8);
 
   root.innerHTML = `
   <div class="stats">
@@ -422,10 +452,69 @@ function viewDashboard(root) {
         `<tr><td>${fmtDate(s.date)}</td><td>${esc(s.customer || "—")}</td><td class="right">${money(s.total)}</td></tr>`).join(""))
         : `<div class="empty">Nenhuma venda registrada.</div>`}
     </div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-head"><h3>Próximos vencimentos a pagar</h3></div>
+      ${nextPay.length ? tbl(["Vencimento", "Descrição", "Valor"], nextPay.map(r =>
+        `<tr><td>${fmtDate(r.due)}</td><td>${esc(r.description)}</td><td class="right"><strong>${money(r.amount)}</strong></td></tr>`).join(""))
+        : `<div class="empty">Nenhum título a pagar em aberto.</div>`}
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Próximos vencimentos a receber</h3></div>
+      ${nextRec.length ? tbl(["Vencimento", "Descrição", "Valor"], nextRec.map(r =>
+        `<tr><td>${fmtDate(r.due)}</td><td>${esc(r.description)}</td><td class="right"><strong>${money(r.amount)}</strong></td></tr>`).join(""))
+        : `<div class="empty">Nenhum título a receber em aberto.</div>`}
+    </div>
   </div>`;
 }
 const stat = (l, v, d = "") => `<div class="stat"><small>${l}</small><b>${v}</b><div class="delta">${d}</div></div>`;
 const tbl = (heads, rows) => `<div class="tbl-wrap"><table><thead><tr>${heads.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
+
+/* ================= PAGINAÇÃO — 10/20/30 por página, máx. 5 números + setas ‹ › ================= */
+const PAGER = {};
+function pagerState(id) { return PAGER[id] || (PAGER[id] = { size: 10, page: 1 }); }
+function paged(id, items) {
+  const st = pagerState(id);
+  const pages = Math.max(1, Math.ceil(items.length / st.size));
+  if (st.page > pages) st.page = pages;
+  return items.slice((st.page - 1) * st.size, st.page * st.size);
+}
+function pagerHTML(id, total) {
+  const st = pagerState(id);
+  const pages = Math.max(1, Math.ceil(total / st.size));
+  const start = Math.max(1, Math.min(st.page - 2, pages - 4));
+  const nums = [];
+  for (let i = start; i < start + Math.min(5, pages); i++) nums.push(i);
+  const from = total ? (st.page - 1) * st.size + 1 : 0;
+  const to = Math.min(total, st.page * st.size);
+  return `<div class="pager" data-pager="${id}" data-total="${total}">
+    <span class="pager-info">Exibindo ${from}–${to} de ${total}</span>
+    <div class="pager-btns">
+      ${pages > 5 ? `<button class="btn btn-sm" data-pg="prev" ${st.page <= 1 ? "disabled" : ""} title="Página anterior">‹</button>` : ""}
+      ${nums.map(n => `<button class="btn btn-sm ${n === st.page ? "btn-primary" : ""}" data-pg="${n}">${n}</button>`).join("")}
+      ${pages > 5 ? `<button class="btn btn-sm" data-pg="next" ${st.page >= pages ? "disabled" : ""} title="Próxima página">›</button>` : ""}
+    </div>
+    <select class="pager-size" data-pgsize title="Itens por página">${[10, 20, 30].map(s => `<option value="${s}" ${st.size === s ? "selected" : ""}>${s} por página</option>`).join("")}</select>
+  </div>`;
+}
+function bindPager(id, redraw) {
+  const box = document.querySelector(`[data-pager="${id}"]`);
+  if (!box) return;
+  const st = pagerState(id);
+  const total = +box.dataset.total || 0;
+  box.querySelectorAll("[data-pg]").forEach(b => b.onclick = () => {
+    const pages = Math.max(1, Math.ceil(total / st.size));
+    const v = b.dataset.pg;
+    if (v === "prev") st.page = Math.max(1, st.page - 1);
+    else if (v === "next") st.page = Math.min(pages, st.page + 1);
+    else st.page = +v;
+    redraw();
+  });
+  const sel = box.querySelector("[data-pgsize]");
+  if (sel) sel.onchange = () => { st.size = +sel.value; st.page = 1; redraw(); };
+}
+
 
 /* ================= PRODUTOS ================= */
 function viewProdutos(root) {
@@ -451,7 +540,7 @@ function viewProdutos(root) {
       .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
     $("#pTable").innerHTML = rows.length ? tbl(
       ["", "Produto", "SKU", "Cód. barras", "Categoria", "Estoque", "Custo médio", "Preço venda", "Margem un. (R$ · %)", "Total", "Ações"],
-      rows.map(p => {
+      paged("prodPg", rows).map(p => {
         const m = margin(p);
         return `<tr>
         <td>${p.image ? `<img class="thumb" src="${p.image}" alt="">` : `<div class="thumb"></div>`}</td>
@@ -464,7 +553,8 @@ function viewProdutos(root) {
         <td><button class="btn btn-sm" data-edit="${p.id}">Editar</button>
             <button class="btn btn-sm btn-danger" data-del="${p.id}">Excluir</button></td></tr>`;
       }).join("")
-    ) : `<div class="empty">Nenhum item encontrado. Cadastre o primeiro produto.</div>`;
+    ) + pagerHTML("prodPg", rows.length) : `<div class="empty">Nenhum item encontrado. Cadastre o primeiro produto.</div>`;
+    bindPager("prodPg", draw);
     $$("[data-edit]", $("#pTable")).forEach(b => b.onclick = () => productForm(b.dataset.edit));
     $$("[data-del]", $("#pTable")).forEach(b => b.onclick = () => confirmDialog("Excluir este item do catálogo?", async () => {
       await remove(ref(db, "products/" + b.dataset.del)); toast("Item excluído", "ok");
@@ -550,7 +640,7 @@ function viewKits(root) {
   </div>`;
   $("#kTable").innerHTML = kits.length ? tbl(
     ["Kit", "Composição", "Custo dos itens", "Adicional", "Custo total", "Preço venda", "Margem (R$ · %)", "Montáveis", "Ações"],
-    kits.map(k => {
+    paged("kitPg", kits).map(k => {
       const base = (k.items || []).reduce((s, it) => s + num(STATE.products[it.productId]?.avgCost) * num(it.qty), 0);
       const total = base + num(k.extraCost);
       const marg = num(k.price) - total;
@@ -564,7 +654,8 @@ function viewKits(root) {
         <td><button class="btn btn-sm" data-edit="${k.id}">Editar</button>
             <button class="btn btn-sm btn-danger" data-del="${k.id}">Excluir</button></td></tr>`;
     }).join("")
-  ) : `<div class="empty">Nenhum kit criado. Combine itens do catálogo para formar kits.</div>`;
+  ) + pagerHTML("kitPg", kits.length) : `<div class="empty">Nenhum kit criado. Combine itens do catálogo para formar kits.</div>`;
+  bindPager("kitPg", renderView);
   $("#kNew").onclick = () => kitForm();
   $$("[data-edit]", $("#kTable")).forEach(b => b.onclick = () => kitForm(b.dataset.edit));
   $$("[data-del]", $("#kTable")).forEach(b => b.onclick = () => confirmDialog("Excluir este kit?", async () => {
@@ -668,6 +759,14 @@ function viewEstoque(root) {
         <option value="prazo">A prazo — gera conta a pagar</option>
         <option value="nao">Não lançar no financeiro</option></select></label>
       <label class="field"><span>Conta de origem</span><select id="e_acc">${accountOptions(defaultAccount())}</select></label>
+      <label class="field hidden" id="e_instWrap"><span>Parcelas (a prazo)</span><select id="e_inst">${Array.from({length:12},(_,i)=>`<option value="${i+1}">${i+1}x</option>`).join("")}</select></label>
+      <label class="field hidden" id="e_firstWrap"><span>Vencimento da 1ª parcela</span><input id="e_first" type="date" value="${addMonthsISO(todayISO(), 1)}"></label>
+      <label class="field hidden" id="e_autoWrap"><span>Débito das parcelas</span><select id="e_auto">
+        <option value="0" selected>Manual — fica em aberto no Contas a pagar</option>
+        <option value="1">Automático — quita na data do vencimento</option></select></label>
+      <label class="field"><span>Juros/desconto cartão de crédito (%)</span>
+        <input id="e_juros" type="number" step="0.01" value="0" placeholder="Ex.: 2,99 = juros · -3 = desconto"></label>
+      <div class="hidden" id="e_instPrev" style="grid-column:1/-1"></div>
     </div>
     <div class="card" style="margin-top:12px;background:var(--panel-2)"><div id="e_preview" class="muted">Preencha os campos para ver a simulação do novo custo médio.</div></div>
     <div style="margin-top:12px"><button class="btn btn-primary" id="e_save">Registrar entrada</button></div>
@@ -695,7 +794,7 @@ function viewEstoque(root) {
       .some(v => (v || "").toLowerCase().includes(q)));
     $("#sTable").innerHTML = rows.length ? tbl(
       ["Produto", "SKU", "Categoria", "Local", "Qtd", "Mínimo", "Custo médio", "Custo total", "Preço venda", "Margem un. (R$ · %)", "Venda total", "Margem total (R$ · %)", "Entradas", "Ações"],
-      rows.map(p => {
+      paged("stkPg", rows).map(p => {
         const m = margin(p);
         const qty = num(p.qty);
         const cost = qty * num(p.avgCost);
@@ -715,7 +814,8 @@ function viewEstoque(root) {
           <td>${nEnt}</td>
           <td><button class="btn btn-sm" data-pedit="${p.id}">Editar</button></td></tr>`;
       }).join("")
-    ) : `<div class="empty">Nenhum produto encontrado.</div>`;
+    ) + pagerHTML("stkPg", rows.length) : `<div class="empty">Nenhum produto encontrado.</div>`;
+    bindPager("stkPg", drawStock);
     $$("[data-pedit]", $("#sTable")).forEach(b => b.onclick = () => productForm(b.dataset.pedit));
   };
   $("#sSearch").oninput = drawStock;
@@ -731,7 +831,7 @@ function viewEstoque(root) {
       e.supplier || "", e.doc || "", e.settlement || "", accName(e.accountId)])]);
   $("#eTable").innerHTML = per.length ? tbl(
     ["Data", "Produto", "Qtd", "Custo unit.", "Frete", "Total", "Custo médio anterior", "Novo custo médio", "Fornecedor", "Documento", "Ações"],
-    per.map(e => `<tr><td>${fmtDate(e.date)}</td>
+    paged("entPg", per).map(e => `<tr><td>${fmtDate(e.date)}</td>
       <td>${esc(STATE.products[e.productId]?.name || e.productName || "—")}</td>
       <td>${num(e.qty)}</td><td class="right">${money(e.unitCost)}</td><td class="right">${money(e.freight)}</td>
       <td class="right">${money(e.total)}</td>
@@ -739,8 +839,9 @@ function viewEstoque(root) {
       <td>${esc(e.supplier || "—")}</td><td>${esc(e.doc || "—")}</td>
       <td><button class="btn btn-sm" data-eedit="${e.id}">Editar</button>
           <button class="btn btn-sm btn-danger" data-edel="${e.id}">Excluir</button></td></tr>`).join("")
-  ) : `<div class="empty">Nenhuma entrada no período.</div>`;
+  ) + pagerHTML("entPg", per.length) : `<div class="empty">Nenhuma entrada no período.</div>`;
 
+  bindPager("entPg", drawEntries);
   $$("[data-eedit]", $("#eTable")).forEach(b => b.onclick = () => entryForm(b.dataset.eedit));
   $$("[data-edel]", $("#eTable")).forEach(b => b.onclick = () => {
     const e = { id: b.dataset.edel, ...STATE.entries[b.dataset.edel] };
@@ -773,6 +874,32 @@ function viewEstoque(root) {
   };
   ["e_prod", "e_qty", "e_total", "e_unit", "e_freight"].forEach(i => { $("#" + i).oninput = preview; $("#" + i).onchange = preview; });
 
+  /* ---------- parcelamento da compra a prazo ---------- */
+  const instPreview = () => {
+    const prazo = $("#e_pay").value === "prazo";
+    ["e_instWrap", "e_firstWrap", "e_autoWrap", "e_instPrev"].forEach(id => $("#" + id).classList.toggle("hidden", !prazo));
+    if (!prazo) return;
+    const q = num($("#e_qty").value);
+    const freight = num($("#e_freight").value);
+    const unit = num($("#e_unit").value) || (q ? (num($("#e_total").value) + freight) / q : 0);
+    const total = withRate(unit * q, num($("#e_juros").value));
+    const n = Math.max(1, Math.min(12, parseInt($("#e_inst").value) || 1));
+    const first = $("#e_first").value || $("#e_date").value || todayISO();
+    const parts = installmentPlan(total, n, first);
+    $("#e_instPrev").innerHTML = total > 0
+      ? `<div class="card" style="background:var(--panel-2)"><strong>Parcelamento:</strong> ${n}x · ${parts.map(x => `${fmtDate(x.due)} — ${money(x.amount)}`).join(" · ")}
+         <div class="muted" style="margin-top:6px">${$("#e_auto").value === "1"
+        ? "Cada parcela será debitada automaticamente da conta escolhida na data do vencimento."
+        : "As parcelas ficam em aberto no Contas a pagar para quitação manual."}</div></div>`
+      : `<div class="muted">Informe quantidade e valor para simular as parcelas.</div>`;
+  };
+  ["e_pay", "e_inst", "e_first", "e_auto", "e_juros", "e_qty", "e_total", "e_unit", "e_freight", "e_date"].forEach(i => {
+    $("#" + i).addEventListener("change", instPreview); $("#" + i).addEventListener("input", instPreview);
+  });
+  $("#e_date").addEventListener("change", () => { if (!$("#e_first").dataset.touched) $("#e_first").value = addMonthsISO($("#e_date").value || todayISO(), 1); instPreview(); });
+  $("#e_first").addEventListener("change", () => { $("#e_first").dataset.touched = "1"; });
+  instPreview();
+
   $("#e_save").onclick = async () => {
     const pid = $("#e_prod").value, p = STATE.products[pid];
     if (!p) return toast("Cadastre um produto antes", "err");
@@ -782,6 +909,8 @@ function viewEstoque(root) {
     const unit = num($("#e_unit").value) || (num($("#e_total").value) + freight) / q;
     if (unit <= 0) return toast("Informe o valor da compra", "err");
     const total = unit * q;
+    const jurosPct = num($("#e_juros").value);
+    const finTotal = withRate(total, jurosPct);
     const prevAvg = num(p.avgCost), prevQty = num(p.qty);
     const newQty = prevQty + q;
     const newAvg = (prevQty * prevAvg + q * unit) / newQty;
@@ -793,29 +922,235 @@ function viewEstoque(root) {
       productId: pid, productName: p.name, qty: q, unitCost: Number(unit.toFixed(4)), total,
       freight, prevAvg, newAvg: Number(newAvg.toFixed(4)), supplier: $("#e_supplier").value.trim(),
       doc: $("#e_doc").value.trim(), date: eDate, settlement: mode,
+      cardRate: jurosPct, financeTotal: finTotal,
       accountId: mode === "imediato" ? accId : "", createdAt: Date.now(),
       user: STATE.user.email
     });
     if (mode === "prazo") {
-      await push(ref(db, "payables"), {
-        description: `Compra ${p.name} (${q} un)`, supplier: $("#e_supplier").value.trim(),
-        amount: total, due: eDate, status: "pendente", accountId: accId,
-        category: "Compra de mercadoria", refKind: "entry", refId: entRef.key, createdAt: Date.now()
+      const n = Math.max(1, Math.min(12, parseInt($("#e_inst").value) || 1));
+      const first = $("#e_first").value || eDate;
+      const autoPay = $("#e_auto").value === "1";
+      const res = await createPayablesForEntry({
+        entryId: entRef.key, productName: p.name, qty: q, total: finTotal, n, first,
+        supplier: $("#e_supplier").value.trim(), accountId: accId || "", autoPay
       });
-      toast("Entrada registrada e conta a pagar gerada", "ok");
+      if (res.created > 0) {
+        // mostra o resultado já na aba certa do Financeiro, sem filtros escondendo
+        STATE.finTab = "pay";
+        PERIOD_STORE["payPP"] = periodSeed("all");
+        PAY_FORCE_ALL = true;
+        if (can("financeiro")) STATE.view = "financeiro";
+        toast(n > 1
+          ? `Entrada registrada · ${n} parcelas geradas no contas a pagar (venc. ${fmtDate(res.parts[0].due)} a ${fmtDate(res.parts[n - 1].due)})`
+          : `Entrada registrada · conta a pagar gerada para ${fmtDate(res.parts[0].due)}`, "ok");
+      } else {
+        toast(`Entrada salva, mas nenhuma parcela foi gravada no contas a pagar${res.error ? ": " + res.error : ""}. Abra o Financeiro › Contas a pagar e use "Gerar títulos faltantes".`, "err");
+      }
     } else if (mode === "imediato" && accId) {
       await finAdd({
-        date: eDate, kind: "compra", amount: total, accountId: accId,
+        date: eDate, kind: "compra", amount: finTotal, accountId: accId,
         description: `Compra ${p.name} (${q} un)`, party: $("#e_supplier").value.trim(),
         refKind: "entry", refId: entRef.key
       });
-      toast(`Entrada registrada · ${money(total)} debitado de ${accName(accId)}`, "ok");
+      toast(`Entrada registrada · ${money(finTotal)} debitado de ${accName(accId)}`, "ok");
     } else {
       toast(`Entrada registrada. Novo custo médio: ${money(newAvg)}`, "ok");
     }
     renderView();
   };
   preview();
+}
+
+/* ================= PARCELAMENTO / AUTOMAÇÕES DE TÍTULOS ================= */
+/* Aplica juros (+) ou desconto (-) percentual — usado na modalidade cartão de crédito. */
+function withRate(total, ratePct) {
+  const v = num(total) * (1 + num(ratePct) / 100);
+  return Number(v.toFixed(2));
+}
+/* Divide um total em N parcelas mensais a partir de uma data (ajusta centavos na última). */
+function installmentPlan(total, n, firstDue) {
+  n = Math.max(1, Math.min(12, parseInt(n) || 1));
+  const cents = Math.round(num(total) * 100);
+  const base = Math.floor(cents / n);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const v = (i === n - 1 ? cents - base * (n - 1) : base) / 100;
+    out.push({ i: i + 1, amount: Number(v.toFixed(2)), due: addMonthsISO(firstDue, i) });
+  }
+  return out;
+}
+function addMonthsISO(iso, months) {
+  const [y, m, d] = String(iso || todayISO()).split("-").map(Number);
+  const last = new Date(y, m - 1 + months + 1, 0).getDate();
+  const dt = new Date(y, m - 1 + months, Math.min(d, last));
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
+/* Cria os títulos a pagar de uma entrada a prazo. Retorna {created, parts, error}. */
+async function createPayablesForEntry(o) {
+  const n = Math.max(1, Math.min(12, parseInt(o.n) || 1));
+  const parts = installmentPlan(o.total, n, o.first || todayISO());
+  let created = 0, error = "";
+  try {
+    for (const part of parts) {
+      await push(ref(db, "payables"), {
+        description: `Compra ${o.productName} (${o.qty} un)` + (n > 1 ? ` — parcela ${part.i}/${n}` : ""),
+        supplier: o.supplier || "",
+        amount: part.amount, due: part.due, status: "pendente", accountId: o.accountId || "",
+        category: "Compra de mercadoria", refKind: "entry", refId: o.entryId,
+        installment: part.i, installments: n, autoPay: !!o.autoPay, createdAt: Date.now()
+      });
+      created++;
+    }
+    await update(ref(db, "entries/" + o.entryId), { installments: n, firstDue: parts[0].due, autoPay: !!o.autoPay });
+  } catch (err) {
+    console.error("Falha ao gerar as parcelas em payables", err);
+    error = err?.message || String(err);
+  }
+  return { created, parts, error };
+}
+
+/* Entradas a prazo que ainda não possuem título no contas a pagar. */
+function entriesMissingPayables() {
+  const pays = list(STATE.payables);
+  return list(STATE.entries)
+    .filter(e => e.settlement === "prazo")
+    .filter(e => !pays.some(p => p.refKind === "entry" && p.refId === e.id));
+}
+
+/* Repara entradas a prazo sem título (falha de gravação, regras, offline etc.). */
+async function reconcilePayables(silent) {
+  const missing = entriesMissingPayables();
+  if (!missing.length) { if (!silent) toast("Todas as entradas a prazo já possuem título no contas a pagar", "ok"); return 0; }
+  let total = 0, lastError = "";
+  for (const e of missing) {
+    const r = await createPayablesForEntry({
+      entryId: e.id, productName: e.productName || "item", qty: num(e.qty), total: num(e.total),
+      n: num(e.installments) || 1, first: e.firstDue || e.date || todayISO(),
+      supplier: e.supplier || "", accountId: e.accountId || "", autoPay: !!e.autoPay
+    });
+    total += r.created;
+    if (r.error) lastError = r.error;
+  }
+  if (!silent) {
+    if (total) toast(`${total} título(s) gerados no contas a pagar`, "ok");
+    else toast(`Não foi possível gravar os títulos${lastError ? ": " + lastError : ""}`, "err");
+  }
+  return total;
+}
+
+/* Quita automaticamente as parcelas a pagar cuja data de vencimento chegou. */
+let AUTO_PAY_RUNNING = false;
+async function autoSettleDuePayables() {
+  if (AUTO_PAY_RUNNING) return;
+  AUTO_PAY_RUNNING = true;
+  try {
+    const t = todayISO();
+    for (const r of list(STATE.payables)) {
+      if (r.status === "pago" || !r.autoPay || !r.accountId) continue;
+      if (!r.due || r.due > t) continue;
+      // nunca quitar automaticamente um título criado hoje: ele precisa aparecer
+      // em aberto no Contas a pagar antes de qualquer débito automático
+      if (r.createdAt && new Date(r.createdAt).toISOString().slice(0, 10) >= t) continue;
+      if (finList().some(f => f.refKind === "payables" && f.refId === r.id)) continue;
+      await update(ref(db, "payables/" + r.id), {
+        status: "pago", settledAt: r.due, settledAmount: num(r.amount), autoSettled: true
+      });
+      await finAdd({
+        date: r.due, kind: "compra", dir: "out", accountId: r.accountId, amount: num(r.amount),
+        description: r.description, party: r.supplier || "",
+        category: r.category || "Compra de mercadoria", refKind: "payables", refId: r.id
+      });
+      toast(`Parcela quitada automaticamente: ${r.description} · ${money(r.amount)}`, "ok");
+    }
+  } catch (e) { console.warn(e); }
+  finally { AUTO_PAY_RUNNING = false; }
+}
+
+/* Credita automaticamente as parcelas a receber com quitação automática vencidas. */
+let AUTO_REC_RUNNING = false;
+async function autoSettleDueReceivables() {
+  if (AUTO_REC_RUNNING) return;
+  AUTO_REC_RUNNING = true;
+  try {
+    const t = todayISO();
+    for (const r of list(STATE.receivables)) {
+      if (r.status === "recebido" || !r.autoPay || !r.accountId) continue;
+      if (!r.due || r.due > t) continue;
+      if (r.createdAt && new Date(r.createdAt).toISOString().slice(0, 10) >= t) continue;
+      if (finList().some(f => f.refKind === "receivables" && f.refId === r.id)) continue;
+      await update(ref(db, "receivables/" + r.id), {
+        status: "recebido", settledAt: r.due, settledAmount: num(r.amount), autoSettled: true
+      });
+      await finAdd({
+        date: r.due, kind: r.category === "Venda" ? "venda" : "ajuste_in", dir: "in",
+        accountId: r.accountId, amount: num(r.amount), description: r.description,
+        party: r.customer || "", category: r.category || "Recebimento",
+        refKind: "receivables", refId: r.id
+      });
+      toast(`Parcela recebida automaticamente: ${r.description} · ${money(r.amount)}`, "ok");
+    }
+  } catch (e) { console.warn(e); }
+  finally { AUTO_REC_RUNNING = false; }
+}
+
+/* Alerta de títulos a receber vencidos/vencendo: quitar ou postergar. */
+const RECV_SNOOZE = new Set();
+let RECV_ALERT_OPEN = false;
+function checkReceivableAlerts() {
+  if (RECV_ALERT_OPEN) return;
+  if (!$("#modalBackdrop").classList.contains("hidden")) return;
+  const t = todayISO();
+  const r = list(STATE.receivables)
+    .filter(x => x.status !== "recebido" && x.due && x.due <= t && !RECV_SNOOZE.has(x.id))
+    .filter(x => !(x.autoPay && x.accountId))
+    .sort((a, b) => (a.due || "").localeCompare(b.due || ""))[0];
+  if (!r) return;
+  RECV_ALERT_OPEN = true;
+  const close = () => { RECV_ALERT_OPEN = false; closeModal(); };
+  openModal("Título a receber vencido", `
+    <p>O título abaixo venceu em <strong>${fmtDate(r.due)}</strong>. Já foi quitado?</p>
+    <div class="card" style="background:var(--panel-2)">
+      <strong>${esc(r.description || "Título")}</strong>
+      <div class="muted">${esc(r.customer || "—")} · ${esc(r.category || "Recebimento")}</div>
+      <div style="margin-top:6px;font-size:18px"><strong>${money(r.amount)}</strong></div>
+    </div>
+    <div class="grid2" style="margin-top:12px">
+      <label class="field"><span>Conta que recebe / vai receber *</span><select id="ra_acc">${accountOptions(r.accountId)}</select></label>
+      <label class="field"><span>Data do recebimento (se já quitado)</span><input id="ra_date" type="date" value="${todayISO()}"></label>
+      <label class="field"><span>Novo prazo (se ainda não quitado)</span><input id="ra_new" type="date" value="${addMonthsISO(todayISO(), 0)}"></label>
+      <label class="field"><span>Valor (R$)</span><input id="ra_amount" type="number" step="0.01" value="${num(r.amount)}"></label>
+    </div>
+    <p class="muted">Ao postergar, o título continua em aberto com o novo vencimento e cairá na conta selecionada quando for quitado.</p>
+  `, `<button class="btn" id="ra_later">Decidir depois</button>
+      <button class="btn" id="ra_post">Não — postergar</button>
+      <button class="btn btn-primary" id="ra_paid">Sim — já foi quitado</button>`);
+
+  $("#ra_later").onclick = () => { RECV_SNOOZE.add(r.id); close(); checkReceivableAlerts(); };
+  $("#ra_post").onclick = async () => {
+    const nd = $("#ra_new").value;
+    if (!nd || nd <= r.due) return toast("Escolha uma data de prazo posterior ao vencimento", "err");
+    await update(ref(db, "receivables/" + r.id), {
+      due: nd, accountId: $("#ra_acc").value, status: "pendente",
+      postponedFrom: r.due, postponedAt: Date.now()
+    });
+    RECV_SNOOZE.add(r.id);
+    close(); toast(`Pagamento postergado para ${fmtDate(nd)}`, "ok");
+  };
+  $("#ra_paid").onclick = async () => {
+    const accId = $("#ra_acc").value;
+    if (!accId) return toast("Cadastre/escolha uma conta", "err");
+    const date = $("#ra_date").value || todayISO();
+    const amount = num($("#ra_amount").value) || num(r.amount);
+    await update(ref(db, "receivables/" + r.id), { status: "recebido", settledAt: date, accountId: accId, settledAmount: amount });
+    await finAdd({
+      date, kind: r.category === "Venda" ? "venda" : "ajuste_in", dir: "in", accountId: accId, amount,
+      description: r.description, party: r.customer || "", category: r.category || "Recebimento",
+      refKind: "receivables", refId: r.id
+    });
+    RECV_SNOOZE.add(r.id);
+    close(); toast("Recebimento lançado no saldo", "ok");
+  };
 }
 
 /* Desfaz o efeito de uma entrada no produto (estoque + custo médio) */
@@ -875,6 +1210,21 @@ function entryForm(id) {
       supplier: $("#x_supplier").value.trim(), doc: $("#x_doc").value.trim(),
       date: $("#x_date").value || todayISO(), updatedAt: Date.now(), editedBy: STATE.user?.email || ""
     });
+    if (e.settlement === "prazo") {
+      const linked = list(STATE.payables).filter(x => x.refKind === "entry" && x.refId === id);
+      if (linked.some(x => x.status === "pago")) {
+        toast("Atenção: há parcelas já pagas desta entrada — os títulos do Contas a pagar não foram alterados", "err");
+      } else if (linked.length) {
+        for (const r of linked) { await finRemoveByRef("payables", r.id); await remove(ref(db, "payables/" + r.id)); }
+        await createPayablesForEntry({
+          entryId: id, productName: p.name || e.productName || "item", qty: c.q,
+          total: withRate(c.q * c.unit, num(e.cardRate)), n: num(e.installments) || 1,
+          first: e.firstDue || $("#x_date").value || todayISO(),
+          supplier: $("#x_supplier").value.trim(), accountId: e.accountId || "", autoPay: !!e.autoPay
+        });
+        toast("Parcelas do Contas a pagar recalculadas", "ok");
+      }
+    }
     closeModal();
     toast("Entrada atualizada e estoque recalculado", "ok");
     renderView();
@@ -914,15 +1264,18 @@ function viewVendas(root) {
         ${stat("Ticket médio", money(rows.length ? rev / rows.length : 0), periodLabel(pid))}
       </div>
       ${rows.length ? tbl(["Data", "Cliente", "Itens", "Pagamento", "Recebimento", "Custo", "Total", "Lucro (R$ · %)", "Ações"],
-      rows.map(s => `<tr><td>${fmtDate(s.date)}</td><td>${esc(s.customer || "—")}</td>
+      paged("venPg", rows).map(s => `<tr><td>${fmtDate(s.date)}</td><td>${esc(s.customer || "—")}</td>
       <td>${(s.items || []).map(i => `${num(i.qty)}× ${esc(i.name)}`).join("<br>")}</td>
       <td>${esc(s.payment || "—")}</td>
       <td>${s.settlement === "prazo" ? `<span class="pill warn">a receber</span>` : `<span class="pill ok">${esc(accName(s.accountId))}</span>`}</td>
       <td class="right">${money(s.cost)}</td>
       <td class="right"><strong>${money(s.total)}</strong></td>
       <td class="right">${marginCell(num(s.total) - num(s.cost), num(s.total) > 0 ? (num(s.total) - num(s.cost)) / num(s.total) * 100 : 0, num(s.total) > 0)}</td>
-      <td><button class="btn btn-sm btn-danger" data-del="${s.id}">Excluir</button></td></tr>`).join(""))
+      <td><button class="btn btn-sm" data-edit="${s.id}">Editar</button>
+          <button class="btn btn-sm btn-danger" data-del="${s.id}">Excluir</button></td></tr>`).join("")) + pagerHTML("venPg", rows.length)
       : `<div class="empty">Nenhuma venda no período.</div>`}`;
+    bindPager("venPg", draw);
+    $$("[data-edit]", root).forEach(b => b.onclick = () => saleForm(b.dataset.edit));
     $$("[data-del]", root).forEach(b => b.onclick = () => confirmDialog("Excluir a venda? Os lançamentos financeiros e títulos gerados por ela também serão desfeitos (o estoque não é devolvido automaticamente).", async () => {
       const id = b.dataset.del;
       await finRemoveByRef("sale", id);
@@ -934,7 +1287,7 @@ function viewVendas(root) {
       toast("Venda excluída e saldo ajustado", "ok");
     }));
   };
-  $("#sNew").onclick = saleForm;
+  $("#sNew").onclick = () => saleForm();
   $("#v_q").oninput = draw;
   $("#v_csv").onclick = () => downloadCsv(`vendas_${periodOf(pid).from || "tudo"}`,
     [["Data", "Cliente", "Pagamento", "Recebimento", "Conta", "Itens", "Custo", "Total", "Lucro"],
@@ -954,25 +1307,37 @@ function viewVendas(root) {
   draw();
 }
 
-function saleForm() {
-  let items = [];
+function saleForm(id) {
+  const editing = id ? { id, ...(STATE.sales[id] || {}) } : null;
+  let items = editing ? (editing.items || []).map(i => ({ ...i })) : [];
   const opts = [
     ...list(STATE.products).map(p => `<option value="p:${p.id}">${esc(p.name)} — ${money(p.price)}</option>`),
     ...list(STATE.kits).map(k => `<option value="k:${k.id}">[KIT] ${esc(k.name)} — ${money(k.price)}</option>`)
   ].join("");
-  openModal("Nova venda", `
+  openModal(editing ? "Editar venda" : "Nova venda", `
     <div class="grid3">
-      <label class="field"><span>Cliente</span><input id="s_customer"></label>
-      <label class="field"><span>Data</span><input id="s_date" type="date" value="${todayISO()}"></label>
+      <label class="field"><span>Cliente</span><input id="s_customer" value="${esc(editing?.customer || "")}"></label>
+      <label class="field"><span>Data</span><input id="s_date" type="date" value="${esc(editing?.date || todayISO())}"></label>
       <label class="field"><span>Forma de pagamento</span><select id="s_pay">
         <option>Dinheiro</option><option>PIX</option><option>Débito</option><option>Crédito</option><option>Boleto</option><option>A prazo</option></select></label>
-      <label class="field"><span>Desconto (R$)</span><input id="s_disc" type="number" step="0.01" value="0"></label>
-      <label class="field"><span>Frete cobrado (R$)</span><input id="s_freight" type="number" step="0.01" value="0"></label>
+      <label class="field"><span>Desconto (R$)</span><input id="s_disc" type="number" step="0.01" value="${num(editing?.discount)}"></label>
+      <label class="field"><span>Frete cobrado (R$)</span><input id="s_freight" type="number" step="0.01" value="${num(editing?.freight)}"></label>
       <label class="field"><span>Recebimento</span><select id="s_rec">
         <option value="imediato">À vista — credita no saldo agora</option>
         <option value="prazo">A prazo — gera conta a receber</option></select></label>
-      <label class="field"><span>Conta de destino</span><select id="s_acc">${accountOptions(defaultAccount())}</select></label>
+      <label class="field"><span>Conta de destino</span><select id="s_acc">${accountOptions(editing?.accountId || defaultAccount())}</select></label>
+      <label class="field"><span>Juros/desconto cartão de crédito (%)</span>
+        <input id="s_juros" type="number" step="0.01" value="${num(editing?.cardRate)}" placeholder="Ex.: 2,99 = juros · -3 = desconto"></label>
+      <label class="field hidden" id="s_instWrap"><span>Parcelas (a prazo)</span>
+        <select id="s_inst">${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}">${i + 1}x</option>`).join("")}</select></label>
+      <label class="field hidden" id="s_firstWrap"><span>Vencimento da 1ª parcela</span>
+        <input id="s_first" type="date" value="${addMonthsISO(editing?.date || todayISO(), 1)}"></label>
+      <label class="field hidden" id="s_autoWrap"><span>Recebimento das parcelas</span><select id="s_auto">
+        <option value="0" selected>Manual — fica em aberto no Contas a receber</option>
+        <option value="1">Automático — quita na data do vencimento</option></select></label>
     </div>
+    ${editing ? `<p class="muted">Ao salvar, o estoque dos itens antigos é devolvido e o dos novos itens é baixado; os lançamentos financeiros e os títulos a receber ligados à venda são refeitos.</p>` : ""}
+    <div class="hidden" id="s_instPrev" style="margin-top:8px"></div>
     <div class="section-title">Itens da venda</div>
     <div class="toolbar">
       <select id="s_item" style="flex:1">${opts}</select>
@@ -981,7 +1346,16 @@ function saleForm() {
     </div>
     <div id="s_list"></div>
     <div class="stat" style="margin-top:6px"><small>Total da venda</small><b id="s_total">R$ 0,00</b><div class="delta" id="s_info"></div></div>
-  `, `<button class="btn" id="mCancel">Cancelar</button><button class="btn btn-primary" id="mSave">Registrar venda</button>`);
+  `, `<button class="btn" id="mCancel">Cancelar</button><button class="btn btn-primary" id="mSave">${editing ? "Salvar alterações" : "Registrar venda"}</button>`);
+
+  if (editing) {
+    $("#s_pay").value = editing.payment || "Dinheiro";
+    $("#s_rec").value = editing.settlement || "imediato";
+    $("#s_inst").value = String(Math.max(1, Math.min(12, num(editing.installments) || 1)));
+    $("#s_first").value = editing.firstDue || addMonthsISO(editing.date || todayISO(), 1);
+    $("#s_auto").value = editing.autoPay ? "1" : "0";
+    $("#s_first").dataset.touched = "1";
+  }
 
   const draw = () => {
     $("#s_list").innerHTML = items.length ? tbl(["Item", "Qtd", "Preço unit.", "Custo unit.", "Subtotal", ""],
@@ -994,9 +1368,13 @@ function saleForm() {
     $$("[data-price]", $("#s_list")).forEach(inp => inp.onchange = () => { items[+inp.dataset.price].price = num(inp.value); draw(); });
     const sub = items.reduce((s, i) => s + num(i.price) * num(i.qty), 0);
     const cost = items.reduce((s, i) => s + num(i.cost) * num(i.qty), 0);
-    const total = sub - num($("#s_disc").value) + num($("#s_freight").value);
+    const base = sub - num($("#s_disc").value) + num($("#s_freight").value);
+    const rate = num($("#s_juros").value);
+    const total = withRate(base, rate);
     $("#s_total").textContent = money(total);
-    $("#s_info").textContent = `Custo ${money(cost)} · Lucro estimado ${money(total - cost)}`;
+    $("#s_info").textContent = `Custo ${money(cost)} · Lucro estimado ${money(total - cost)}`
+      + (rate ? ` · ${rate > 0 ? "juros" : "desconto"} de cartão ${pct(Math.abs(rate))} (${money(total - base)})` : "");
+    saleInstPreview(total);
   };
   $("#s_add").onclick = () => {
     const v = $("#s_item").value; if (!v) return toast("Cadastre produtos ou kits", "err");
@@ -1005,7 +1383,27 @@ function saleForm() {
     else { const k = STATE.kits[id]; items.push({ type: "kit", id, name: "[KIT] " + k.name, qty: q, price: num(k.price), cost: kitCost(k) }); }
     draw();
   };
-  $("#s_disc").oninput = draw; $("#s_freight").oninput = draw;
+  const saleInstPreview = (total) => {
+    const prazo = $("#s_rec").value === "prazo";
+    ["s_instWrap", "s_firstWrap", "s_autoWrap", "s_instPrev"].forEach(id => $("#" + id).classList.toggle("hidden", !prazo));
+    if (!prazo) return;
+    const n = Math.max(1, Math.min(12, parseInt($("#s_inst").value) || 1));
+    const first = $("#s_first").value || $("#s_date").value || todayISO();
+    const parts = installmentPlan(total, n, first);
+    $("#s_instPrev").innerHTML = total > 0
+      ? `<div class="card" style="background:var(--panel-2)"><strong>Parcelamento:</strong> ${n}x · ${parts.map(x => `${fmtDate(x.due)} — ${money(x.amount)}`).join(" · ")}
+         <div class="muted" style="margin-top:6px">${$("#s_auto").value === "1"
+        ? "Cada parcela será creditada automaticamente na conta escolhida na data do vencimento."
+        : "As parcelas ficam em aberto no Contas a receber para quitação manual."}</div></div>`
+      : `<div class="muted">Adicione itens para simular as parcelas.</div>`;
+  };
+  ["s_disc", "s_freight", "s_juros"].forEach(i => $("#" + i).oninput = draw);
+  ["s_rec", "s_inst", "s_first", "s_auto", "s_date", "s_pay"].forEach(i => $("#" + i).addEventListener("change", draw));
+  $("#s_date").addEventListener("change", () => { if (!$("#s_first").dataset.touched) $("#s_first").value = addMonthsISO($("#s_date").value || todayISO(), 1); });
+  $("#s_first").addEventListener("change", () => { $("#s_first").dataset.touched = "1"; });
+  $("#s_pay").addEventListener("change", () => {
+    if ($("#s_pay").value === "A prazo") { $("#s_rec").value = "prazo"; draw(); }
+  });
   draw();
 
   $("#mCancel").onclick = closeModal;
@@ -1013,48 +1411,76 @@ function saleForm() {
     if (!items.length) return toast("Adicione itens à venda", "err");
     const sub = items.reduce((s, i) => s + num(i.price) * num(i.qty), 0);
     const cost = items.reduce((s, i) => s + num(i.cost) * num(i.qty), 0);
-    const total = sub - num($("#s_disc").value) + num($("#s_freight").value);
-    // baixa de estoque
+    const cardRate = num($("#s_juros").value);
+    const total = withRate(sub - num($("#s_disc").value) + num($("#s_freight").value), cardRate);
+    if (editing) {
+      const linked = list(STATE.receivables).filter(r => r.refKind === "sale" && r.refId === id);
+      if (linked.some(r => r.status === "recebido"))
+        return toast("Esta venda possui parcelas já recebidas no financeiro. Reabra os títulos em Contas a receber antes de editar.", "err");
+    }
+    // estoque: devolve os itens antigos (na edição) e baixa os novos
     const updates = {};
+    const addQty = (pid, delta) => {
+      const key = "products/" + pid + "/qty";
+      updates[key] = (key in updates ? updates[key] : num(STATE.products[pid]?.qty)) + delta;
+    };
+    if (editing) for (const it of editing.items || []) {
+      if (it.type === "product") addQty(it.id, num(it.qty));
+      else for (const ki of (STATE.kits[it.id]?.items || [])) { if (!STATE.products[ki.productId]) continue; addQty(ki.productId, num(ki.qty) * num(it.qty)); }
+    }
     for (const it of items) {
-      if (it.type === "product") {
-        const p = STATE.products[it.id];
-        updates["products/" + it.id + "/qty"] = num(p.qty) - num(it.qty);
-      } else {
-        for (const ki of (STATE.kits[it.id].items || [])) {
-          const p = STATE.products[ki.productId]; if (!p) continue;
-          const key = "products/" + ki.productId + "/qty";
-          const cur = key in updates ? updates[key] : num(p.qty);
-          updates[key] = cur - num(ki.qty) * num(it.qty);
-        }
-      }
+      if (it.type === "product") addQty(it.id, -num(it.qty));
+      else for (const ki of (STATE.kits[it.id]?.items || [])) { if (!STATE.products[ki.productId]) continue; addQty(ki.productId, -num(ki.qty) * num(it.qty)); }
     }
     await update(ref(db), updates);
+    const settlement = $("#s_rec").value;
+    const accId = $("#s_acc") ? $("#s_acc").value : "";
     const sale = {
       customer: $("#s_customer").value.trim(), date: $("#s_date").value || todayISO(),
       payment: $("#s_pay").value, discount: num($("#s_disc").value), freight: num($("#s_freight").value),
-      items, subtotal: sub, cost, total, user: STATE.user.email, createdAt: Date.now()
+      cardRate, items, subtotal: sub, cost, total,
+      settlement, accountId: settlement === "imediato" ? accId : "",
+      user: editing ? (editing.user || STATE.user.email) : STATE.user.email
     };
-    const settlement = $("#s_rec").value;
-    const accId = $("#s_acc") ? $("#s_acc").value : "";
-    sale.settlement = settlement; sale.accountId = settlement === "imediato" ? accId : "";
-    const saleRef = await push(ref(db, "sales"), sale);
+    let saleId;
+    if (editing) {
+      saleId = id;
+      await finRemoveByRef("sale", id);
+      for (const r of list(STATE.receivables).filter(r => r.refKind === "sale" && r.refId === id)) {
+        await finRemoveByRef("receivables", r.id);
+        await remove(ref(db, "receivables/" + r.id));
+      }
+      await update(ref(db, "sales/" + id), { ...sale, createdAt: editing.createdAt || Date.now(), updatedAt: Date.now(), editedBy: STATE.user?.email || "" });
+    } else {
+      saleId = (await push(ref(db, "sales"), { ...sale, createdAt: Date.now() })).key;
+    }
     if (settlement === "prazo") {
-      await push(ref(db, "receivables"), {
-        description: "Venda " + (sale.customer || "balcão"), customer: sale.customer,
-        amount: total, due: sale.date, status: "pendente", category: "Venda",
-        accountId: accId, refKind: "sale", refId: saleRef.key, createdAt: Date.now()
-      });
-      toast("Venda registrada e conta a receber gerada", "ok");
+      const n = Math.max(1, Math.min(12, parseInt($("#s_inst").value) || 1));
+      const first = $("#s_first").value || sale.date;
+      const autoReceive = $("#s_auto").value === "1";
+      const parts = installmentPlan(total, n, first);
+      for (const part of parts) {
+        await push(ref(db, "receivables"), {
+          description: "Venda " + (sale.customer || "balcão") + (n > 1 ? ` — parcela ${part.i}/${n}` : ""),
+          customer: sale.customer, amount: part.amount, due: part.due, status: "pendente",
+          category: "Venda", accountId: accId, refKind: "sale", refId: saleId,
+          installment: part.i, installments: n, autoPay: autoReceive, createdAt: Date.now()
+        });
+      }
+      await update(ref(db, "sales/" + saleId), { installments: n, firstDue: parts[0].due, autoPay: autoReceive });
+      STATE.finTab = "rec";
+      toast((editing ? "Venda atualizada · " : "Venda registrada · ") + (n > 1
+        ? `${n} parcelas geradas no contas a receber (venc. ${fmtDate(parts[0].due)} a ${fmtDate(parts[n - 1].due)})`
+        : "conta a receber gerada"), "ok");
     } else if (accId) {
       await finAdd({
         date: sale.date, kind: "venda", amount: total, accountId: accId,
         description: "Venda " + (sale.customer || "balcão"), party: sale.customer,
-        refKind: "sale", refId: saleRef.key
+        refKind: "sale", refId: saleId
       });
-      toast(`Venda registrada · ${money(total)} creditado em ${accName(accId)}`, "ok");
+      toast(`${editing ? "Venda atualizada" : "Venda registrada"} · ${money(total)} creditado em ${accName(accId)}`, "ok");
     } else {
-      toast("Venda registrada, mas cadastre uma conta no Financeiro para creditar o saldo", "err");
+      toast(editing ? "Venda atualizada (sem conta de destino, nada foi creditado no saldo)" : "Venda registrada, mas cadastre uma conta no Financeiro para creditar o saldo", editing ? "ok" : "err");
     }
     closeModal();
   };
@@ -1221,7 +1647,7 @@ function finLedger(el, kinds, title, pidBase, defaultKind) {
         ${stat("Líquido", money(tin - tout), rows.length + " lançamento(s)")}
       </div>
       ${rows.length ? tbl(["Data", "Tipo", "Descrição", "Pessoa / empresa", "Conta", "Entrada", "Saída", "Origem", "Ações"],
-      rows.map(f => `<tr><td>${fmtDate(f.date)}</td>
+      paged(pidBase + "Pg", rows).map(f => `<tr><td>${fmtDate(f.date)}</td>
         <td><span class="pill ${f.dir === "in" ? "ok" : "dan"}">${esc(kindLabel(f.kind))}</span></td>
         <td>${esc(f.description || "—")}</td><td>${esc(f.party || "—")}</td><td>${esc(accName(f.accountId))}</td>
         <td class="right">${f.dir === "in" ? money(f.amount) : "—"}</td>
@@ -1229,8 +1655,9 @@ function finLedger(el, kinds, title, pidBase, defaultKind) {
         <td><small class="muted">${esc(f.refKind || "manual")}</small></td>
         <td>${f.refKind && f.refKind !== "manual" ? `<span class="muted">automático</span>` :
         `<button class="btn btn-sm" data-fedit="${f.id}">Editar</button>
-             <button class="btn btn-sm btn-danger" data-fdel="${f.id}">Excluir</button>`}</td></tr>`).join(""))
+             <button class="btn btn-sm btn-danger" data-fdel="${f.id}">Excluir</button>`}</td></tr>`).join("")) + pagerHTML(pidBase + "Pg", rows.length)
       : `<div class="empty">Nenhum movimento no período.</div>`}`;
+    bindPager(pidBase + "Pg", draw);
     $$("[data-fedit]", el).forEach(b => b.onclick = () => finForm(kinds, defaultKind, b.dataset.fedit));
     $$("[data-fdel]", el).forEach(b => b.onclick = () => confirmDialog("Excluir este movimento? O saldo será recalculado.", async () => {
       await remove(ref(db, "fin/" + b.dataset.fdel)); toast("Movimento excluído", "ok");
@@ -1286,6 +1713,7 @@ function finForm(kinds, defaultKind, id) {
 }
 
 /* ---------- Contas a pagar / a receber ---------- */
+let PAY_FORCE_ALL = false;
 function accountsPanel(el, node, title, doneStatus, partyLabel) {
   const pidBase = node === "payables" ? "payP" : "recP";
   const pid = pidBase + "P";
@@ -1293,7 +1721,7 @@ function accountsPanel(el, node, title, doneStatus, partyLabel) {
   <div class="card">
     <div class="card-head"><h3>${title}</h3><div style="flex:1"></div>
       <div class="toolbar">
-        ${periodBar(pid, "month")}
+        ${periodBar(pid, "all")}
         <select id="${pidBase}_st">
           <option value="">Todas as situações</option>
           <option value="pend">Em aberto</option>
@@ -1303,16 +1731,26 @@ function accountsPanel(el, node, title, doneStatus, partyLabel) {
         <input id="${pidBase}_q" placeholder="Buscar descrição, ${partyLabel.toLowerCase()} ou categoria">
         <button class="btn" id="${pidBase}_csv">CSV</button>
         <button class="btn" id="${pidBase}_pdf">PDF</button>
+        ${node === "payables" ? `<button class="btn" id="payFix">Gerar títulos faltantes</button>` : ""}
         <button class="btn btn-primary" id="accNew">+ Novo lançamento</button>
       </div>
     </div>
-    <p class="muted">Os títulos filtram pelo vencimento (${periodLabel(pid)}). Ao liquidar, o valor entra ou sai da conta escolhida e o saldo é atualizado.</p>
+    <p class="muted">Filtro de vencimento: <strong>${periodLabel(pid)}</strong> — por padrão mostra <strong>todos</strong> os títulos, inclusive parcelas com vencimento em meses futuros. Ao liquidar, o valor entra ou sai da conta escolhida e o saldo é atualizado.</p>
     <div id="${pidBase}_body" style="margin-top:12px"></div>
   </div>`;
+  if (node === "payables" && PAY_FORCE_ALL) {
+    PAY_FORCE_ALL = false;
+    PERIOD_STORE[pid] = periodSeed("all");
+    const md = $("#" + pid + "_mode"), fr = $("#" + pid + "_from"), to = $("#" + pid + "_to");
+    if (md) md.value = "all"; if (fr) fr.value = ""; if (to) to.value = "";
+    const st = $("#" + pidBase + "_st"); if (st) st.value = "";
+  }
   let rows = [];
   const draw = () => {
     const stF = $("#" + pidBase + "_st").value, q = ($("#" + pidBase + "_q").value || "").toLowerCase();
-    const all = list(STATE[node]).filter(r => inPeriod(r.due, pid));
+    const everything = list(STATE[node]);
+    const all = everything.filter(r => !r.due || inPeriod(r.due, pid));
+    const hidden = everything.length - all.length;
     rows = all
       .filter(r => {
         const done = r.status === doneStatus, late = !done && (r.due || "") < todayISO();
@@ -1332,21 +1770,37 @@ function accountsPanel(el, node, title, doneStatus, partyLabel) {
         ${stat("Liquidado no período", money(rows.filter(r => r.status === doneStatus).reduce((s, r) => s + num(r.amount), 0)))}
         ${stat("Saldo total das contas", money(totalBalance()))}
       </div>
+      ${node === "payables" && entriesMissingPayables().length ? `<div class="alert" style="margin-bottom:12px">${entriesMissingPayables().length} entrada(s) a prazo do Estoque/Compras ainda sem título aqui. Clique em <strong>Gerar títulos faltantes</strong>.</div>` : ""}
+      ${hidden ? `<div class="alert" style="margin-bottom:12px">${hidden} título(s) com vencimento fora do filtro <strong>${periodLabel(pid)}</strong> estão ocultos. Selecione <strong>Tudo</strong> no período para ver as parcelas futuras.</div>` : ""}
       ${rows.length ? tbl(["Vencimento", "Descrição", partyLabel, "Categoria", "Valor", "Situação", "Conta / liquidação", "Ações"],
-      rows.map(r => {
+      paged(pidBase + "Pg", rows).map(r => {
         const done = r.status === doneStatus;
         const late = !done && (r.due || "") < todayISO();
-        return `<tr><td>${fmtDate(r.due)}</td><td>${esc(r.description)}</td>
+        const autoTag = r.autoPay ? ` <span class="pill" title="Será liquidado automaticamente na conta escolhida, na data do vencimento">${node === "payables" ? "débito automático" : "recebimento automático"}</span>` : "";
+        const autoInfo = r.autoPay && !done
+          ? `<small class="muted">auto em ${fmtDate(r.due)} · ${esc(accName(r.accountId))}</small>`
+          : "—";
+        return `<tr><td>${fmtDate(r.due)}</td><td>${esc(r.description)}${autoTag}</td>
         <td>${esc(r.supplier || r.customer || "—")}</td><td>${esc(r.category || "—")}</td>
         <td class="right">${money(r.amount)}</td>
         <td><span class="pill ${done ? "ok" : late ? "dan" : "warn"}">${done ? doneStatus : late ? "vencido" : "pendente"}</span></td>
-        <td>${done ? `${esc(accName(r.accountId))}<br><small class="muted">${fmtDate(r.settledAt)}</small>` : "—"}</td>
+        <td>${done ? `${esc(accName(r.accountId))}<br><small class="muted">${fmtDate(r.settledAt)}${r.autoSettled ? " · automático" : ""}</small>` : autoInfo}</td>
         <td>${done ? `<button class="btn btn-sm" data-undo="${r.id}">Reabrir</button> ` :
-          `<button class="btn btn-sm btn-ok" data-ok="${r.id}">Liquidar</button> `}
+          `<button class="btn btn-sm btn-ok" data-ok="${r.id}">Liquidar</button> ` +
+          `<button class="btn btn-sm" data-auto="${r.id}">${r.autoPay ? "Desligar auto" : "Ligar auto"}</button> `}
             <button class="btn btn-sm btn-danger" data-del="${r.id}">Excluir</button></td></tr>`;
-      }).join("")) : `<div class="empty">Nenhum lançamento no período.</div>`}`;
+      }).join("")) + pagerHTML(pidBase + "Pg", rows.length) : `<div class="empty">Nenhum lançamento no período.</div>`}`;
 
+    bindPager(pidBase + "Pg", draw);
     $$("[data-ok]", el).forEach(b => b.onclick = () => settleForm(node, b.dataset.ok, doneStatus));
+    $$("[data-auto]", el).forEach(b => b.onclick = async () => {
+      const r = STATE[node][b.dataset.auto] || {};
+      if (!r.autoPay && !r.accountId) return toast("Defina a conta do título antes de ligar a quitação automática", "err");
+      await update(ref(db, node + "/" + b.dataset.auto), { autoPay: !r.autoPay });
+      toast(!r.autoPay ? "Quitação automática ligada" : "Quitação automática desligada", "ok");
+      autoSettleDuePayables(); autoSettleDueReceivables();
+    });
+
     $$("[data-undo]", el).forEach(b => b.onclick = () => confirmDialog("Reabrir o título e desfazer o lançamento no saldo?", async () => {
       await finRemoveByRef(node, b.dataset.undo);
       await update(ref(db, node + "/" + b.dataset.undo), { status: "pendente", settledAt: "", accountId: "" });
@@ -1357,6 +1811,14 @@ function accountsPanel(el, node, title, doneStatus, partyLabel) {
       await remove(ref(db, node + "/" + b.dataset.del)); toast("Excluído", "ok");
     }));
   };
+  if (node === "payables") {
+    const fixBtn = $("#payFix");
+    if (fixBtn) fixBtn.onclick = async () => {
+      fixBtn.disabled = true;
+      try { await reconcilePayables(false); } finally { fixBtn.disabled = false; }
+      renderView();
+    };
+  }
   $("#accNew").onclick = () => accountForm(node, partyLabel);
   $("#" + pidBase + "_st").onchange = draw;
   $("#" + pidBase + "_q").oninput = draw;
@@ -1406,7 +1868,13 @@ function accountForm(node, partyLabel) {
       <label class="field"><span>Valor (R$) *</span><input id="a_amount" type="number" step="0.01"></label>
       <label class="field"><span>Vencimento</span><input id="a_due" type="date" value="${todayISO()}"></label>
       <label class="field"><span>Categoria</span><input id="a_cat" placeholder="Ex.: Fornecedor, Aluguel, Serviço"></label>
-      <label class="field"><span>Parcelas (repetir mensalmente)</span><input id="a_inst" type="number" value="1" min="1"></label>
+      <label class="field"><span>Parcelas (repetir mensalmente, até 12x)</span>
+        <select id="a_inst">${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}">${i + 1}x</option>`).join("")}</select></label>
+      <label class="field"><span>Juros/desconto cartão de crédito (%)</span>
+        <input id="a_juros" type="number" step="0.01" value="0" placeholder="Ex.: 2,99 = juros · -3 = desconto"></label>
+      <label class="field"><span>Quitação automática</span><select id="a_auto">
+        <option value="0" selected>Manual — liquidar no botão Liquidar</option>
+        <option value="1">Automática — na data do vencimento (exige conta prevista)</option></select></label>
       <label class="field"><span>Conta prevista</span><select id="a_acc"><option value="">Definir na liquidação</option>${accountOptions()}</select></label>
     </div>
     <label class="field"><span>Observações</span><textarea id="a_notes"></textarea></label>
@@ -1415,15 +1883,19 @@ function accountForm(node, partyLabel) {
   $("#mSave").onclick = async () => {
     const d = $("#a_desc").value.trim(), amount = num($("#a_amount").value);
     if (!d || !amount) return toast("Informe descrição e valor", "err");
-    const n = Math.max(1, parseInt($("#a_inst").value) || 1);
-    for (let i = 0; i < n; i++) {
-      const due = new Date($("#a_due").value || todayISO());
-      due.setMonth(due.getMonth() + i);
+    const n = Math.max(1, Math.min(12, parseInt($("#a_inst").value) || 1));
+    const autoPay = $("#a_auto").value === "1";
+    const accId = $("#a_acc").value;
+    if (autoPay && !accId) return toast("Escolha a conta prevista para usar a quitação automática", "err");
+    const totalWithRate = withRate(amount * n, num($("#a_juros").value));
+    const parts = installmentPlan(totalWithRate, n, $("#a_due").value || todayISO());
+    for (const part of parts) {
       await push(ref(db, node), {
-        description: n > 1 ? `${d} (${i + 1}/${n})` : d,
+        description: n > 1 ? `${d} (${part.i}/${n})` : d,
         [node === "payables" ? "supplier" : "customer"]: $("#a_party").value.trim(),
-        amount, due: due.toISOString().slice(0, 10), category: $("#a_cat").value.trim(),
-        accountId: $("#a_acc").value, notes: $("#a_notes").value.trim(), status: "pendente", createdAt: Date.now()
+        amount: part.amount, due: part.due, category: $("#a_cat").value.trim(),
+        accountId: accId, notes: $("#a_notes").value.trim(), status: "pendente",
+        installment: part.i, installments: n, autoPay, cardRate: num($("#a_juros").value), createdAt: Date.now()
       });
     }
     closeModal(); toast("Lançamento salvo", "ok");
@@ -1460,6 +1932,8 @@ function cashFlow(el) {
     const maxDay = Math.max(1, ...days.map(d => Math.abs(d[1])));
     const expP = list(STATE.expenses).filter(e => inPeriod(e.date, pid)).reduce((s, e) => s + num(e.amount), 0);
     const salesP = list(STATE.sales).filter(s => inPeriod(s.date, pid));
+    const upPay = list(STATE.payables).filter(r => r.status !== "pago" && r.due).sort((a, b) => (a.due || "").localeCompare(b.due || ""));
+    const upRec = list(STATE.receivables).filter(r => r.status !== "recebido" && r.due).sort((a, b) => (a.due || "").localeCompare(b.due || ""));
     $("#fx_body").innerHTML = `
       <div class="stats">
         ${stat("Entradas do período", money(tin))}
@@ -1485,7 +1959,21 @@ function cashFlow(el) {
         ${days.length ? `<div class="bars">${days.map(([d, v]) =>
           `<div class="bar-row"><span>${fmtDate(d)}</span><div class="bar"><i style="width:${(Math.abs(v) / maxDay * 100).toFixed(1)}%;background:${v >= 0 ? "var(--ok)" : "var(--danger)"}"></i></div><span class="right">${money(v)}</span></div>`).join("")}</div>`
         : `<div class="empty">Sem movimentos no período.</div>`}</div>
-      <div class="card"><div class="card-head"><h3>Saídas por categoria</h3></div>${barsByCategory(pid)}</div>`;
+      <div class="card"><div class="card-head"><h3>Saídas por categoria</h3></div>${barsByCategory(pid)}</div>
+      <div class="grid2">
+        <div class="card"><div class="card-head"><h3>Programado a pagar — próximos vencimentos</h3></div>
+          ${upPay.length ? tbl(["Vencimento", "Descrição", "Fornecedor", "Valor"],
+            upPay.slice(0, 10).map(r => `<tr><td>${fmtDate(r.due)}</td><td>${esc(r.description)}</td><td>${esc(r.supplier || "—")}</td>
+              <td class="right"><strong>${money(r.amount)}</strong></td></tr>`).join("") +
+            `<tr><td colspan="3"><strong>Total em aberto</strong></td><td class="right"><strong>${money(upPay.reduce((s, r) => s + num(r.amount), 0))}</strong></td></tr>`)
+          : `<div class="empty">Nenhum título a pagar em aberto.</div>`}</div>
+        <div class="card"><div class="card-head"><h3>Programado a receber — próximos vencimentos</h3></div>
+          ${upRec.length ? tbl(["Vencimento", "Descrição", "Cliente", "Valor"],
+            upRec.slice(0, 10).map(r => `<tr><td>${fmtDate(r.due)}</td><td>${esc(r.description)}</td><td>${esc(r.customer || "—")}</td>
+              <td class="right"><strong>${money(r.amount)}</strong></td></tr>`).join("") +
+            `<tr><td colspan="3"><strong>Total em aberto</strong></td><td class="right"><strong>${money(upRec.reduce((s, r) => s + num(r.amount), 0))}</strong></td></tr>`)
+          : `<div class="empty">Nenhum título a receber em aberto.</div>`}</div>
+      </div>`;
   };
   $("#fx_csv").onclick = () => downloadCsv(`fluxo_${periodOf(pid).from || "tudo"}`,
     [["Data", "Tipo", "Descrição", "Conta", "Entrada", "Saída"],
@@ -1550,15 +2038,16 @@ function viewDespesas(root) {
         ${stat("Maior categoria", byCat[0] ? byCat[0][0] : "—", byCat[0] ? money(byCat[0][1]) : "")}
       </div>
       ${rows.length ? tbl(["Data", "Categoria", "Descrição", "Fornecedor/Responsável", "Conta", "Veículo/Placa", "Km", "Pagamento", "Valor", "Ações"],
-      rows.map(r => `<tr><td>${fmtDate(r.date)}</td><td><span class="pill">${esc(r.category)}</span></td>
+      paged("despPg", rows).map(r => `<tr><td>${fmtDate(r.date)}</td><td><span class="pill">${esc(r.category)}</span></td>
       <td>${esc(r.description)}</td><td>${esc(r.party || "—")}</td><td>${esc(r.accountId ? accName(r.accountId) : "—")}</td>
       <td>${esc(r.vehicle || "—")}</td><td>${r.km ? num(r.km) : "—"}</td><td>${esc(r.payment || "—")}</td>
       <td class="right"><strong>${money(r.amount)}</strong></td>
       <td><button class="btn btn-sm" data-edit="${r.id}">Editar</button>
-          <button class="btn btn-sm btn-danger" data-del="${r.id}">Excluir</button></td></tr>`).join(""))
+          <button class="btn btn-sm btn-danger" data-del="${r.id}">Excluir</button></td></tr>`).join("")) + pagerHTML("despPg", rows.length)
       : `<div class="empty">Nenhuma despesa no período.</div>`}
       <div class="card" style="margin-top:14px"><div class="card-head"><h3>Por categoria</h3></div>
         ${byCat.length ? tbl(["Categoria", "Total"], byCat.map(([c, v]) => `<tr><td>${esc(c)}</td><td class="right">${money(v)}</td></tr>`).join("")) : `<div class="empty">Sem dados.</div>`}</div>`;
+    bindPager("despPg", draw);
     $$("[data-edit]", $("#dBody")).forEach(b => b.onclick = () => expenseForm(b.dataset.edit));
     $$("[data-del]", $("#dBody")).forEach(b => b.onclick = () => confirmDialog("Excluir despesa? O lançamento no saldo também será desfeito.", async () => {
       await finRemoveByRef("expense", b.dataset.del);
@@ -1747,7 +2236,7 @@ function viewUsuarios(root) {
       <button class="btn btn-primary" id="uNew">+ Criar usuário</button></div>
     <p class="muted">Os usuários são autenticados pelo Firebase Authentication. As funções e permissões abaixo são armazenadas no Realtime Database e definem o que cada um pode acessar.</p>
     <div style="margin-top:12px">${users.length ? tbl(["Nome", "E-mail", "Telefone", "Função", "Permissões", "Ações"],
-      users.map(u => `<tr>
+      paged("usrPg", users).map(u => `<tr>
         <td>${esc(((u.firstName || "") + " " + (u.lastName || "")).trim() || "—")}</td>
         <td>${esc(u.email)}</td><td>${esc(u.phone || "—")}</td>
         <td><span class="pill ${u.email === ADMIN_EMAIL ? "ok" : ""}">${esc(u.email === ADMIN_EMAIL ? "admin geral" : (u.role || "colaborador"))}</span></td>
@@ -1755,8 +2244,10 @@ function viewUsuarios(root) {
         <td>${u.email === ADMIN_EMAIL ? "<span class='muted'>protegido</span>" :
           `<button class="btn btn-sm" data-perm="${u.id}">Permissões</button>
            <button class="btn btn-sm btn-danger" data-del="${u.id}">Remover</button>`}</td></tr>`).join(""))
-      : `<div class="empty">Nenhum usuário registrado ainda.</div>`}</div>
+      : `<div class="empty">Nenhum usuário registrado ainda.</div>`}
+    ${users.length ? pagerHTML("usrPg", users.length) : ""}</div>
   </div>`;
+  bindPager("usrPg", renderView);
   $("#uNew").onclick = createUserForm;
   $$("[data-perm]", root).forEach(b => b.onclick = () => permsForm(b.dataset.perm));
   $$("[data-del]", root).forEach(b => b.onclick = () => confirmDialog("Remover o perfil e as permissões deste usuário? (A conta de login continua no Firebase Authentication e deve ser excluída pelo console)", async () => {
@@ -1950,4 +2441,542 @@ function viewConfig(root) {
     a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
     a.download = `backup_${todayISO()}.json`; a.click();
   };
+}
+
+/* ==========================================================================
+   MENSAGENS — E-mail interno + Chat online (Firebase Auth + Realtime Database)
+   Estrutura no Realtime Database:
+     presence/{uid}          -> { online, name, email, at, lastSeen }
+     mail/{uid}/{box}/{id}   -> { from, fromName, to[], toNames, subject, body, at, read, starred }
+                                box = inbox | sent | drafts | trash
+     chats/{chatId}          -> { type: direct|group, name, members:{uid:true}, createdBy, createdAt, lastAt, lastText }
+     chatMessages/{chatId}/{msgId} -> { uid, name, text, at, deleted, deletedBy }
+     users/{uid}.chatRole    -> "moderador" | "membro"   (gerenciado pelo admin)
+     users/{uid}.chatMuted / .chatBanned -> boolean
+   ========================================================================== */
+const MSG = { tab: "mail", box: "inbox", chatId: null, _mounted: null, mail: {}, chats: {}, presence: {}, msgs: {}, unsubs: [], msgUnsub: null };
+
+function msgClear() {
+  MSG.unsubs.forEach(u => { try { u(); } catch (e) {} });
+  MSG.unsubs = [];
+  if (MSG.msgUnsub) { try { MSG.msgUnsub(); } catch (e) {} MSG.msgUnsub = null; }
+  MSG.mail = {}; MSG.chats = {}; MSG.presence = {}; MSG.msgs = {}; MSG.chatId = null; MSG._mounted = null;
+}
+
+function myName(u = STATE.profile, email = STATE.user?.email) {
+  return (((u?.firstName || "") + " " + (u?.lastName || "")).trim()) || email || "Usuário";
+}
+function userName(uid) {
+  const u = STATE.users[uid];
+  if (!u) return MSG.presence[uid]?.name || "Usuário";
+  return (((u.firstName || "") + " " + (u.lastName || "")).trim()) || u.email || "Usuário";
+}
+function isOnline(uid) { return !!MSG.presence[uid]?.online; }
+function isChatMod() { return STATE.isAdmin || (STATE.profile?.chatRole === "moderador"); }
+function canChat() { return !(STATE.profile?.chatBanned); }
+function fmtWhen(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts), t = new Date();
+  const sameDay = d.toDateString() === t.toDateString();
+  return sameDay ? d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+function mailUnread() {
+  return Object.values(MSG.mail.inbox || {}).filter(m => !m.read).length;
+}
+function chatUnread() {
+  const uid = STATE.user?.uid;
+  return list(MSG.chats).filter(c => (c.members || {})[uid])
+    .filter(c => c.lastAt && c.lastAt > (STATE.profile?.chatSeen?.[c.id] || 0) && c.lastBy !== uid).length;
+}
+function refreshMsgBadge() {
+  const b = document.querySelector('#nav .nav-item[data-view="mensagens"] .badge');
+  const n = mailUnread() + chatUnread();
+  if (b) { b.textContent = n > 99 ? "99+" : String(n); b.classList.toggle("hidden", !n); }
+}
+
+/* ---------- presença online ---------- */
+function startMessaging() {
+  const user = STATE.user; if (!user) return;
+  msgClear();
+  const meRef = ref(db, "presence/" + user.uid);
+  const info = { name: myName(), email: user.email };
+  const un = onValue(ref(db, ".info/connected"), snap => {
+    if (snap.val() === false) return;
+    onDisconnect(meRef).set({ ...info, online: false, lastSeen: Date.now() })
+      .then(() => set(meRef, { ...info, online: true, at: Date.now() }))
+      .catch(e => console.warn("presença", e));
+  });
+  MSG.unsubs.push(un);
+  window.addEventListener("beforeunload", () => { try { set(meRef, { ...info, online: false, lastSeen: Date.now() }); } catch (e) {} });
+
+  const bind = (path, key) => {
+    const u = onValue(ref(db, path), s => {
+      MSG[key] = s.val() || {};
+      refreshMsgBadge();
+      const modalOpen = !document.getElementById("modalBackdrop")?.classList.contains("hidden");
+      // não re-renderiza enquanto um formulário/modal está aberto (evita perder o que foi digitado)
+      if (STATE.view === "mensagens" && !modalOpen) renderMensagensBody();
+    }, err => console.warn("Sem permissão para ler /" + path, err));
+    MSG.unsubs.push(u);
+  };
+  bind("mail/" + user.uid, "mail");
+  bind("chats", "chats");
+  bind("presence", "presence");
+}
+async function stopMessaging() {
+  const uid = STATE.user?.uid;
+  if (uid) { try { await set(ref(db, "presence/" + uid), { name: myName(), email: STATE.user.email, online: false, lastSeen: Date.now() }); } catch (e) {} }
+  msgClear();
+}
+
+/* ================= VIEW PRINCIPAL ================= */
+function viewMensagens(root) {
+  root.innerHTML = `
+    <div class="tabs">
+      <button class="tab" data-mt="mail">✉ Caixa de e-mail</button>
+      <button class="tab" data-mt="chat">💬 Chat online</button>
+      ${isChatMod() ? `<button class="tab" data-mt="admin">🛡 Moderação & usuários</button>` : ""}
+    </div>
+    <div id="msgBody"></div>`;
+  $$(".tab", root).forEach(b => b.onclick = () => { MSG.tab = b.dataset.mt; renderMensagensBody(); });
+  renderMensagensBody();
+}
+function renderMensagensBody() {
+  const el = $("#msgBody"); if (!el) return;
+  if (MSG.tab === "admin" && !isChatMod()) MSG.tab = "mail";
+  $$("#content .tab").forEach(b => b.classList.toggle("active", b.dataset.mt === MSG.tab));
+  if (MSG.tab === "mail") mailView(el);
+  else if (MSG.tab === "chat") chatView(el);
+  else chatAdminView(el);
+}
+
+/* ================= E-MAIL INTERNO ================= */
+const MAIL_BOXES = [["inbox", "Caixa de entrada", "📥"], ["sent", "Enviados", "📤"],
+["drafts", "Rascunhos", "📝"], ["starred", "Favoritos", "★"], ["trash", "Lixeira", "🗑"]];
+
+function mailList(box) {
+  if (box === "starred") {
+    return [...list(MSG.mail.inbox || {}).map(m => ({ ...m, _box: "inbox" })),
+    ...list(MSG.mail.sent || {}).map(m => ({ ...m, _box: "sent" }))].filter(m => m.starred);
+  }
+  return list(MSG.mail[box] || {}).map(m => ({ ...m, _box: box }));
+}
+function mailView(el) {
+  const box = MSG.box;
+  const rows = mailList(box).sort((a, b) => (b.at || 0) - (a.at || 0));
+  el.innerHTML = `
+  <div class="msg-layout">
+    <aside class="card msg-side">
+      <button class="btn btn-primary btn-block" id="mailNew">✎ Escrever e-mail</button>
+      <div class="msg-folders">
+        ${MAIL_BOXES.map(([k, l, ic]) => {
+          const n = k === "inbox" ? mailUnread() : mailList(k).length;
+          return `<button class="msg-folder ${k === box ? "active" : ""}" data-box="${k}">
+            <span>${ic} ${l}</span>${n ? `<span class="pill">${n}</span>` : ""}</button>`;
+        }).join("")}
+      </div>
+      <p class="muted" style="margin-top:10px">Mensagens internas entre os usuários do sistema, salvas no Realtime Database.</p>
+    </aside>
+    <section class="card msg-main">
+      <div class="card-head"><h3>${MAIL_BOXES.find(b => b[0] === box)[1]}</h3><div style="flex:1"></div>
+        <div class="toolbar"><input id="mailQ" placeholder="Buscar assunto, remetente ou texto" style="min-width:220px"></div>
+      </div>
+      <div id="mailRows" style="margin-top:12px"></div>
+    </section>
+  </div>`;
+  $$("[data-box]", el).forEach(b => b.onclick = () => { MSG.box = b.dataset.box; renderMensagensBody(); });
+  $("#mailNew").onclick = () => mailCompose();
+
+  const draw = () => {
+    const q = ($("#mailQ").value || "").toLowerCase();
+    const data = rows.filter(m => !q || [m.subject, m.body, m.fromName, m.toNames].some(v => (v || "").toLowerCase().includes(q)));
+    $("#mailRows").innerHTML = data.length ? `<div class="mail-list">${paged("mailPg", data).map(m => `
+      <div class="mail-row ${m.read || box === "sent" || box === "drafts" ? "" : "unread"}" data-open="${m._box}:${m.id}">
+        <button class="star ${m.starred ? "on" : ""}" data-star="${m._box}:${m.id}" title="Favoritar">★</button>
+        <div class="mail-who">${esc(box === "sent" || box === "drafts" ? "Para: " + (m.toNames || "—") : (m.fromName || "—"))}</div>
+        <div class="mail-sub"><strong>${esc(m.subject || "(sem assunto)")}</strong>
+          <span class="muted"> — ${esc((m.body || "").slice(0, 80))}</span></div>
+        <div class="mail-date muted">${fmtWhen(m.at)}</div>
+        <button class="btn btn-sm btn-danger" data-mdel="${m._box}:${m.id}">${box === "trash" ? "Excluir" : "Lixeira"}</button>
+      </div>`).join("")}</div>` + pagerHTML("mailPg", data.length)
+      : `<div class="empty">Nenhuma mensagem nesta pasta.</div>`;
+
+    $$("[data-open]", el).forEach(r => r.onclick = ev => {
+      if (ev.target.closest("button")) return;
+      const [b, id] = r.dataset.open.split(":"); mailOpen(b, id);
+    });
+    $$("[data-star]", el).forEach(b => b.onclick = async () => {
+      const [bx, id] = b.dataset.star.split(":");
+      const m = (MSG.mail[bx] || {})[id] || {};
+      await update(ref(db, `mail/${STATE.user.uid}/${bx}/${id}`), { starred: !m.starred });
+    });
+    $$("[data-mdel]", el).forEach(b => b.onclick = async () => {
+      const [bx, id] = b.dataset.mdel.split(":");
+      const m = (MSG.mail[bx] || {})[id]; if (!m) return;
+      if (bx === "trash") { await remove(ref(db, `mail/${STATE.user.uid}/trash/${id}`)); return toast("Mensagem excluída", "ok"); }
+      await set(ref(db, `mail/${STATE.user.uid}/trash/${id}`), { ...m, fromBox: bx });
+      await remove(ref(db, `mail/${STATE.user.uid}/${bx}/${id}`));
+      toast("Movida para a lixeira", "ok");
+    });
+    bindPager("mailPg", draw);
+  };
+  $("#mailQ").oninput = draw;
+  draw();
+}
+
+function mailUserOptions(selected = []) {
+  return list(STATE.users).filter(u => u.id !== STATE.user.uid)
+    .map(u => `<option value="${u.id}" ${selected.includes(u.id) ? "selected" : ""}>${esc(userName(u.id))} — ${esc(u.email)}${isOnline(u.id) ? " ● online" : ""}</option>`).join("");
+}
+function mailCompose(draft = {}) {
+  openModal(draft.id ? "Editar rascunho" : "Novo e-mail", `
+    <label class="field"><span>Destinatários (segure Ctrl para escolher vários) *</span>
+      <select id="ml_to" multiple size="6">${mailUserOptions(draft.to || [])}</select></label>
+    <label class="field" style="margin-top:10px"><span>Assunto</span><input id="ml_sub" value="${esc(draft.subject || "")}"></label>
+    <label class="field" style="margin-top:10px"><span>Mensagem</span><textarea id="ml_body" rows="8">${esc(draft.body || "")}</textarea></label>
+  `, `<button class="btn" id="mCancel">Cancelar</button>
+      <button class="btn" id="mlDraft">Salvar rascunho</button>
+      <button class="btn btn-primary" id="mlSend">Enviar</button>`);
+  $("#mCancel").onclick = closeModal;
+  const collect = () => {
+    const to = Array.from($("#ml_to").selectedOptions).map(o => o.value);
+    return {
+      to, toNames: to.map(userName).join(", "),
+      subject: $("#ml_sub").value.trim(), body: $("#ml_body").value,
+      from: STATE.user.uid, fromName: myName(), fromEmail: STATE.user.email, at: Date.now()
+    };
+  };
+  $("#mlDraft").onclick = async () => {
+    const m = collect();
+    if (draft.id) await set(ref(db, `mail/${STATE.user.uid}/drafts/${draft.id}`), m);
+    else await push(ref(db, `mail/${STATE.user.uid}/drafts`), m);
+    closeModal(); toast("Rascunho salvo", "ok");
+  };
+  $("#mlSend").onclick = async () => {
+    const m = collect();
+    if (!m.to.length) return toast("Escolha ao menos um destinatário", "err");
+    try {
+      for (const uid of m.to) await push(ref(db, `mail/${uid}/inbox`), { ...m, read: false });
+      await push(ref(db, `mail/${STATE.user.uid}/sent`), { ...m, read: true });
+      if (draft.id) await remove(ref(db, `mail/${STATE.user.uid}/drafts/${draft.id}`));
+      closeModal(); toast("E-mail enviado", "ok");
+    } catch (e) { toast("Falha ao enviar: " + (e?.message || e), "err"); }
+  };
+}
+async function mailOpen(box, id) {
+  const m = (MSG.mail[box] || {})[id]; if (!m) return;
+  if (box === "drafts") return mailCompose({ id, ...m });
+  if (box === "inbox" && !m.read) await update(ref(db, `mail/${STATE.user.uid}/inbox/${id}`), { read: true });
+  openModal(m.subject || "(sem assunto)", `
+    <div class="muted">De: <strong>${esc(m.fromName || "—")}</strong> ${esc(m.fromEmail || "")}<br>
+      Para: ${esc(m.toNames || "—")}<br>${fmtWhen(m.at)}</div>
+    <div class="card" style="margin-top:12px;background:var(--panel-2);white-space:pre-wrap">${esc(m.body || "")}</div>
+  `, `<button class="btn" id="mCancel">Fechar</button>
+      <button class="btn" id="mlChat">Abrir chat com o remetente</button>
+      <button class="btn btn-primary" id="mlReply">Responder</button>`);
+  $("#mCancel").onclick = closeModal;
+  $("#mlChat").onclick = () => { closeModal(); openDirectChat(m.from); };
+  $("#mlReply").onclick = () => mailCompose({
+    to: [m.from], subject: (m.subject || "").startsWith("Re:") ? m.subject : "Re: " + (m.subject || ""),
+    body: `\n\n--- Em ${fmtWhen(m.at)}, ${m.fromName} escreveu ---\n${m.body || ""}`
+  });
+}
+
+/* ================= CHAT ONLINE ================= */
+function myChats() {
+  const uid = STATE.user.uid;
+  return list(MSG.chats).filter(c => (c.members || {})[uid]).sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0));
+}
+function chatTitle(c) {
+  if (c.type === "group") return c.name || "Grupo";
+  const other = Object.keys(c.members || {}).find(u => u !== STATE.user.uid);
+  return userName(other);
+}
+function chatView(el) {
+  const chats = myChats();
+  if (MSG.chatId && !chats.some(c => c.id === MSG.chatId)) { MSG.chatId = null; MSG._mounted = null; }
+  if (!el.querySelector("#chatLayout")) {
+    el.innerHTML = `
+    <div class="msg-layout chat-layout" id="chatLayout">
+      <aside class="card msg-side" id="chatSide"></aside>
+      <section class="card msg-main" id="chatPane"></section>
+    </div>`;
+    MSG._mounted = null;
+  }
+  const layout = el.querySelector("#chatLayout");
+  if (layout) layout.classList.toggle("chat-open", !!MSG.chatId);
+  renderChatSide();
+  if (MSG.chatId) {
+    if (MSG._mounted !== MSG.chatId) openChat(MSG.chatId);
+    else refreshChatHeader(MSG.chatId);
+  } else {
+    if (MSG.msgUnsub) { try { MSG.msgUnsub(); } catch (e) {} MSG.msgUnsub = null; }
+    MSG._mounted = null;
+    const pane = $("#chatPane");
+    if (pane) pane.innerHTML = `<div class="empty">Escolha uma conversa ou inicie uma nova.</div>`;
+  }
+}
+
+function renderChatSide() {
+  const side = $("#chatSide"); if (!side) return;
+  const chats = myChats();
+  const online = list(STATE.users).filter(u => u.id !== STATE.user.uid && isOnline(u.id));
+  const others = list(STATE.users).filter(u => u.id !== STATE.user.uid && !isOnline(u.id));
+  side.innerHTML = `
+    <div class="toolbar" style="gap:6px">
+      <button class="btn btn-primary" id="chNewDirect" style="flex:1">+ Conversa</button>
+      <button class="btn" id="chNewGroup" style="flex:1">+ Grupo</button>
+    </div>
+    <div class="section-title">Conversas</div>
+    <div class="msg-folders">${chats.length ? chats.map(c => `
+      <button class="msg-folder ${c.id === MSG.chatId ? "active" : ""}" data-chat="${c.id}">
+        <span>${c.type === "group" ? "👥" : `<span class="dot ${isOnline(Object.keys(c.members || {}).find(u => u !== STATE.user.uid)) ? "on" : ""}"></span>`}
+          ${esc(chatTitle(c))}</span>
+        <small class="muted">${fmtWhen(c.lastAt)}</small>
+      </button>`).join("") : `<div class="empty">Nenhuma conversa ainda.</div>`}</div>
+    <div class="section-title">Quem está online (${online.length})</div>
+    <div class="msg-folders">${online.length ? online.map(u => `
+      <button class="msg-folder" data-dm="${u.id}"><span><span class="dot on"></span>${esc(userName(u.id))}</span>
+      ${u.chatRole === "moderador" ? `<span class="pill">mod</span>` : ""}</button>`).join("")
+      : `<div class="empty">Ninguém online no momento.</div>`}</div>
+    <div class="section-title">Outros usuários</div>
+    <div class="msg-folders">${others.length ? others.map(u => `
+      <button class="msg-folder" data-dm="${u.id}"><span><span class="dot"></span>${esc(userName(u.id))}</span></button>`).join("")
+      : `<div class="empty">Nenhum outro usuário cadastrado.</div>`}</div>`;
+  $$("[data-chat]", side).forEach(b => b.onclick = () => selectChat(b.dataset.chat));
+  $$("[data-dm]", side).forEach(b => b.onclick = () => openDirectChat(b.dataset.dm));
+  $("#chNewDirect").onclick = () => newDirectForm();
+  $("#chNewGroup").onclick = () => newGroupForm();
+}
+
+function selectChat(chatId) {
+  if (MSG.chatId === chatId && MSG._mounted === chatId) return;
+  MSG.chatId = chatId;
+  renderMensagensBody();
+}
+
+function refreshChatHeader(chatId) {
+  const c = MSG.chats[chatId]; const info = $("#chatInfo");
+  if (!c || !info) return;
+  const members = Object.keys(c.members || {});
+  info.textContent = c.type === "group"
+    ? members.length + " participante(s) · " + members.filter(isOnline).length + " online"
+    : (isOnline(members.find(u => u !== STATE.user.uid)) ? "online agora" : "offline");
+}
+
+function newDirectForm() {
+  openModal("Nova conversa", `<label class="field"><span>Usuário</span>
+    <select id="nd_user">${mailUserOptions()}</select></label>`,
+    `<button class="btn" id="mCancel">Cancelar</button><button class="btn btn-primary" id="mSave">Abrir conversa</button>`);
+  $("#mCancel").onclick = closeModal;
+  $("#mSave").onclick = () => { const u = $("#nd_user").value; closeModal(); openDirectChat(u); };
+}
+async function openDirectChat(otherUid) {
+  if (!otherUid) return;
+  const uid = STATE.user.uid;
+  const found = list(MSG.chats).find(c => c.type === "direct" && (c.members || {})[uid] && (c.members || {})[otherUid]);
+  let id = found?.id;
+  if (!id) {
+    const r = await push(ref(db, "chats"), {
+      type: "direct", members: { [uid]: true, [otherUid]: true },
+      createdBy: uid, createdAt: Date.now(), lastAt: Date.now(), lastText: ""
+    });
+    id = r.key;
+  }
+  MSG.tab = "chat"; MSG.chatId = id; MSG._mounted = null;
+  if (STATE.view !== "mensagens") { STATE.view = "mensagens"; renderView(); } else renderMensagensBody();
+}
+function newGroupForm() {
+  openModal("Novo grupo", `
+    <label class="field"><span>Nome do grupo *</span><input id="ng_name" placeholder="Ex.: Equipe de vendas"></label>
+    <label class="field" style="margin-top:10px"><span>Participantes (Ctrl para vários)</span>
+      <select id="ng_users" multiple size="7">${mailUserOptions()}</select></label>
+  `, `<button class="btn" id="mCancel">Cancelar</button><button class="btn btn-primary" id="mSave">Criar grupo</button>`);
+  $("#mCancel").onclick = closeModal;
+  $("#mSave").onclick = async () => {
+    const name = $("#ng_name").value.trim();
+    if (!name) return toast("Informe o nome do grupo", "err");
+    const members = { [STATE.user.uid]: true };
+    Array.from($("#ng_users").selectedOptions).forEach(o => members[o.value] = true);
+    const r = await push(ref(db, "chats"), {
+      type: "group", name, members, createdBy: STATE.user.uid,
+      createdAt: Date.now(), lastAt: Date.now(), lastText: ""
+    });
+    MSG.tab = "chat"; MSG.chatId = r.key; MSG._mounted = null; closeModal(); toast("Grupo criado", "ok"); renderMensagensBody();
+  };
+}
+function openChat(chatId) {
+  const c = MSG.chats[chatId]; const pane = $("#chatPane");
+  if (!c || !pane) return;
+  MSG._mounted = chatId;
+  MSG.msgs = {};
+  const canSend = canChat() && !STATE.profile?.chatMuted;
+  pane.innerHTML = `
+    <div class="card-head chat-head">
+      <button class="btn btn-sm chat-back" id="chBack">←</button>
+      <h3>${esc(chatTitle({ ...c, id: chatId }))}</h3>
+      <div style="flex:1"></div>
+      <div class="toolbar">
+        <span class="muted" id="chatInfo"></span>
+        ${c.type === "group" ? `<button class="btn btn-sm" id="chMembers">Participantes</button>` : ""}
+        ${(c.createdBy === STATE.user.uid || isChatMod()) ? `<button class="btn btn-sm btn-danger" id="chDel">Excluir</button>` : ""}
+      </div>
+    </div>
+    <div class="chat-box" id="chatBox"><div class="empty">Carregando mensagens...</div></div>
+    <form class="chat-send" id="chatForm">
+      <input id="chatInput" placeholder="${canSend ? "Escreva sua mensagem..." : "Você está sem permissão para enviar mensagens"}"
+        ${canSend ? "" : "disabled"} autocomplete="off" enterkeyhint="send">
+      <button class="btn btn-primary" type="submit" ${canSend ? "" : "disabled"}>Enviar</button>
+    </form>`;
+
+  refreshChatHeader(chatId);
+  $("#chBack").onclick = () => { MSG.chatId = null; MSG._mounted = null; renderMensagensBody(); };
+  if ($("#chMembers")) $("#chMembers").onclick = () => groupMembersForm(chatId);
+  if ($("#chDel")) $("#chDel").onclick = () => confirmDialog("Excluir a conversa e todas as mensagens?", async () => {
+    try {
+      await remove(ref(db, "chatMessages/" + chatId));
+      await remove(ref(db, "chats/" + chatId));
+      MSG.chatId = null; MSG._mounted = null; toast("Conversa excluída", "ok"); renderMensagensBody();
+    } catch (e) { toast("Não foi possível excluir: " + e.message, "err"); }
+  });
+
+  if (MSG.msgUnsub) { try { MSG.msgUnsub(); } catch (e) {} MSG.msgUnsub = null; }
+  let got = false;
+  const q = query(ref(db, "chatMessages/" + chatId), limitToLast(300));
+  MSG.msgUnsub = onValue(q, snap => {
+    got = true;
+    if (MSG._mounted !== chatId) return;
+    MSG.msgs = snap.val() || {};
+    drawChatMessages(chatId);
+    refreshMsgBadge();
+    update(ref(db, "users/" + STATE.user.uid + "/chatSeen"), { [chatId]: Date.now() }).catch(() => {});
+  }, err => {
+    got = true;
+    const b = $("#chatBox");
+    if (b) b.innerHTML = `<div class="empty">Não foi possível carregar as mensagens: ${esc(err.message)}<br>
+      Verifique se as regras do Realtime Database foram publicadas.</div>`;
+  });
+  setTimeout(() => {
+    if (got || MSG._mounted !== chatId) return;
+    const b = $("#chatBox");
+    if (b) b.innerHTML = `<div class="empty">Sem resposta do servidor. Verifique sua conexão com a internet
+      e se as regras do Realtime Database foram publicadas no Firebase.</div>`;
+  }, 8000);
+
+  const input = $("#chatInput");
+  const form = $("#chatForm");
+  form.onsubmit = async ev => {
+    ev.preventDefault();
+    const text = input.value.trim();
+    if (!text) { input.focus(); return; }
+    input.value = "";
+    input.focus(); // mantém o teclado aberto no celular
+    try {
+      await push(ref(db, "chatMessages/" + chatId), {
+        uid: STATE.user.uid, name: myName(), text, at: Date.now()
+      });
+      await update(ref(db, "chats/" + chatId), { lastAt: Date.now(), lastText: text.slice(0, 60), lastBy: STATE.user.uid });
+    } catch (e) {
+      input.value = text;
+      toast("Não foi possível enviar: " + e.message, "err");
+    }
+  };
+  if (input) {
+    input.addEventListener("focus", () => setTimeout(() => {
+      const box = $("#chatBox"); if (box) box.scrollTop = box.scrollHeight;
+      form.scrollIntoView({ block: "nearest" });
+    }, 250));
+    if (!("ontouchstart" in window)) input.focus();
+  }
+}
+
+function drawChatMessages(chatId) {
+  const box = $("#chatBox"); if (!box) return;
+  const msgs = list(MSG.msgs).sort((a, b) => (a.at || 0) - (b.at || 0));
+  box.innerHTML = msgs.length ? msgs.map(m => {
+    const mine = m.uid === STATE.user.uid;
+    const canDel = !m.deleted && (mine || isChatMod());
+    return `<div class="chat-msg ${mine ? "mine" : ""}">
+      <div class="bubble">
+        ${mine ? "" : `<div class="chat-author">${esc(m.name || userName(m.uid))}${isOnline(m.uid) ? ` <span class="dot on"></span>` : ""}</div>`}
+        <div class="chat-text">${m.deleted ? `<em class="muted">mensagem removida${m.deletedBy ? " por " + esc(m.deletedBy) : ""}</em>` : esc(m.text || "")}</div>
+        <div class="chat-time muted">${fmtWhen(m.at)}${canDel ? ` · <button class="link-btn" data-msgdel="${m.id}">apagar</button>` : ""}</div>
+      </div></div>`;
+  }).join("") : `<div class="empty">Nenhuma mensagem ainda. Diga olá!</div>`;
+  box.scrollTop = box.scrollHeight;
+  $$("[data-msgdel]", box).forEach(b => b.onclick = async () => {
+    await update(ref(db, `chatMessages/${chatId}/${b.dataset.msgdel}`), {
+      deleted: true, text: "", deletedBy: myName()
+    });
+  });
+}
+function groupMembersForm(chatId) {
+  const c = MSG.chats[chatId] || {};
+  const members = Object.keys(c.members || {});
+  const canManage = c.createdBy === STATE.user.uid || isChatMod();
+  openModal("Participantes — " + (c.name || "Grupo"), `
+    <div class="msg-folders">${members.map(uid => `
+      <div class="msg-folder"><span><span class="dot ${isOnline(uid) ? "on" : ""}"></span>${esc(userName(uid))}
+        ${STATE.users[uid]?.chatRole === "moderador" ? `<span class="pill">mod</span>` : ""}</span>
+        ${canManage && uid !== c.createdBy ? `<button class="btn btn-sm btn-danger" data-rmv="${uid}">Remover</button>` : ""}</div>`).join("")}</div>
+    ${canManage ? `<label class="field" style="margin-top:12px"><span>Adicionar participantes</span>
+      <select id="gm_add" multiple size="5">${list(STATE.users).filter(u => !members.includes(u.id))
+        .map(u => `<option value="${u.id}">${esc(userName(u.id))}</option>`).join("")}</select></label>` : ""}
+  `, `<button class="btn" id="mCancel">Fechar</button>${canManage ? `<button class="btn btn-primary" id="mSave">Adicionar</button>` : ""}`);
+  $("#mCancel").onclick = closeModal;
+  $$("[data-rmv]").forEach(b => b.onclick = async () => {
+    await remove(ref(db, `chats/${chatId}/members/${b.dataset.rmv}`));
+    toast("Participante removido", "ok"); closeModal(); renderMensagensBody();
+  });
+  if ($("#mSave")) $("#mSave").onclick = async () => {
+    const add = {};
+    Array.from($("#gm_add").selectedOptions).forEach(o => add[o.value] = true);
+    if (!Object.keys(add).length) return closeModal();
+    await update(ref(db, `chats/${chatId}/members`), add);
+    closeModal(); toast("Participantes adicionados", "ok"); renderMensagensBody();
+  };
+}
+
+/* ================= MODERAÇÃO / GESTÃO DE USUÁRIOS DO CHAT ================= */
+function chatAdminView(el) {
+  const users = list(STATE.users);
+  el.innerHTML = `
+  <div class="card">
+    <div class="card-head"><h3>Usuários do chat e moderação</h3><div style="flex:1"></div>
+      <span class="muted">${users.filter(u => isOnline(u.id)).length} online de ${users.length}</span></div>
+    <p class="muted">O administrador pode conceder o cargo de <strong>moderador de chat</strong> (pode apagar mensagens de qualquer usuário e gerenciar grupos),
+      silenciar ou bloquear o acesso de um usuário ao chat.</p>
+    <div style="margin-top:12px">${users.length ? tbl(["Usuário", "E-mail", "Situação", "Cargo no chat", "Ações"],
+      users.map(u => `<tr>
+        <td><span class="dot ${isOnline(u.id) ? "on" : ""}"></span> ${esc(userName(u.id))}</td>
+        <td>${esc(u.email || "—")}</td>
+        <td>${isOnline(u.id) ? `<span class="pill ok">online</span>`
+          : `<span class="pill">offline${MSG.presence[u.id]?.lastSeen ? " · " + fmtWhen(MSG.presence[u.id].lastSeen) : ""}</span>`}
+          ${u.chatMuted ? ` <span class="pill warn">silenciado</span>` : ""}${u.chatBanned ? ` <span class="pill dan">bloqueado</span>` : ""}</td>
+        <td>${u.email === ADMIN_EMAIL ? `<span class="pill ok">admin geral</span>`
+          : `<span class="pill ${u.chatRole === "moderador" ? "ok" : ""}">${esc(u.chatRole || "membro")}</span>`}</td>
+        <td>${u.id === STATE.user.uid || u.email === ADMIN_EMAIL ? `<span class="muted">—</span>` : `
+          ${STATE.isAdmin ? `<button class="btn btn-sm" data-role="${u.id}">${u.chatRole === "moderador" ? "Remover moderação" : "Tornar moderador"}</button>` : ""}
+          <button class="btn btn-sm" data-mute="${u.id}">${u.chatMuted ? "Reativar fala" : "Silenciar"}</button>
+          ${STATE.isAdmin ? `<button class="btn btn-sm btn-danger" data-ban="${u.id}">${u.chatBanned ? "Desbloquear" : "Bloquear chat"}</button>` : ""}
+          <button class="btn btn-sm btn-ok" data-open="${u.id}">Conversar</button>`}</td></tr>`).join(""))
+      : `<div class="empty">Nenhum usuário cadastrado.</div>`}</div>
+  </div>`;
+  $$("[data-role]", el).forEach(b => b.onclick = async () => {
+    const u = STATE.users[b.dataset.role] || {};
+    await update(ref(db, "users/" + b.dataset.role), { chatRole: u.chatRole === "moderador" ? "membro" : "moderador" });
+    toast("Cargo de chat atualizado", "ok");
+  });
+  $$("[data-mute]", el).forEach(b => b.onclick = async () => {
+    const u = STATE.users[b.dataset.mute] || {};
+    await update(ref(db, "users/" + b.dataset.mute), { chatMuted: !u.chatMuted });
+    toast(!u.chatMuted ? "Usuário silenciado no chat" : "Usuário reativado", "ok");
+  });
+  $$("[data-ban]", el).forEach(b => b.onclick = async () => {
+    const u = STATE.users[b.dataset.ban] || {};
+    await update(ref(db, "users/" + b.dataset.ban), { chatBanned: !u.chatBanned });
+    toast(!u.chatBanned ? "Acesso ao chat bloqueado" : "Acesso ao chat liberado", "ok");
+  });
+  $$("[data-open]", el).forEach(b => b.onclick = () => openDirectChat(b.dataset.open));
 }

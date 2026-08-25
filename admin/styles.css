@@ -166,3 +166,78 @@ tbody tr:hover{background:var(--panel-2)}
 .toolbar[data-period] input:disabled{opacity:.55}
 .bars .bar i{transition:width .2s ease}
 @media print{ .sidebar,.topbar,.toolbar{display:none !important} .content{padding:0} }
+
+/* ================= MENSAGENS: e-mail interno + chat ================= */
+.nav-item .badge{margin-left:auto;background:var(--danger);color:#fff;border-radius:999px;
+  font-size:11px;padding:1px 7px;font-weight:700}
+.msg-layout{display:grid;grid-template-columns:280px 1fr;gap:var(--gap);align-items:start}
+@media (max-width:900px){.msg-layout{grid-template-columns:1fr}}
+.msg-side{display:flex;flex-direction:column;gap:10px}
+.msg-main{display:flex;flex-direction:column;min-height:520px}
+.msg-folders{display:flex;flex-direction:column;gap:4px}
+.msg-folder{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;
+  background:transparent;border:1px solid transparent;color:var(--text);font-family:inherit;font-size:14px;
+  padding:9px 10px;border-radius:10px;cursor:pointer;text-align:left}
+.msg-folder:hover{background:var(--panel-2)}
+.msg-folder.active{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:6px}
+.dot.on{background:var(--ok);box-shadow:0 0 0 3px rgba(37,194,129,.18)}
+
+.mail-list{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.mail-row{display:grid;grid-template-columns:32px 170px 1fr 130px auto;gap:10px;align-items:center;
+  padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;background:var(--panel)}
+.mail-row:last-child{border-bottom:0}
+.mail-row:hover{background:var(--panel-2)}
+.mail-row.unread{background:var(--primary-soft)}
+.mail-row.unread .mail-sub strong{font-weight:800}
+.mail-sub{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mail-date{font-size:12px;text-align:right}
+.mail-row .star{background:none;border:0;font-size:16px;cursor:pointer;color:var(--muted)}
+.mail-row .star.on{color:var(--warn)}
+@media (max-width:760px){.mail-row{grid-template-columns:28px 1fr auto}.mail-who,.mail-date{display:none}}
+
+.chat-box{flex:1;overflow-y:auto;max-height:52vh;min-height:280px;display:flex;flex-direction:column;gap:8px;
+  padding:12px;margin-top:12px;background:var(--bg-2);border:1px solid var(--border);border-radius:12px}
+.chat-msg{display:flex}
+.chat-msg.mine{justify-content:flex-end}
+.chat-msg .bubble{max-width:76%;background:var(--panel-2);border:1px solid var(--border);
+  border-radius:14px;padding:8px 12px}
+.chat-msg.mine .bubble{background:var(--primary);border-color:var(--primary);color:var(--primary-ink)}
+.chat-msg.mine .bubble .muted,.chat-msg.mine .bubble .link-btn{color:rgba(255,255,255,.82)}
+.chat-author{font-size:12px;font-weight:700;color:var(--primary);margin-bottom:2px}
+.chat-text{font-size:14px;white-space:pre-wrap;word-break:break-word}
+.chat-time{font-size:11px;margin-top:3px}
+.chat-send{display:flex;gap:8px;margin-top:10px}
+.chat-send input{flex:1}
+
+
+/* ---- Chat: layout responsivo e correções de teclado no celular ---- */
+.chat-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.chat-back{display:none}
+.chat-layout .msg-main{min-height:60vh}
+@media (max-width:900px){
+  .chat-layout{grid-template-columns:1fr}
+  .chat-layout.chat-open .msg-side{display:none}
+  .chat-layout:not(.chat-open) .msg-main{display:none}
+  .chat-back{display:inline-flex}
+  .chat-box{max-height:none;height:auto;flex:1;min-height:180px}
+  .chat-layout .msg-main{min-height:calc(100dvh - 190px)}
+  .chat-send{position:sticky;bottom:0;background:var(--panel);padding-top:8px}
+  .chat-send input{font-size:16px} /* evita zoom automático no iOS */
+  .chat-msg .bubble{max-width:88%}
+}
+
+/* ================= Paginação (10/20/30 por página) ================= */
+.pager{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}
+.pager-info{color:var(--muted);font-size:12.5px;margin-right:auto}
+.pager-btns{display:flex;gap:4px;flex-wrap:wrap}
+.pager-btns .btn{min-width:34px;padding:6px 10px}
+.pager-btns .btn:disabled{opacity:.4;cursor:not-allowed;filter:none}
+.pager-size{width:auto;min-width:120px;padding:7px 10px;font-size:12.5px}
+
+/* ================= Correções de design ================= */
+td .btn-sm{margin:1px 3px 1px 0;white-space:nowrap}
+.toolbar .btn{white-space:nowrap}
+.modal-foot{flex-wrap:wrap}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+@media print{ .pager{display:none !important} }
