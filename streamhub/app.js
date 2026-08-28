@@ -2451,3 +2451,319 @@ document.addEventListener("DOMContentLoaded", () => {
         alternarBotoesAdminMaster();
     });
 });
+
+// ==========================================
+// ESPELHAMENTO DE VÍDEOS (CHROMECAST)
+// Módulo independente: usa o Google Cast SDK (CAF).
+// - Arquivos diretos (mp4/mkv/webm/mp3/hls) -> Default Media Receiver
+// - Vídeos e playlists do YouTube -> app oficial do YouTube na TV
+// - Demais fontes (iframes/Drive/Archive) -> orienta o espelhamento de aba
+// ==========================================
+const CAST_YT_RECEIVER_ID = "233637DE";
+const CAST_YT_NAMESPACE = "urn:x-cast:com.google.youtube.mdx";
+
+let castApiPronta = false;
+let castContext = null;
+let castRemotePlayer = null;
+let castRemoteController = null;
+let castModoAtual = null;      // 'media' | 'youtube'
+let castReceiverDesejado = null;
+let castEstaTransmitindo = false;
+let castIndiceEmTransmissao = -1;
+
+window['__onGCastApiAvailable'] = function (disponivel) {
+    if (!disponivel) return;
+    try { inicializarCast(); } catch (e) { console.warn("Cast: falha ao iniciar", e); }
+};
+
+function inicializarCast() {
+    if (castApiPronta || typeof cast === "undefined" || !cast.framework) return;
+    castApiPronta = true;
+    castContext = cast.framework.CastContext.getInstance();
+    castDefinirReceiver(chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID);
+
+    castContext.addEventListener(
+        cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+        () => atualizarInterfaceCast()
+    );
+    castContext.addEventListener(
+        cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
+        (evento) => {
+            const S = cast.framework.SessionState;
+            if (evento.sessionState === S.SESSION_STARTED || evento.sessionState === S.SESSION_RESUMED) {
+                castEstaTransmitindo = true;
+                if (castModoAtual) transmitirFaixaAtual(true);
+            }
+            if (evento.sessionState === S.SESSION_ENDED) {
+                castEstaTransmitindo = false;
+                castModoAtual = null;
+                castIndiceEmTransmissao = -1;
+                retomarReproducaoLocal();
+            }
+            atualizarInterfaceCast();
+        }
+    );
+
+    castRemotePlayer = new cast.framework.RemotePlayer();
+    castRemoteController = new cast.framework.RemotePlayerController(castRemotePlayer);
+    castRemoteController.addEventListener(
+        cast.framework.RemotePlayerEventType.PLAYER_STATE_CHANGED,
+        () => {
+            if (!castEstaTransmitindo) return;
+            if (castRemotePlayer.playerState === chrome.cast.media.PlayerState.IDLE &&
+                castIndiceEmTransmissao === currentTrackIndex &&
+                currentTrackIndex + 1 < currentPlaylist.length) {
+                const media = castContext.getCurrentSession()?.getMediaSession();
+                if (media && media.idleReason === chrome.cast.media.IdleReason.FINISHED) {
+                    playTrack(currentTrackIndex + 1);
+                }
+            }
+        }
+    );
+
+    atualizarInterfaceCast();
+}
+
+function castDefinirReceiver(appId) {
+    if (!castContext || castReceiverDesejado === appId) return;
+    castReceiverDesejado = appId;
+    castContext.setOptions({
+        receiverApplicationId: appId,
+        autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
+        androidReceiverCompatible: true
+    });
+}
+
+function castLinkDaFaixa(track) {
+    return ((track && track.link) || "").trim();
+}
+
+function castTipoDaFonte(link) {
+    const url = (link || "").toLowerCase();
+    const vId = (typeof extractYoutubeId === "function") ? extractYoutubeId(link) : null;
+    const plId = (typeof extractPlaylistId === "function") ? extractPlaylistId(link) : null;
+    if (vId || plId || url.includes("youtube.com") || url.includes("youtu.be")) return "youtube";
+    if (/\.(mp4|m4v|webm|ogv|mov|mkv|mp3|m4a|aac|ogg|m3u8|mpd)(\?|$)/.test(url)) return "media";
+    if (url.includes("raw.githubusercontent") || url.includes("docs.google.com/uc?export=download")) return "media";
+    return "desconhecido";
+}
+
+function castMimeDoArquivo(link) {
+    const url = (link || "").toLowerCase();
+    if (url.includes(".m3u8")) return "application/x-mpegurl";
+    if (url.includes(".mpd")) return "application/dash+xml";
+    if (url.includes(".webm")) return "video/webm";
+    if (url.includes(".mkv")) return "video/x-matroska";
+    if (url.includes(".mp3")) return "audio/mpeg";
+    if (url.includes(".m4a") || url.includes(".aac")) return "audio/mp4";
+    if (url.includes(".ogg") || url.includes(".ogv")) return "video/ogg";
+    return "video/mp4";
+}
+
+function castAvisar(mensagem) {
+    const anterior = document.querySelector(".cast-toast");
+    if (anterior) anterior.remove();
+    const caixa = document.createElement("div");
+    caixa.className = "cast-toast";
+    caixa.innerHTML = mensagem;
+    document.body.appendChild(caixa);
+    setTimeout(() => { try { caixa.remove(); } catch (e) {} }, 7000);
+}
+
+function pausarReproducaoLocal() {
+    try { if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo(); } catch (e) {}
+    const raw = document.getElementById("raw-player");
+    if (raw) { try { raw.pause(); } catch (e) {} }
+}
+
+function retomarReproducaoLocal() {
+    const raw = document.getElementById("raw-player");
+    if (raw && raw.src && !raw.classList.contains("hidden")) { try { raw.play(); } catch (e) {} }
+}
+
+async function alternarTransmissao() {
+    if (!castApiPronta || !castContext) {
+        castAvisar("<b>Chromecast indisponível</b><br>Abra o site no Google Chrome, Edge ou Android (via HTTPS) para transmitir.");
+        return;
+    }
+    if (castContext.getCastState() === cast.framework.CastState.NO_DEVICES_AVAILABLE) {
+        castAvisar("<b>Nenhum dispositivo encontrado</b><br>Verifique se a TV/Chromecast está na mesma rede Wi-Fi.");
+        return;
+    }
+    if (castEstaTransmitindo) { encerrarTransmissao(); return; }
+    if (!currentPlaylist.length || currentTrackIndex < 0) {
+        castAvisar("<b>Escolha um vídeo primeiro</b><br>Abra uma mídia no player e depois toque em transmitir.");
+        return;
+    }
+    transmitirFaixaAtual(false);
+}
+
+async function transmitirFaixaAtual(sessaoJaAtiva) {
+    const track = currentPlaylist[currentTrackIndex];
+    if (!track) return;
+    const link = castLinkDaFaixa(track);
+    const tipo = castTipoDaFonte(link);
+
+    if (tipo === "desconhecido") {
+        castAvisar("<b>Fonte não suportada pelo Chromecast</b><br>Este vídeo é exibido por um player externo. Use o menu do Chrome (⋮) &rarr; <i>Transmitir</i> &rarr; <i>Fontes: Transmitir aba</i> para espelhar.");
+        return;
+    }
+
+    const appDesejado = tipo === "youtube" ? CAST_YT_RECEIVER_ID : chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID;
+    const sessaoAtual = castContext.getCurrentSession();
+    const precisaTrocarApp = sessaoAtual && castReceiverDesejado !== appDesejado;
+
+    if (precisaTrocarApp) {
+        try { await castContext.endCurrentSession(true); } catch (e) {}
+    }
+
+    castModoAtual = tipo;
+    castDefinirReceiver(appDesejado);
+
+    if (!castContext.getCurrentSession()) {
+        try {
+            await castContext.requestSession();
+            return; // o evento SESSION_STARTED chama esta função novamente
+        } catch (e) {
+            castModoAtual = null;
+            return;
+        }
+    }
+
+    pausarReproducaoLocal();
+    if (tipo === "youtube") await enviarYoutubeParaTV(link);
+    else await enviarArquivoParaTV(track, link);
+
+    castEstaTransmitindo = true;
+    castIndiceEmTransmissao = currentTrackIndex;
+    atualizarInterfaceCast();
+}
+
+async function enviarYoutubeParaTV(link) {
+    const sessao = castContext.getCurrentSession();
+    if (!sessao) return;
+    const videoId = (typeof extractYoutubeId === "function") ? extractYoutubeId(link) : null;
+    const listId = (typeof extractPlaylistId === "function") ? extractPlaylistId(link) : null;
+    const dados = { currentTime: 0 };
+    if (videoId) dados.videoId = videoId;
+    if (listId) dados.listId = listId;
+    if (!videoId && !listId) {
+        castAvisar("<b>Não foi possível identificar o vídeo do YouTube.</b>");
+        return;
+    }
+    try {
+        await sessao.sendMessage(CAST_YT_NAMESPACE, { type: "flingVideo", data: dados });
+    } catch (e) {
+        castAvisar("<b>A TV recusou a transmissão do YouTube</b><br>Use o menu do Chrome (⋮) &rarr; <i>Transmitir</i> para espelhar a aba.");
+    }
+}
+
+async function enviarArquivoParaTV(track, link) {
+    const sessao = castContext.getCurrentSession();
+    if (!sessao) return;
+    const info = new chrome.cast.media.MediaInfo(link, castMimeDoArquivo(link));
+    info.metadata = new chrome.cast.media.GenericMediaMetadata();
+    info.metadata.title = (track && (track.título || track.titulo)) || "StreamHub";
+    if (track && track.capa) info.metadata.images = [new chrome.cast.Image(track.capa)];
+    const pedido = new chrome.cast.media.LoadRequest(info);
+    pedido.autoplay = true;
+    try {
+        await sessao.loadMedia(pedido);
+    } catch (e) {
+        castAvisar("<b>Falha ao transmitir este arquivo</b><br>O formato pode não ser suportado pela TV.");
+    }
+}
+
+function encerrarTransmissao() {
+    if (!castContext) return;
+    try { castContext.endCurrentSession(true); } catch (e) {}
+    castEstaTransmitindo = false;
+    castModoAtual = null;
+    castIndiceEmTransmissao = -1;
+    atualizarInterfaceCast();
+    retomarReproducaoLocal();
+}
+
+function garantirBarraDeStatusCast() {
+    if (document.getElementById("cast-status-bar")) return document.getElementById("cast-status-bar");
+    const container = document.getElementById("player-container");
+    const header = container ? container.querySelector(".player-header") : null;
+    if (!container || !header) return null;
+    const barra = document.createElement("div");
+    barra.id = "cast-status-bar";
+    barra.innerHTML =
+        '<span class="cast-status-text"><i class="fab fa-chromecast"></i> <span id="cast-status-label">Transmitindo</span></span>' +
+        '<span class="cast-status-actions">' +
+        '<button type="button" id="btn-cast-play-pause"><i class="fas fa-pause"></i> Pausar</button>' +
+        '<button type="button" id="btn-cast-stop"><i class="fas fa-stop"></i> Parar</button>' +
+        '</span>';
+    header.insertAdjacentElement("afterend", barra);
+    return barra;
+}
+
+function atualizarInterfaceCast() {
+    const botao = document.getElementById("btn-cast");
+    if (botao) {
+        const disponivel = castApiPronta && castContext &&
+            castContext.getCastState() !== cast.framework.CastState.NO_DEVICES_AVAILABLE;
+        botao.classList.toggle("cast-available", !!disponivel);
+        botao.classList.toggle("cast-connected", !!castEstaTransmitindo);
+        botao.title = castEstaTransmitindo ? "Parar transmissão para a TV" : "Transmitir para a TV (Chromecast)";
+    }
+    const barra = garantirBarraDeStatusCast();
+    if (!barra) return;
+    barra.classList.toggle("active", !!castEstaTransmitindo);
+    const rotulo = document.getElementById("cast-status-label");
+    if (rotulo) {
+        const nomeDispositivo = (castContext && castContext.getCurrentSession) ?
+            (castContext.getCurrentSession()?.getCastDevice()?.friendlyName || "TV") : "TV";
+        rotulo.innerText = `Transmitindo em ${nomeDispositivo}`;
+    }
+    const btnPP = document.getElementById("btn-cast-play-pause");
+    if (btnPP) {
+        const pausado = castRemotePlayer && castRemotePlayer.isPaused;
+        btnPP.innerHTML = pausado ? '<i class="fas fa-play"></i> Retomar' : '<i class="fas fa-pause"></i> Pausar';
+    }
+}
+
+document.addEventListener("click", (e) => {
+    if (e.target.closest("#btn-cast")) { alternarTransmissao(); return; }
+    if (e.target.closest("#btn-cast-stop")) { encerrarTransmissao(); return; }
+    if (e.target.closest("#btn-cast-play-pause")) {
+        if (castRemoteController) {
+            try { castRemoteController.playOrPause(); } catch (err) {}
+            setTimeout(atualizarInterfaceCast, 250);
+        }
+    }
+});
+
+// Troca de faixa e volume continuam funcionando enquanto transmite
+(function integrarCastComPlayer() {
+    if (typeof playTrack === "function") {
+        const originalPlay = playTrack;
+        playTrack = function (index) {
+            originalPlay(index);
+            if (castEstaTransmitindo) {
+                setTimeout(() => { try { transmitirFaixaAtual(true); } catch (e) {} }, 200);
+            }
+        };
+    }
+    if (typeof aplicarVolume === "function") {
+        const originalVolume = aplicarVolume;
+        aplicarVolume = function () {
+            originalVolume();
+            if (!castEstaTransmitindo || !castContext) return;
+            const slider = document.getElementById("player-volume-slider");
+            const btnMute = document.getElementById("btn-mute-toggle");
+            const sessao = castContext.getCurrentSession();
+            if (!slider || !sessao) return;
+            const mudo = btnMute && btnMute.getAttribute("data-muted") === "true";
+            try {
+                sessao.setVolume(Math.max(0, Math.min(1, parseInt(slider.value) / 100)));
+                sessao.setMute(!!mudo);
+            } catch (e) {}
+        };
+    }
+})();
+
+document.addEventListener("DOMContentLoaded", () => { garantirBarraDeStatusCast(); atualizarInterfaceCast(); });

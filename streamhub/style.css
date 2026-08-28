@@ -1622,3 +1622,64 @@ body.theme-claro textarea::placeholder {
     .modal-box.admin-box { height: calc(100dvh - 20px); }
     .dropdown-content-menu { max-height: 60dvh; }
 }
+
+/* ==========================================
+   ESPELHAMENTO / CHROMECAST
+   ========================================== */
+.btn-cast { position: relative; }
+.btn-cast.cast-available { color: var(--text-white); }
+.btn-cast.cast-connected { color: var(--theme-color); }
+.btn-cast.cast-connected::after {
+    content: "";
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--theme-color);
+    box-shadow: 0 0 6px var(--theme-color);
+}
+#cast-status-bar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    color: var(--text-white);
+    background: var(--bg-sidebar);
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+}
+#cast-status-bar.active { display: flex; }
+#cast-status-bar .cast-status-text { display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#cast-status-bar .cast-status-text i { color: var(--theme-color); }
+#cast-status-bar .cast-status-actions { display: flex; gap: 6px; flex-shrink: 0; }
+#cast-status-bar button {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-white);
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 0.75rem;
+}
+#cast-status-bar button:hover { border-color: var(--theme-color); color: var(--theme-color); }
+.cast-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    max-width: 90vw;
+    z-index: 99999;
+    background: var(--bg-card);
+    color: var(--text-white);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--theme-color);
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    line-height: 1.35;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+}

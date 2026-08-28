@@ -189,6 +189,7 @@
                         <input type="range" id="player-volume-slider" min="0" max="100" value="100" title="Controle de Volume">
                     </div>
                     
+                    <button id="btn-cast" class="btn-player-action btn-cast" title="Transmitir para a TV (Chromecast)"><i class="fab fa-chromecast"></i></button>
                     <button id="btn-toggle-comments" class="btn-player-action" title="Mostrar/Ocultar Comentários"><i class="fas fa-comments"></i></button>
                     <button id="btn-close-player" class="btn-icon-close" title="Fechar Player"><i class="fas fa-times-circle"></i></button>
                 </div>
@@ -569,6 +570,7 @@
 		</a>
     
     <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
     <script src="app.js"></script>
 </body>
 </html>
