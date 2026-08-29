@@ -1168,9 +1168,16 @@ function setupEventListeners() {
         if (e.target.closest('#btn-trigger-dropdown-mobile')) {
             e.stopPropagation();
             document.getElementById('dropdown-menu-mobile')?.classList.toggle('hidden');
-        } else {
+        } else if (!e.target.closest('#dropdown-menu-mobile')) {
             document.getElementById('dropdown-menu-mobile')?.classList.add('hidden');
         }
+        // Mantem o cabecalho acima de tudo enquanto o menu da engrenagem esta aberto
+        (function syncDropdownStacking() {
+            const menu = document.getElementById('dropdown-menu-mobile');
+            const header = document.querySelector('.app-header');
+            if (!menu || !header) return;
+            header.classList.toggle('dropdown-open', !menu.classList.contains('hidden'));
+        })();
 
         if (e.target.closest('#btn-toggle-sidebar-mobile')) {
             handleToggleSidebar();
@@ -3222,3 +3229,60 @@ document.addEventListener("click", (e) => {
         document.querySelector("#player-container .player-controls-group")?.classList.remove("menu-open");
     }
 }, true);
+
+// ==========================================
+// MOBILE: FECHAR O MENU LATERAL AO CLICAR FORA
+// ==========================================
+(function () {
+    function obterBackdrop() {
+        let bd = document.getElementById("sidebar-backdrop");
+        if (!bd) {
+            bd = document.createElement("div");
+            bd.id = "sidebar-backdrop";
+            bd.className = "sidebar-backdrop";
+            document.body.appendChild(bd);
+            bd.addEventListener("click", fecharSidebarMobile);
+        }
+        return bd;
+    }
+
+    function fecharSidebarMobile() {
+        document.getElementById("sidebar")?.classList.remove("open");
+        atualizarBackdrop();
+    }
+
+    function atualizarBackdrop() {
+        const sidebar = document.getElementById("sidebar");
+        const aberto = !!sidebar && sidebar.classList.contains("open") && window.innerWidth <= 768;
+        obterBackdrop().classList.toggle("visible", aberto);
+    }
+
+    // Clique/toque fora do menu lateral fecha o menu
+    document.addEventListener("pointerdown", (e) => {
+        if (window.innerWidth > 768) return;
+        const sidebar = document.getElementById("sidebar");
+        if (!sidebar || !sidebar.classList.contains("open")) return;
+        if (e.target.closest("#sidebar")) return;
+        // Não fecha ao usar os próprios botões que abrem/fecham o menu
+        if (e.target.closest("#toggle-sidebar, #btn-toggle-sidebar-mobile")) return;
+        fecharSidebarMobile();
+    }, true);
+
+    // Mantém o fundo escuro sincronizado com o estado do menu
+    document.addEventListener("click", () => setTimeout(atualizarBackdrop, 0), true);
+    window.addEventListener("resize", atualizarBackdrop);
+    document.addEventListener("DOMContentLoaded", () => {
+        atualizarBackdrop();
+        const sidebar = document.getElementById("sidebar");
+        if (sidebar) {
+            try {
+                new MutationObserver(atualizarBackdrop).observe(sidebar, { attributes: true, attributeFilter: ["class"] });
+            } catch (e) {}
+        }
+    });
+
+    // Tecla ESC também fecha
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") fecharSidebarMobile(); });
+
+    window.fecharSidebarMobile = fecharSidebarMobile;
+})();
