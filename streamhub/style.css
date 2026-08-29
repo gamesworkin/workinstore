@@ -377,7 +377,16 @@ button:active {
 
 .media-type-badge { position: absolute; top: 8px; left: 8px; background: rgba(142,68,173,0.9); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; color: #fff; }
 .add-music-badge { position: absolute; top: 8px; right: 8px; background: #2ecc71; color: #fff; padding: 4px 8px; font-size: 0.75rem; }
-.quick-edit-badge { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.7); color: var(--theme-color); padding: 6px 8px; border-radius: 50%; font-size: 0.9rem; }
+.quick-edit-badge {
+    position: absolute; bottom: 8px; right: 8px;
+    display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px;
+    background: rgba(0,0,0,0.75); color: var(--theme-color);
+    border: 1px solid var(--border-color);
+    border-radius: 50%; font-size: 0.9rem; line-height: 1;
+    cursor: pointer; z-index: 4;
+    transition: background .2s, color .2s;
+}
 .quick-edit-badge:hover { color: #fff; background: var(--theme-color); }
 
 .search-btn-group { display: flex; gap: 2px; padding: 0 8px 8px 8px; }
@@ -731,10 +740,16 @@ body.theme-claro .theme-switcher-float {
         text-overflow: ellipsis !important;
     }
 
-    #mosaic-grid .card .media-type-badge,
-    #mosaic-grid .card .quick-edit-badge {
+    #mosaic-grid .card .media-type-badge {
         font-size: 0.6rem !important;
         padding: 2px 4px !important;
+    }
+    /* O botão de edição permanece sempre visível e clicável nos cards */
+    #mosaic-grid .card .quick-edit-badge {
+        font-size: 0.8rem !important;
+        width: 28px !important;
+        height: 28px !important;
+        padding: 0 !important;
     }
 }
 
@@ -1682,4 +1697,406 @@ body.theme-claro textarea::placeholder {
     font-size: 0.85rem;
     line-height: 1.35;
     box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+}
+
+/* ==========================================
+   COMPARTILHAMENTO, MENU RETRÁTIL E SENHA VISÍVEL
+   ========================================== */
+
+/* Botão de compartilhar nos cards */
+.card { position: relative; }
+.card .share-badge {
+    position: absolute;
+    bottom: 8px;
+    right: 48px;
+    background: rgba(0,0,0,0.7);
+    color: var(--text-white);
+    padding: 6px 8px;
+    border-radius: 50%;
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 3;
+    transition: background .2s, color .2s;
+}
+.card .share-badge:hover { background: var(--theme-color); color: #fff; }
+/* Sem botão de edição, o compartilhar assume o canto */
+.card:not(:has(.quick-edit-badge)) .share-badge { right: 8px; }
+
+/* Botão retrátil do player (visível apenas no modo compacto) */
+.btn-player-more { display: none; }
+.player-header.compact-mode .btn-player-more { display: inline-flex; align-items: center; justify-content: center; }
+
+.player-header.compact-mode { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; position: relative; }
+.player-header.compact-mode h3 { flex: 1; min-width: 0; max-width: none; }
+
+.player-header.compact-mode .player-controls-group {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 8px;
+    width: auto;
+    min-width: 190px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.5);
+    z-index: 500;
+}
+.player-header.compact-mode .player-controls-group.menu-open { display: flex; }
+.player-header.compact-mode .player-controls-group .btn-player-action {
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+}
+.player-header.compact-mode .player-volume-wrapper { width: 100%; justify-content: space-between; padding: 4px 6px; border-radius: 6px; }
+.player-header.compact-mode #player-volume-slider { width: 120px; flex: none; }
+
+/* Rótulos no menu retrátil, para ficar claro o que cada opção faz */
+.player-header.compact-mode .player-controls-group #btn-prev-track::after { content: "Anterior"; }
+.player-header.compact-mode .player-controls-group #btn-next-track::after { content: "Próxima"; }
+.player-header.compact-mode .player-controls-group #btn-share-media::after { content: "Compartilhar"; }
+.player-header.compact-mode .player-controls-group #btn-cast::after { content: "Espelhar na TV"; }
+.player-header.compact-mode .player-controls-group #btn-toggle-comments::after { content: "Comentários"; }
+.player-header.compact-mode .player-controls-group .btn-player-action::after {
+    margin-left: 10px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    vertical-align: middle;
+}
+.player-header.compact-mode .btn-icon-close { margin-left: auto; }
+
+/* Botão mostrar/ocultar senha (animação exclusiva de olho) */
+.input-group.has-toggle-senha > input,
+.input-block.has-toggle-senha > input { padding-right: 52px; }
+.input-group { position: relative; }
+.input-block { position: relative; }
+
+.toggle-senha {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px !important;
+    min-width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: var(--text-gray);
+    font-size: 1.05rem;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    z-index: 20;
+    line-height: 1;
+    pointer-events: auto;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    /* Nenhuma outra animação neste botão */
+    animation: none !important;
+    transition: none !important;
+}
+.toggle-senha:hover,
+.toggle-senha:focus,
+.toggle-senha:active {
+    background: transparent !important;
+    transform: translateY(-50%) !important;
+    animation: none !important;
+    transition: none !important;
+    outline: none;
+}
+.input-block .toggle-senha { top: auto; bottom: 2px; transform: none; }
+.input-block .toggle-senha:hover,
+.input-block .toggle-senha:focus,
+.input-block .toggle-senha:active { transform: none !important; }
+
+/* Cinza quando oculta, vermelho quando visível */
+.toggle-senha[data-visivel="0"] { color: var(--text-gray); }
+.toggle-senha[data-visivel="1"] { color: #ff1a1a; }
+
+.toggle-senha i {
+    display: inline-block;
+    pointer-events: none;
+    transform-origin: center center;
+}
+.toggle-senha[data-visivel="1"] i { animation: olho-abrindo 0.3s ease-out both; }
+.toggle-senha[data-visivel="0"] i { animation: olho-fechando 0.3s ease-out both; }
+
+@keyframes olho-abrindo {
+    0%   { transform: scaleY(0.1); opacity: 0.6; }
+    60%  { transform: scaleY(1.15); opacity: 1; }
+    100% { transform: scaleY(1); opacity: 1; }
+}
+@keyframes olho-fechando {
+    0%   { transform: scaleY(1); opacity: 1; }
+    50%  { transform: scaleY(0.15); opacity: 0.8; }
+    100% { transform: scaleY(1); opacity: 1; }
+}
+
+/* ROLAGEM INVISÍVEL NOS COMENTÁRIOS (DESKTOP) */
+@media (min-width: 769px) {
+    .player-comments,
+    .comments-list,
+    #comments-list,
+    .comments-scroll {
+        overflow-y: auto !important;
+        overflow-x: hidden;
+        overscroll-behavior: contain;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+        scroll-behavior: smooth;
+    }
+    .player-comments::-webkit-scrollbar,
+    .comments-list::-webkit-scrollbar,
+    #comments-list::-webkit-scrollbar,
+    .comments-scroll::-webkit-scrollbar {
+        width: 0 !important;
+        height: 0 !important;
+        background: transparent !important;
+    }
+}
+
+/* Correções de layout gerais */
+#cast-status-bar { flex-wrap: wrap; gap: 6px; }
+.cast-toast small { word-break: break-all; }
+
+@media (max-width: 480px) {
+    .card .share-badge { right: 44px; padding: 5px 7px; font-size: 0.8rem; }
+    .card .quick-edit-badge { width: 28px; height: 28px; font-size: 0.8rem; }
+    .player-header.compact-mode .player-controls-group { left: auto; right: 8px; min-width: 210px; max-width: 88vw; }
+}
+
+/* ==========================================
+   COMENTÁRIOS COLADOS À DIREITA (DESKTOP)
+   ========================================== */
+@media (min-width: 769px) {
+    .floating-player.with-comments.comments-side {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 380px;
+        grid-template-rows: auto minmax(0, 1fr);
+        grid-template-areas: "header header" "content comments";
+        width: min(96vw, 1650px);
+        max-height: 94vh;
+        overflow: hidden;
+    }
+    .floating-player.with-comments.comments-side .player-header { grid-area: header; }
+    .floating-player.with-comments.comments-side .player-content {
+        grid-area: content;
+        min-width: 0;
+    }
+    .floating-player.with-comments.comments-side .player-comments {
+        grid-area: comments;
+        height: auto !important;
+        max-height: none;
+        min-height: 0;
+        border-top: none;
+        border-left: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    /* A lista precisa de altura limitada para poder rolar no desktop */
+    .floating-player.with-comments.comments-side .comments-head,
+    .floating-player.with-comments.comments-side .comment-compose { flex: 0 0 auto; }
+    .floating-player.with-comments.comments-side .comments-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        height: auto;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+    /* Layout empilhado (comentários abaixo do vídeo) também rola */
+    .floating-player.with-comments:not(.comments-side) .player-comments {
+        overflow: hidden;
+    }
+    .floating-player.with-comments:not(.comments-side) .comments-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+    .floating-player.with-comments.comments-side .comments-resizer { display: none; }
+    .floating-player.player-free.with-comments.comments-side .player-content {
+        flex: none;
+        min-height: 0;
+        height: auto !important;
+    }
+}
+
+/* ==========================================
+   MENU DE COMPARTILHAMENTO
+   ========================================== */
+.share-sheet-overlay {
+    position: fixed; inset: 0; z-index: 400;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+}
+.share-sheet-box {
+    width: 100%; max-width: 460px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 16px;
+    max-height: 88vh; overflow-y: auto;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+}
+.share-sheet-head {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 0.95rem; font-weight: bold; color: var(--theme-color);
+    margin-bottom: 6px;
+}
+.share-sheet-title {
+    font-size: 0.82rem; color: var(--text-gray);
+    margin: 0 0 12px 0; word-break: break-word;
+}
+.share-sheet-grid {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+}
+.share-opt {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg-main); color: var(--text-white);
+    border: 1px solid var(--border-color); border-radius: 8px;
+    padding: 10px 12px; font-size: 0.82rem; cursor: pointer;
+    text-align: left; font-family: inherit;
+}
+.share-opt i { color: var(--theme-color); width: 18px; text-align: center; }
+.share-opt:hover { border-color: var(--theme-color); }
+.share-opt.selected { border-color: var(--theme-color); box-shadow: 0 0 0 1px var(--theme-color) inset; }
+.share-sheet-link-row {
+    display: flex; gap: 8px; margin-top: 12px; align-items: center;
+}
+.share-sheet-link-row input {
+    flex: 1; min-width: 0; padding: 9px;
+    background: var(--bg-main); color: var(--text-white);
+    border: 1px solid var(--border-color); border-radius: 6px;
+    font-size: 0.78rem;
+}
+@media (max-width: 480px) {
+    .share-sheet-grid { grid-template-columns: 1fr; }
+}
+
+
+/* ==========================================
+   AJUSTES 2026: CABEÇALHO MOBILE ENXUTO,
+   ABAS DO PAINEL ADMIN E ROLAGENS
+   ========================================== */
+
+/* Cartões individuais das abas do painel administrativo */
+.manage-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    width: 100%;
+    padding-bottom: 10px;
+}
+.manage-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.manage-card > h3 {
+    font-size: 1rem;
+    color: var(--theme-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.manage-card .tree-panel-crud,
+.manage-card.tree-panel-crud {
+    border-right: none;
+    padding-right: 0;
+    flex: none;
+}
+.manage-card #crud-tree-list {
+    max-height: 45vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+}
+.manage-card #crud-tree-list::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
+.manage-card #json-input-field {
+    min-height: 110px;
+    resize: vertical;
+    width: 100%;
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    color: var(--text-white);
+    border-radius: 4px;
+    padding: 10px;
+}
+.admin-theme-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+.admin-theme-grid .tab-btn {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 0.85rem;
+}
+
+/* Abas do painel admin roláveis lateralmente quando não couberem */
+#admin-modal .tab-nav,
+#master-modal .tab-nav {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+#admin-modal .tab-nav::-webkit-scrollbar,
+#master-modal .tab-nav::-webkit-scrollbar { height: 0; background: transparent; }
+
+/* Conteúdo das abas rola por inteiro dentro do modal */
+#admin-modal .modal-body,
+#master-modal .modal-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+#manage-tab,
+#custom-tab { height: auto !important; }
+
+@media (max-width: 768px) {
+    /* Cabeçalho mobile: apenas título, perfil, lupa e engrenagem */
+    .app-header { padding: 10px 12px; gap: 8px; }
+    .header-left { gap: 8px; min-width: 0; flex: 1; }
+    .brand-title {
+        font-size: 1.05rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .header-right { gap: 4px; flex-shrink: 0; }
+    #admin-modal .tab-nav .tab-btn,
+    #master-modal .tab-nav .tab-btn {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        padding: 12px 14px;
+        font-size: 0.85rem;
+    }
+    .manage-card { padding: 12px; }
+    .manage-card #crud-tree-list { max-height: 40vh; max-height: 40dvh; }
+    .admin-theme-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .split-manage-layout { overflow: visible !important; }
+}
+
+@media (max-width: 380px) {
+    .user-top-badge span { display: none; }
+    .brand-title { font-size: 0.95rem; }
 }

@@ -449,14 +449,14 @@ function renderMosaic() {
             currentPlaylist = database.filter(item => item.categoria === selectedCategory && item.subcategoria === selectedSubcategory);
             currentPlaylist.forEach((track, index) => {
                 const realIndex = database.findIndex(dbItem => dbItem.link === track.link && dbItem.título === track.título);
-                grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, realIndex));
+                grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, realIndex, track));
             });
         }
     }
     else if (currentView === 'search_results') {
         if (bcSrc) bcSrc.classList.remove('hidden');
         lastYtSearchResults.forEach(item => {
-            const isPlaylist = item.type === 'playlist'; const card = createCard(item.title, item.thumb, true, isPlaylist, null, -1);
+            const isPlaylist = item.type === 'playlist'; const card = createCard(item.title, item.thumb, true, isPlaylist, null, -1, { título: item.title, capa: item.thumb, link: isPlaylist ? `https://www.youtube.com/playlist?list=${item.youtubeId}` : `https://www.youtube.com/embed/${item.youtubeId}` });
             if (card.querySelector('.add-music-badge')) { card.querySelector('.add-music-badge').onclick = (e) => { e.preventDefault(); e.stopPropagation(); openAdminWithTrack(item); }; }
             const btnGroup = document.createElement('div'); btnGroup.className = 'search-btn-group';
             const btnPlay = document.createElement('button'); btnPlay.style.background = '#2980b9'; btnPlay.innerHTML = `<i class="fas fa-play"></i> Assistir`;
@@ -524,7 +524,7 @@ function renderMosaic() {
             currentPlaylist = lastLocalSearchResults;
             lastLocalSearchResults.forEach((track, index) => {
                 const realIndex = database.findIndex(dbItem => dbItem.link === track.link && dbItem.título === track.título);
-                grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, realIndex));
+                grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, realIndex, track));
             });
         }
     }
@@ -544,9 +544,10 @@ function alternarModoCategoriaCanal(modo) {
     }
 }
 
-function createCard(title, imgSrc, showAddButton = false, isPlaylist = false, clickCallback, realIndex = -1) {
+function createCard(title, imgSrc, showAddButton = false, isPlaylist = false, clickCallback, realIndex = -1, shareInfo = null) {
     const card = document.createElement('div'); card.className = 'card';
     let htmlContent = `<img src="${imgSrc || 'https://placehold.co/160x90?text=Sem+Capa'}"><h4>${title}</h4>`;
+    if (shareInfo && shareInfo.link) htmlContent += `<div class="share-badge" title="Compartilhar"><i class="fas fa-share-nodes"></i></div>`;
     if(isPlaylist) htmlContent += `<span class="media-type-badge"><i class="fas fa-photo-film"></i> Playlist</span>`;
     if(showAddButton) htmlContent += `<button class="add-music-badge"><i class="fas fa-plus"></i> ${isPlaylist ? "Add Playlist" : "Adicionar"}</button>`;
     if(realIndex >= 0) htmlContent += `<div class="quick-edit-badge" title="Editar"><i class="fas fa-cog"></i></div>`;
@@ -554,6 +555,13 @@ function createCard(title, imgSrc, showAddButton = false, isPlaylist = false, cl
     if(clickCallback) card.addEventListener('click', clickCallback);
     if(realIndex >= 0 && card.querySelector('.quick-edit-badge')) {
         card.querySelector('.quick-edit-badge').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openAdvancedEditModal(realIndex); });
+    }
+    const badgeShare = card.querySelector('.share-badge');
+    if (badgeShare && shareInfo) {
+        badgeShare.addEventListener('click', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            compartilharMidia(shareInfo);
+        });
     }
     return card;
 }
@@ -572,7 +580,7 @@ async function buscarVideosRecentesDoCanal(playlistId) {
             }));
             if (grid) { 
                 grid.innerHTML = ''; 
-                currentPlaylist.forEach((track, index) => { grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, -1)); }); 
+                currentPlaylist.forEach((track, index) => { grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, -1, track)); }); 
             }
         }
     } catch (e) { if (grid) grid.innerHTML = '<h3>Erro ao carregar feeds do canal.</h3>'; }
@@ -1164,6 +1172,10 @@ function setupEventListeners() {
             document.getElementById('dropdown-menu-mobile')?.classList.add('hidden');
         }
 
+        if (e.target.closest('#btn-toggle-sidebar-mobile')) {
+            handleToggleSidebar();
+        }
+
         if (e.target.closest('#btn-open-admin-mobile')) {
             document.getElementById('admin-modal')?.classList.remove('hidden'); 
             switchTabs('add-tab', 'tab-trigger-add'); 
@@ -1183,6 +1195,7 @@ function setupEventListeners() {
         if (e.target.closest('#tab-trigger-add')) switchTabs('add-tab', 'tab-trigger-add');
         if (e.target.closest('#tab-trigger-channel')) switchTabs('channel-tab', 'tab-trigger-channel');
         if (e.target.closest('#tab-trigger-manage')) { switchTabs('manage-tab', 'tab-trigger-manage'); renderCrudManager(); }
+        if (e.target.closest('#tab-trigger-custom')) switchTabs('custom-tab', 'tab-trigger-custom');
         if (e.target.closest('#tab-trigger-users')) { switchTabs('users-tab', 'tab-trigger-users'); renderizarListaUsuariosPedidosExclusao(); }
 
         if (e.target.closest('#btn-save-media')) saveMediaToDatabase(e);
@@ -1298,6 +1311,16 @@ function setupEventListeners() {
             const className = tema === 'youtube' ? "" : `theme-${tema}`;
             document.body.className = className;
             salvarPreferenciaNoFirebase({ tema: className });
+        }
+
+        const adminThemeBtn = e.target.closest('.admin-theme-btn');
+        if (adminThemeBtn) {
+            const temaAdmin = adminThemeBtn.getAttribute('data-theme');
+            const classNameAdmin = temaAdmin === 'youtube' ? "" : `theme-${temaAdmin}`;
+            document.body.className = classNameAdmin;
+            adminThemeBtn.parentElement.querySelectorAll('.admin-theme-btn').forEach(btn => btn.classList.remove('active'));
+            adminThemeBtn.classList.add('active');
+            salvarPreferenciaNoFirebase({ tema: classNameAdmin });
         }
 
         const profileThemeBtn = e.target.closest('.profile-theme-btn');
@@ -1798,6 +1821,18 @@ function aplicarAlturaComentarios(px) {
     return altura;
 }
 
+// Layout dos comentários: ao lado (desktop) ou abaixo (mobile)
+function ehLayoutDesktopComentarios() {
+    return window.innerWidth > 768;
+}
+
+let larguraPlayerAntesDosComentarios = null;
+
+function limparEstilosDePosicaoDoPlayer(player) {
+    if (!player) return;
+    ["left", "top", "width", "height", "bottom", "right"].forEach(p => player.style.removeProperty(p));
+}
+
 // Ao abrir os comentários, o player ganha o espaço extra (não encolhe o vídeo)
 function ajustarAlturaDoPlayerComComentarios(abrir, alturaComentarios) {
     const player = document.getElementById("player-container");
@@ -1815,24 +1850,62 @@ function ajustarAlturaDoPlayerComComentarios(abrir, alturaComentarios) {
     }
 }
 
+// No desktop os comentários ficam colados à direita: o player só ganha largura
+function ajustarLarguraDoPlayerComComentarios(abrir) {
+    const player = document.getElementById("player-container");
+    if (!player || !player.classList.contains("player-free")) return;
+    if (abrir) {
+        const rect = player.getBoundingClientRect();
+        if (larguraPlayerAntesDosComentarios === null) larguraPlayerAntesDosComentarios = rect.width;
+        const extra = Math.min(400, Math.round(window.innerWidth * 0.3));
+        const desejada = Math.min(larguraPlayerAntesDosComentarios + extra, Math.round(window.innerWidth * 0.96));
+        player.style.setProperty("width", desejada + "px", "important");
+        const esquerda = Math.max(0, Math.min(rect.left, window.innerWidth - desejada));
+        player.style.setProperty("left", esquerda + "px", "important");
+    } else if (larguraPlayerAntesDosComentarios !== null) {
+        player.style.setProperty("width", larguraPlayerAntesDosComentarios + "px", "important");
+        larguraPlayerAntesDosComentarios = null;
+    }
+}
+
 function alternarPainelComentarios(forcarAbrir) {
     const painel = document.getElementById("player-comments");
     const player = document.getElementById("player-container");
     if (!painel) return;
     const abrir = typeof forcarAbrir === "boolean" ? forcarAbrir : painel.classList.contains("hidden");
+    const desktop = ehLayoutDesktopComentarios();
     painel.classList.toggle("hidden", !abrir);
-    if (player) player.classList.toggle("with-comments", abrir);
+    if (player) {
+        player.classList.toggle("with-comments", abrir);
+        player.classList.toggle("comments-side", abrir && desktop);
+    }
     const btn = document.getElementById("btn-toggle-comments");
     if (btn) btn.style.color = abrir ? "var(--theme-color)" : "";
     if (abrir) {
-        const altura = aplicarAlturaComentarios(alturaPadraoComentarios());
-        ajustarAlturaDoPlayerComComentarios(true, altura);
+        if (desktop) {
+            // Painel colado à direita: altura acompanha o player
+            painel.style.removeProperty("height");
+            painel.style.removeProperty("--comments-height");
+            ajustarLarguraDoPlayerComComentarios(true);
+        } else {
+            const altura = aplicarAlturaComentarios(alturaPadraoComentarios());
+            ajustarAlturaDoPlayerComComentarios(true, altura);
+        }
         carregarComentariosDoVideo(videoIdEmExibicao);
         montarCaixaDeComentario();
     } else {
-        ajustarAlturaDoPlayerComComentarios(false, 0);
+        // Ao fechar, o player volta ao tamanho e à posição originais
+        alturaPlayerAntesDosComentarios = null;
+        larguraPlayerAntesDosComentarios = null;
+        painel.style.removeProperty("height");
+        painel.style.removeProperty("--comments-height");
+        if (player) {
+            player.classList.remove("player-free", "comments-side");
+            limparEstilosDePosicaoDoPlayer(player);
+        }
     }
 }
+
 
 // Alça de redimensionamento do painel de comentários (mouse e toque)
 function configurarRedimensionamentoComentarios() {
@@ -1843,6 +1916,7 @@ function configurarRedimensionamentoComentarios() {
     const ponto = (ev) => (ev.touches && ev.touches[0] ? ev.touches[0] : ev);
 
     const iniciar = (ev) => {
+        if (ehLayoutDesktopComentarios()) return; // no desktop o painel fica colado à direita
         arrastando = true;
         startY = ponto(ev).clientY;
         baseH = painel.getBoundingClientRect().height;
@@ -2471,13 +2545,41 @@ let castReceiverDesejado = null;
 let castEstaTransmitindo = false;
 let castIndiceEmTransmissao = -1;
 
+let castTentativas = 0;
+let castTimerBusca = null;
+
+// A API do Chromecast pode ficar pronta ANTES ou DEPOIS deste arquivo carregar.
+// Por isso registramos o callback e também fazemos uma verificação periódica.
 window['__onGCastApiAvailable'] = function (disponivel) {
+    window.__castApiDisponivel = !!disponivel;
     if (!disponivel) return;
     try { inicializarCast(); } catch (e) { console.warn("Cast: falha ao iniciar", e); }
 };
 
+function castSdkCarregado() {
+    return typeof cast !== "undefined" && !!cast.framework &&
+           typeof chrome !== "undefined" && !!chrome.cast && !!chrome.cast.isAvailable;
+}
+
+function garantirSdkCast() {
+    if (castSdkCarregado()) { inicializarCast(); return; }
+    const jaTem = Array.from(document.scripts).some(sc => (sc.src || "").includes("cast_sender.js"));
+    if (!jaTem) {
+        const sc = document.createElement("script");
+        sc.src = "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1";
+        sc.async = true;
+        document.head.appendChild(sc);
+    }
+    if (castTimerBusca) return;
+    castTimerBusca = setInterval(() => {
+        castTentativas++;
+        if (castSdkCarregado()) { inicializarCast(); }
+        if (castApiPronta || castTentativas > 60) { clearInterval(castTimerBusca); castTimerBusca = null; }
+    }, 500);
+}
+
 function inicializarCast() {
-    if (castApiPronta || typeof cast === "undefined" || !cast.framework) return;
+    if (castApiPronta || !castSdkCarregado()) return;
     castApiPronta = true;
     castContext = cast.framework.CastContext.getInstance();
     castDefinirReceiver(chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID);
@@ -2521,6 +2623,8 @@ function inicializarCast() {
         }
     );
 
+    // Reavalia periodicamente: a descoberta na rede local costuma demorar alguns segundos
+    setInterval(() => { try { atualizarInterfaceCast(); } catch (e) {} }, 3000);
     atualizarInterfaceCast();
 }
 
@@ -2535,7 +2639,13 @@ function castDefinirReceiver(appId) {
 }
 
 function castLinkDaFaixa(track) {
-    return ((track && track.link) || "").trim();
+    let link = ((track && track.link) || "").trim();
+    // Converte links de visualização do Google Drive em link direto de mídia
+    const drive = link.match(/drive\.google\.com\/file\/d\/([^/?#]+)/);
+    if (drive) link = `https://drive.google.com/uc?export=download&id=${drive[1]}`;
+    // Converte página do Archive.org em arquivo direto quando possível
+    if (link.includes("archive.org/details/")) link = link.replace("/details/", "/download/");
+    return link;
 }
 
 function castTipoDaFonte(link) {
@@ -2543,8 +2653,10 @@ function castTipoDaFonte(link) {
     const vId = (typeof extractYoutubeId === "function") ? extractYoutubeId(link) : null;
     const plId = (typeof extractPlaylistId === "function") ? extractPlaylistId(link) : null;
     if (vId || plId || url.includes("youtube.com") || url.includes("youtu.be")) return "youtube";
-    if (/\.(mp4|m4v|webm|ogv|mov|mkv|mp3|m4a|aac|ogg|m3u8|mpd)(\?|$)/.test(url)) return "media";
+    if (/\.(mp4|m4v|webm|ogv|mov|mkv|mp3|m4a|aac|ogg|m3u8|mpd|flv|avi|wav|opus)(\?|$)/.test(url)) return "media";
     if (url.includes("raw.githubusercontent") || url.includes("docs.google.com/uc?export=download")) return "media";
+    if (url.includes("drive.google.com/file/d/")) return "media";
+    if (/^https?:\/\//.test(url)) return "media"; // tentativa universal: qualquer link é enviado ao receptor
     return "desconhecido";
 }
 
@@ -2581,16 +2693,36 @@ function retomarReproducaoLocal() {
     if (raw && raw.src && !raw.classList.contains("hidden")) { try { raw.play(); } catch (e) {} }
 }
 
+async function espelharPorRemotePlayback() {
+    // Compatibilidade universal: Safari/iOS (AirPlay) e navegadores com Remote Playback API
+    const raw = document.getElementById("raw-player");
+    if (raw && typeof raw.webkitShowPlaybackTargetPicker === "function" && raw.src) {
+        try { raw.webkitShowPlaybackTargetPicker(); return true; } catch (e) {}
+    }
+    if (raw && raw.remote && typeof raw.remote.prompt === "function" && raw.src) {
+        try { await raw.remote.prompt(); return true; } catch (e) {}
+    }
+    return false;
+}
+
 async function alternarTransmissao() {
+    if (castEstaTransmitindo) { encerrarTransmissao(); return; }
+
     if (!castApiPronta || !castContext) {
-        castAvisar("<b>Chromecast indisponível</b><br>Abra o site no Google Chrome, Edge ou Android (via HTTPS) para transmitir.");
+        garantirSdkCast();
+        // Aguarda um instante: o SDK pode ainda estar carregando
+        await new Promise(r => setTimeout(r, 900));
+    }
+    if (!castApiPronta || !castContext) {
+        if (await espelharPorRemotePlayback()) return;
+        castAvisar("<b>Espelhamento indisponível neste navegador</b><br>Use Chrome, Edge ou Android (via HTTPS) para Chromecast, ou Safari/iOS para AirPlay.<br>Alternativa: menu do navegador (⋮) &rarr; <i>Transmitir</i> &rarr; <i>Transmitir aba</i>.");
         return;
     }
     if (castContext.getCastState() === cast.framework.CastState.NO_DEVICES_AVAILABLE) {
-        castAvisar("<b>Nenhum dispositivo encontrado</b><br>Verifique se a TV/Chromecast está na mesma rede Wi-Fi.");
-        return;
+        // NÃO bloqueamos mais: a descoberta é assíncrona e o diálogo do navegador
+        // costuma encontrar aparelhos que ainda não foram anunciados ao site.
+        castAvisar("<b>Procurando dispositivos na rede...</b><br>Se a lista aparecer vazia, confirme que o celular/PC e a TV estão na mesma rede Wi-Fi (sem isolamento de clientes/VPN).");
     }
-    if (castEstaTransmitindo) { encerrarTransmissao(); return; }
     if (!currentPlaylist.length || currentTrackIndex < 0) {
         castAvisar("<b>Escolha um vídeo primeiro</b><br>Abra uma mídia no player e depois toque em transmitir.");
         return;
@@ -2605,7 +2737,8 @@ async function transmitirFaixaAtual(sessaoJaAtiva) {
     const tipo = castTipoDaFonte(link);
 
     if (tipo === "desconhecido") {
-        castAvisar("<b>Fonte não suportada pelo Chromecast</b><br>Este vídeo é exibido por um player externo. Use o menu do Chrome (⋮) &rarr; <i>Transmitir</i> &rarr; <i>Fontes: Transmitir aba</i> para espelhar.");
+        if (await espelharPorRemotePlayback()) return;
+        castAvisar("<b>Fonte exibida por player externo</b><br>Use o menu do navegador (⋮) &rarr; <i>Transmitir</i> &rarr; <i>Fontes: Transmitir aba</i> para espelhar esta mídia.");
         return;
     }
 
@@ -2670,7 +2803,8 @@ async function enviarArquivoParaTV(track, link) {
     try {
         await sessao.loadMedia(pedido);
     } catch (e) {
-        castAvisar("<b>Falha ao transmitir este arquivo</b><br>O formato pode não ser suportado pela TV.");
+        const ok = await espelharPorRemotePlayback();
+        if (!ok) castAvisar("<b>Não foi possível enviar esta mídia</b><br>O formato pode não ser suportado pela TV. Use o menu do navegador (⋮) &rarr; <i>Transmitir</i> &rarr; <i>Transmitir aba</i> para espelhar mesmo assim.");
     }
 }
 
@@ -2704,8 +2838,13 @@ function garantirBarraDeStatusCast() {
 function atualizarInterfaceCast() {
     const botao = document.getElementById("btn-cast");
     if (botao) {
-        const disponivel = castApiPronta && castContext &&
-            castContext.getCastState() !== cast.framework.CastState.NO_DEVICES_AVAILABLE;
+        let disponivel = false;
+        try {
+            disponivel = !!(castApiPronta && castContext &&
+                castContext.getCastState() !== cast.framework.CastState.NO_DEVICES_AVAILABLE);
+        } catch (e) { disponivel = false; }
+        const raw = document.getElementById("raw-player");
+        if (!disponivel && raw && (typeof raw.webkitShowPlaybackTargetPicker === "function" || (raw.remote && raw.remote.prompt))) disponivel = true;
         botao.classList.toggle("cast-available", !!disponivel);
         botao.classList.toggle("cast-connected", !!castEstaTransmitindo);
         botao.title = castEstaTransmitindo ? "Parar transmissão para a TV" : "Transmitir para a TV (Chromecast)";
@@ -2767,3 +2906,319 @@ document.addEventListener("click", (e) => {
 })();
 
 document.addEventListener("DOMContentLoaded", () => { garantirBarraDeStatusCast(); atualizarInterfaceCast(); });
+
+document.addEventListener("DOMContentLoaded", () => { try { garantirSdkCast(); } catch (e) {} });
+try { garantirSdkCast(); } catch (e) {}
+
+// ==========================================
+// COMPARTILHAMENTO DE MÍDIAS
+// Gera um link do próprio site apontando para a mídia e usa o
+// compartilhamento nativo do aparelho (ou copia o link).
+// ==========================================
+function linkDeCompartilhamento(info) {
+    const base = window.location.origin + window.location.pathname;
+    const params = new URLSearchParams();
+    params.set("midia", (info && info.link) || "");
+    const titulo = (info && (info.título || info.titulo)) || "";
+    if (titulo) params.set("t", titulo);
+    const capa = (info && info.capa) || "";
+    if (capa) params.set("capa", capa);
+    return `${base}?${params.toString()}`;
+}
+
+async function compartilharMidia(info) {
+    if (!info || !info.link) { castAvisar("<b>Nada para compartilhar</b>"); return; }
+    abrirMenuCompartilhamento(info);
+}
+
+// Compartilhamento direto pelo recurso nativo do aparelho (ou cópia do link)
+async function compartilharLinkNativo(url, titulo, texto) {
+    if (navigator.share) {
+        try { await navigator.share({ title: titulo, text: texto, url }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+    }
+    try {
+        await navigator.clipboard.writeText(url);
+        castAvisar("<b>Link copiado!</b><br>Cole onde quiser para compartilhar esta mídia.");
+        return;
+    } catch (e) {}
+    const campo = document.createElement("textarea");
+    campo.value = url; campo.style.position = "fixed"; campo.style.opacity = "0";
+    document.body.appendChild(campo); campo.select();
+    try { document.execCommand("copy"); castAvisar("<b>Link copiado!</b>"); }
+    catch (e) { castAvisar(`<b>Copie o link abaixo:</b><br><small>${url}</small>`); }
+    campo.remove();
+}
+
+function compartilharMidiaAtual() {
+    const track = (typeof currentPlaylist !== "undefined" && currentPlaylist[currentTrackIndex]) || null;
+    if (!track) { castAvisar("<b>Abra uma mídia no player</b> antes de compartilhar."); return; }
+    compartilharMidia(track);
+}
+
+// ==========================================
+// MENU DE OPÇÕES DE COMPARTILHAMENTO
+// Link do StreamHub, link padrão do YouTube, WhatsApp,
+// Facebook, Telegram, X, e-mail, cópia e menu do aparelho
+// ==========================================
+async function copiarTextoParaAreaDeTransferencia(texto) {
+    try { await navigator.clipboard.writeText(texto); return true; } catch (e) {}
+    const campo = document.createElement("textarea");
+    campo.value = texto; campo.style.position = "fixed"; campo.style.opacity = "0";
+    document.body.appendChild(campo); campo.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    campo.remove();
+    return ok;
+}
+
+function linkPadraoDoYoutube(info) {
+    const id = typeof extractYoutubeId === "function" ? extractYoutubeId(((info && info.link) || "").trim()) : null;
+    return id ? `https://www.youtube.com/watch?v=${id}` : null;
+}
+
+function fecharMenuCompartilhamento() {
+    document.getElementById("share-sheet")?.remove();
+}
+
+function abrirMenuCompartilhamento(info) {
+    if (!info || !info.link) { castAvisar("<b>Nada para compartilhar</b>"); return; }
+    fecharMenuCompartilhamento();
+
+    const titulo = (info.título || info.titulo || "StreamHub");
+    const linkSite = linkDeCompartilhamento(info);
+    const linkYt = linkPadraoDoYoutube(info);
+    const texto = `Assista "${titulo}" no StreamHub`;
+
+    const overlay = document.createElement("div");
+    overlay.id = "share-sheet";
+    overlay.className = "share-sheet-overlay";
+    overlay.innerHTML = `
+        <div class="share-sheet-box" role="dialog" aria-label="Compartilhar mídia">
+            <div class="share-sheet-head">
+                <span><i class="fas fa-share-nodes"></i> Compartilhar</span>
+                <button type="button" class="btn-player-action" data-share="fechar" title="Fechar"><i class="fas fa-times"></i></button>
+            </div>
+            <p class="share-sheet-title">${titulo}</p>
+            <div class="share-sheet-grid">
+                <button type="button" class="share-opt" data-share="site"><i class="fas fa-link"></i><span>Link do StreamHub</span></button>
+                ${linkYt ? '<button type="button" class="share-opt" data-share="youtube"><i class="fab fa-youtube"></i><span>Link do YouTube</span></button>' : ""}
+                <button type="button" class="share-opt" data-share="whatsapp"><i class="fab fa-whatsapp"></i><span>WhatsApp</span></button>
+                <button type="button" class="share-opt" data-share="facebook"><i class="fab fa-facebook"></i><span>Facebook</span></button>
+                <button type="button" class="share-opt" data-share="telegram"><i class="fab fa-telegram"></i><span>Telegram</span></button>
+                <button type="button" class="share-opt" data-share="twitter"><i class="fab fa-x-twitter"></i><span>X (Twitter)</span></button>
+                <button type="button" class="share-opt" data-share="email"><i class="fas fa-envelope"></i><span>E-mail</span></button>
+                <button type="button" class="share-opt" data-share="nativo"><i class="fas fa-mobile-screen"></i><span>Outros apps do aparelho</span></button>
+            </div>
+            <div class="share-sheet-link-row">
+                <input type="text" id="share-sheet-link" readonly value="${linkSite}">
+                <button type="button" class="btn-send-comment" data-share="copiar"><i class="fas fa-copy"></i> Copiar</button>
+            </div>
+            ${linkYt ? `<div class="share-sheet-link-row">
+                <input type="text" id="share-sheet-link-yt" readonly value="${linkYt}">
+                <button type="button" class="btn-send-comment" data-share="copiar-yt"><i class="fas fa-copy"></i> Copiar</button>
+            </div>` : ""}
+        </div>`;
+
+    const escolhido = () => {
+        const seletor = overlay.querySelector(".share-opt.selected");
+        return seletor && seletor.dataset.share === "youtube" && linkYt ? linkYt : linkSite;
+    };
+
+    const abrirJanela = (url) => window.open(url, "_blank", "noopener,noreferrer");
+
+    overlay.addEventListener("click", async (e) => {
+        if (e.target === overlay) { fecharMenuCompartilhamento(); return; }
+        const botao = e.target.closest("[data-share]");
+        if (!botao) return;
+        const acao = botao.dataset.share;
+        const url = escolhido();
+
+        if (acao === "fechar") { fecharMenuCompartilhamento(); return; }
+        if (acao === "site" || acao === "youtube") {
+            overlay.querySelectorAll(".share-opt").forEach(b => b.classList.remove("selected"));
+            botao.classList.add("selected");
+            const alvo = acao === "youtube" ? linkYt : linkSite;
+            castAvisar(acao === "youtube"
+                ? "<b>Link do YouTube selecionado</b><br>Escolha agora por onde compartilhar."
+                : "<b>Link do StreamHub selecionado</b><br>Escolha agora por onde compartilhar.");
+            const campo = document.getElementById("share-sheet-link");
+            if (campo) campo.value = alvo;
+            return;
+        }
+        if (acao === "whatsapp") { abrirJanela(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto + " " + url)}`); }
+        else if (acao === "facebook") { abrirJanela(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`); }
+        else if (acao === "telegram") { abrirJanela(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(texto)}`); }
+        else if (acao === "twitter") { abrirJanela(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(texto)}`); }
+        else if (acao === "email") { window.location.href = `mailto:?subject=${encodeURIComponent(titulo)}&body=${encodeURIComponent(texto + "\n\n" + url)}`; }
+        else if (acao === "nativo") { await compartilharLinkNativo(url, titulo, texto); }
+        else if (acao === "copiar") {
+            const ok = await copiarTextoParaAreaDeTransferencia(document.getElementById("share-sheet-link")?.value || linkSite);
+            castAvisar(ok ? "<b>Link copiado!</b>" : "<b>Copie o link manualmente</b>");
+        } else if (acao === "copiar-yt") {
+            const ok = await copiarTextoParaAreaDeTransferencia(linkYt);
+            castAvisar(ok ? "<b>Link do YouTube copiado!</b>" : "<b>Copie o link manualmente</b>");
+        }
+        fecharMenuCompartilhamento();
+    });
+
+    document.body.appendChild(overlay);
+    overlay.querySelector('[data-share="site"]')?.classList.add("selected");
+}
+
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") fecharMenuCompartilhamento(); });
+
+// Abre automaticamente a mídia recebida por link compartilhado
+function abrirMidiaCompartilhada() {
+    const params = new URLSearchParams(window.location.search);
+    const link = params.get("midia");
+    if (!link) return;
+    const titulo = params.get("t") || "Mídia compartilhada";
+    const capa = params.get("capa") || "";
+    let tentativas = 0;
+    const timer = setInterval(() => {
+        tentativas++;
+        const app = document.getElementById("app-container");
+        const pronto = app && !app.classList.contains("hidden") && typeof playTrack === "function";
+        if (pronto) {
+            clearInterval(timer);
+            currentPlaylist = [{ título: titulo, link: link, capa: capa }];
+            currentTrackIndex = 0;
+            try { playTrack(0); } catch (e) {}
+        }
+        if (tentativas > 120) clearInterval(timer);
+    }, 500);
+}
+document.addEventListener("DOMContentLoaded", abrirMidiaCompartilhada);
+
+// ==========================================
+// AÇÕES DO PLAYER: COMPARTILHAR + MENU RETRÁTIL (MOBILE)
+// ==========================================
+function garantirBotoesDoPlayer() {
+    const grupo = document.querySelector("#player-container .player-controls-group");
+    if (!grupo) return;
+
+    if (!document.getElementById("btn-share-media")) {
+        const btn = document.createElement("button");
+        btn.id = "btn-share-media";
+        btn.className = "btn-player-action";
+        btn.type = "button";
+        btn.title = "Compartilhar esta mídia";
+        btn.innerHTML = '<i class="fas fa-share-nodes"></i>';
+        const alvo = document.getElementById("btn-cast");
+        if (alvo) alvo.insertAdjacentElement("beforebegin", btn);
+        else grupo.appendChild(btn);
+    }
+
+    if (!document.getElementById("btn-player-more")) {
+        const mais = document.createElement("button");
+        mais.id = "btn-player-more";
+        mais.className = "btn-player-action btn-player-more";
+        mais.type = "button";
+        mais.title = "Mais opções";
+        mais.innerHTML = '<i class="fas fa-ellipsis-vertical"></i>';
+        grupo.insertAdjacentElement("beforebegin", mais);
+    }
+
+    // O botão de fechar fica sempre visível, fora do menu retrátil
+    const fechar = document.getElementById("btn-close-player");
+    if (fechar && fechar.parentElement === grupo) grupo.insertAdjacentElement("afterend", fechar);
+
+    ajustarModoCompactoPlayer();
+}
+
+function ajustarModoCompactoPlayer() {
+    const header = document.querySelector("#player-container .player-header");
+    const grupo = document.querySelector("#player-container .player-controls-group");
+    if (!header || !grupo) return;
+    const compacto = window.innerWidth <= 768 || (document.getElementById("player-container")?.offsetWidth || 9999) < 520;
+    header.classList.toggle("compact-mode", compacto);
+    if (!compacto) grupo.classList.remove("menu-open");
+}
+
+document.addEventListener("DOMContentLoaded", garantirBotoesDoPlayer);
+window.addEventListener("resize", ajustarModoCompactoPlayer);
+
+document.addEventListener("click", (e) => {
+    if (e.target.closest("#btn-share-media")) { e.preventDefault(); compartilharMidiaAtual(); return; }
+    if (e.target.closest("#btn-player-more")) {
+        e.preventDefault(); e.stopPropagation();
+        document.querySelector("#player-container .player-controls-group")?.classList.toggle("menu-open");
+        return;
+    }
+    if (!e.target.closest(".player-controls-group")) {
+        document.querySelector("#player-container .player-controls-group")?.classList.remove("menu-open");
+    }
+});
+
+// ==========================================
+// MOSTRAR / OCULTAR SENHA NO LOGIN
+// ==========================================
+function ativarBotoesDeSenha() {
+    document.querySelectorAll('input[type="password"], input[data-senha-visivel]').forEach((campo) => {
+        const grupo = campo.parentElement;
+        if (!grupo || grupo.querySelector(".toggle-senha")) return;
+        grupo.classList.add("has-toggle-senha");
+
+        const botao = document.createElement("button");
+        botao.type = "button";
+        botao.className = "toggle-senha";
+        botao.tabIndex = -1;
+        botao.setAttribute("data-visivel", "0");
+        botao.setAttribute("aria-label", "Mostrar senha");
+        botao.title = "Mostrar senha";
+        botao.innerHTML = '<i class="fas fa-eye-slash"></i>';
+
+        const alternar = (e) => {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            const visivel = campo.getAttribute("type") === "text";
+            const novoVisivel = !visivel;
+            campo.setAttribute("type", novoVisivel ? "text" : "password");
+            campo.setAttribute("data-senha-visivel", novoVisivel ? "1" : "0");
+            botao.setAttribute("data-visivel", novoVisivel ? "1" : "0");
+            // Recria o ícone para a animação de olho reiniciar sempre
+            botao.innerHTML = novoVisivel ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
+            botao.title = novoVisivel ? "Ocultar senha" : "Mostrar senha";
+            botao.setAttribute("aria-label", botao.title);
+        };
+
+        // Pointerdown garante resposta imediata no desktop e no mobile
+        botao.addEventListener("pointerdown", alternar);
+        botao.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); });
+        botao.addEventListener("touchend", (e) => { e.preventDefault(); });
+
+        grupo.appendChild(botao);
+    });
+}
+document.addEventListener("DOMContentLoaded", ativarBotoesDeSenha);
+setTimeout(ativarBotoesDeSenha, 1500);
+try {
+    new MutationObserver(() => ativarBotoesDeSenha()).observe(document.documentElement, { childList: true, subtree: true });
+} catch (e) {}
+
+// ==========================================
+// MOBILE: RECOLHER MENUS APÓS ESCOLHER UMA OPÇÃO
+// ==========================================
+document.addEventListener("click", (e) => {
+    if (window.innerWidth > 768) return;
+
+    // Menu lateral retrátil: fecha ao escolher uma subcategoria/mídia
+    const sidebar = document.getElementById("sidebar");
+    if (sidebar && sidebar.classList.contains("open") && e.target.closest("#sidebar")) {
+        const itemAcao = e.target.closest("#sidebar-tree li");
+        const ehPastaCategoria = !!e.target.closest(".category-toggle");
+        const ehBusca = !!e.target.closest(".sidebar-search");
+        if (itemAcao && !ehPastaCategoria && !ehBusca && !itemAcao.querySelector("ul.tree-sub")) {
+            sidebar.classList.remove("open");
+        }
+    }
+
+    // Menu de opções (engrenagem) fecha após clicar em qualquer item
+    if (e.target.closest(".dropdown-item-btn")) {
+        document.getElementById("dropdown-menu-mobile")?.classList.add("hidden");
+    }
+
+    // Menu extra do player fecha após escolher uma ação
+    if (e.target.closest(".player-controls-group .btn-player-action")) {
+        document.querySelector("#player-container .player-controls-group")?.classList.remove("menu-open");
+    }
+}, true);

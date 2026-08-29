@@ -9,6 +9,15 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
+    <script>
+        // Registro antecipado do callback do Chromecast (a ordem de carregamento varia)
+        window.__castApiDisponivel = false;
+        window.__onGCastApiAvailable = function (disponivel) {
+            window.__castApiDisponivel = !!disponivel;
+            if (disponivel && typeof window.inicializarCast === "function") window.inicializarCast();
+        };
+    </script>
+
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 </head>
@@ -111,7 +120,7 @@
         
         <header class="app-header">
             <div class="header-left">
-                <button id="toggle-sidebar" class="btn-icon" title="Menu Lateral"><i class="fas fa-bars"></i></button>
+                <button id="toggle-sidebar" class="btn-icon btn-desktop-only" title="Menu Lateral"><i class="fas fa-bars"></i></button>
                 <h1 id="bc-root" class="brand-title">StreamHub</h1>
             </div>
             
@@ -132,12 +141,13 @@
                 
                 <button id="btn-open-admin" class="btn-admin btn-desktop-only" title="Administração"><i class="fas fa-cog"></i> Admin</button>
                 <button id="btn-open-master" class="btn-admin btn-desktop-only hidden" title="Painel Gerencial do Administrador" style="background:#8e44ad;"><i class="fas fa-user-shield"></i> Gerencial</button>
-                <button id="btn-logout" class="btn-logout" title="Sair"><i class="fas fa-sign-out-alt"></i></button>
+                <button id="btn-logout" class="btn-logout btn-desktop-only" title="Sair"><i class="fas fa-sign-out-alt"></i></button>
                 
                 <div class="admin-dropdown-wrapper btn-mobile-only">
                     <button id="btn-trigger-dropdown-mobile" class="btn-icon" title="Opções" style="font-size: 1.3rem; color: var(--theme-color);"><i class="fas fa-cog"></i></button>
                     
                     <div id="dropdown-menu-mobile" class="dropdown-content-menu hidden">
+                        <button id="btn-toggle-sidebar-mobile" class="dropdown-item-btn"><i class="fas fa-bars"></i> Categorias / Menu Lateral</button>
                         <button id="btn-open-admin-mobile" class="dropdown-item-btn"><i class="fas fa-tools"></i> Painel Admin</button>
                         <button id="btn-open-master-mobile" class="dropdown-item-btn hidden"><i class="fas fa-user-shield"></i> Painel Gerencial</button>
                         <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 5px 0;">
@@ -180,6 +190,7 @@
             <div class="player-header">
                 <h3 id="current-track-title">A reproduzir...</h3>
                 
+                <button id="btn-player-more" class="btn-player-action btn-player-more" type="button" title="Mais opções"><i class="fas fa-ellipsis-vertical"></i></button>
                 <div class="player-controls-group">
                     <button id="btn-prev-track" class="btn-player-action" title="Mídia Anterior"><i class="fas fa-step-backward"></i></button>
                     <button id="btn-next-track" class="btn-player-action" title="Próxima Mídia"><i class="fas fa-step-forward"></i></button>
@@ -189,7 +200,8 @@
                         <input type="range" id="player-volume-slider" min="0" max="100" value="100" title="Controle de Volume">
                     </div>
                     
-                    <button id="btn-cast" class="btn-player-action btn-cast" title="Transmitir para a TV (Chromecast)"><i class="fab fa-chromecast"></i></button>
+                    <button id="btn-share-media" class="btn-player-action" type="button" title="Compartilhar esta mídia"><i class="fas fa-share-nodes"></i></button>
+                    <button id="btn-cast" class="btn-player-action btn-cast" title="Espelhar / Transmitir para a TV"><i class="fab fa-chromecast"></i></button>
                     <button id="btn-toggle-comments" class="btn-player-action" title="Mostrar/Ocultar Comentários"><i class="fas fa-comments"></i></button>
                     <button id="btn-close-player" class="btn-icon-close" title="Fechar Player"><i class="fas fa-times-circle"></i></button>
                 </div>
@@ -232,7 +244,8 @@
             <nav class="tab-nav">
                 <button id="tab-trigger-add" class="tab-btn active"><i class="fas fa-plus-circle"></i> Cadastrar Mídias</button>
                 <button id="tab-trigger-channel" class="tab-btn"><i class="fas fa-tv"></i> Vincular Canal</button>
-                <button id="tab-trigger-manage" class="tab-btn"><i class="fas fa-tasks"></i> Gerenciar Layout</button>
+                <button id="tab-trigger-manage" class="tab-btn"><i class="fas fa-tasks"></i> Gerenciar Conteúdo</button>
+                <button id="tab-trigger-custom" class="tab-btn"><i class="fas fa-palette"></i> Personalizar Layout</button>
                 <button id="tab-trigger-users" class="tab-btn hidden"><i class="fas fa-users-cog"></i> Gerenciar Usuários</button>
             </nav>
 
@@ -306,22 +319,43 @@
                     <button id="btn-save-channel-link" class="btn-success-block">Confirmar Vínculo Dinâmico</button>
                 </div>
 
-                <div id="manage-tab" class="tab-content hidden" style="height: calc(100% - 10px);">
-                    <div class="split-manage-layout">
-                        <div class="tree-panel-crud">
-                            <h3 style="margin-bottom:10px; font-size:1rem; color:var(--theme-color);">Estrutura Interna de Pastas</h3>
+                <div id="manage-tab" class="tab-content hidden">
+                    <div class="manage-stack">
+                        <div class="manage-card tree-panel-crud">
+                            <h3><i class="fas fa-sitemap"></i> Estrutura Interna de Pastas</h3>
                             <div id="crud-tree-list"></div>
                         </div>
-                        <div class="json-tools-panel">
+
+                        <div class="manage-card">
+                            <h3><i class="fas fa-file-export"></i> Backup do Acervo</h3>
                             <button id="btn-export-all-json" class="btn-primary btn-export" style="width:100%; padding:12px;"><i class="fas fa-file-export"></i> Baixar Backup Geral (.json)</button>
+                        </div>
+
+                        <div class="manage-card">
+                            <h3><i class="fas fa-code"></i> Importar por Código Texto</h3>
                             <div class="action-card-json">
-                                <label><i class="fas fa-code"></i> Importar por Código Texto</label>
+                                <label><i class="fas fa-code"></i> Cole o JSON do backup</label>
                                 <textarea id="json-input-field" placeholder="Cole o código JSON do seu backup aqui..."></textarea>
                                 <button id="btn-submit-json-code" class="btn-primary" style="background:#d35400;">Injetar Código</button>
                             </div>
-                            
+                        </div>
+
+                        <div class="manage-card">
+                            <h3><i class="fas fa-file-import"></i> Importar via Arquivo</h3>
+                            <div class="action-card-json" style="background:transparent; border:1px dashed var(--border-color);">
+                                <label><i class="fas fa-file-import"></i> Selecione um arquivo .json</label>
+                                <input type="file" id="file-import-json" accept=".json" style="font-size:0.8rem; color:var(--text-gray);">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="custom-tab" class="tab-content hidden">
+                    <div class="manage-stack">
+                        <div class="manage-card">
+                            <h3><i class="fas fa-palette"></i> Paleta de Cores do Utilizador</h3>
                             <div class="action-card-json theme-picker-box">
-                                <label><i class="fas fa-palette"></i> Paleta de Cores do Utilizador</label>
+                                <label><i class="fas fa-droplet"></i> Escolha a cor de destaque</label>
                                 <div class="color-spectrum-wrapper">
                                     <div id="color-spectrum-bar" class="color-spectrum-bar">
                                         <div id="color-spectrum-selector" class="color-spectrum-selector"><i class="fas fa-caret-down"></i></div>
@@ -332,10 +366,15 @@
                                     <button id="btn-reset-theme" class="btn-icon" style="color:#e74c3c; padding:0;" title="Restaurar Cor Padrão"><i class="fas fa-undo"></i></button>
                                 </div>
                             </div>
-                            
-                            <div class="action-card-json" style="background:transparent; border:1px dashed var(--border-color);">
-                                <label><i class="fas fa-file-import"></i> Importar via Arquivo</label>
-                                <input type="file" id="file-import-json" accept=".json" style="font-size:0.8rem; color:var(--text-gray);">
+                        </div>
+
+                        <div class="manage-card">
+                            <h3><i class="fas fa-brush"></i> Tema de Fundo</h3>
+                            <div class="admin-theme-grid">
+                                <button type="button" class="tab-btn admin-theme-btn" data-theme="youtube"><i class="fab fa-youtube"></i> YouTube</button>
+                                <button type="button" class="tab-btn admin-theme-btn" data-theme="netflix"><i class="fas fa-play"></i> Netflix</button>
+                                <button type="button" class="tab-btn admin-theme-btn" data-theme="futurista"><i class="fas fa-bolt"></i> Cyberpunk</button>
+                                <button type="button" class="tab-btn admin-theme-btn" data-theme="claro"><i class="fas fa-sun"></i> Claro</button>
                             </div>
                         </div>
                     </div>
@@ -570,7 +609,8 @@
 		</a>
     
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+    <!-- app.js precisa registrar o callback __onGCastApiAvailable ANTES do SDK do Cast carregar -->
     <script src="app.js"></script>
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 </body>
 </html>
