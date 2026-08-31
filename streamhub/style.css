@@ -1762,6 +1762,8 @@ body.theme-claro textarea::placeholder {
 .player-header.compact-mode .player-controls-group #btn-share-media::after { content: "Compartilhar"; }
 .player-header.compact-mode .player-controls-group #btn-cast::after { content: "Espelhar na TV"; }
 .player-header.compact-mode .player-controls-group #btn-toggle-comments::after { content: "Comentários"; }
+.player-header.compact-mode .player-controls-group #btn-pip::after { content: "Janela flutuante (PiP)"; }
+.player-header.compact-mode .player-controls-group #btn-bg-play::after { content: "Tela desligada"; }
 .player-header.compact-mode .player-controls-group .btn-player-action::after {
     margin-left: 10px;
     font-size: 0.85rem;
@@ -2335,3 +2337,59 @@ html, body {
     .user-top-badge { max-width: 38vw; padding: 5px 8px; }
     .user-top-badge span { display: inline-block !important; font-size: 0.75rem; }
 }
+
+
+/* ==========================================
+   MENU LATERAL FIXO (não some ao rolar o mosaico)
+   ========================================== */
+@media (min-width: 769px) {
+    .sidebar-panel {
+        position: fixed;
+        top: 60px;
+        left: 0;
+        height: calc(100vh - 60px);
+        max-height: calc(100vh - 60px);
+        z-index: 95;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    .content-body { padding-left: 260px; }
+    .content-body:has(.sidebar-panel.collapsed) { padding-left: 0; }
+
+    .main-wrapper:has(.mobile-search-container:not(.hidden)) .sidebar-panel {
+        top: 102px;
+        height: calc(100vh - 102px);
+        max-height: calc(100vh - 102px);
+    }
+}
+
+/* ==========================================
+   BOTÕES DE PIP E SEGUNDO PLANO
+   ========================================== */
+#btn-pip.active,
+#btn-bg-play.active {
+    color: var(--theme-color);
+    text-shadow: 0 0 8px var(--theme-color);
+}
+
+.player-content.pip-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    background: #000;
+}
+
+.pip-aviso {
+    color: var(--text-gray);
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 20px;
+}
+
+/* Miniatura flutuante de fallback (PiP por canvas) */
+video.pip-canvas-oculto { position: fixed; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+/* PiP: oculta o player principal enquanto a janela flutuante do YouTube está ativa */
+.player-content.pip-oculto { display: none !important; }
