@@ -3286,3 +3286,767 @@ document.addEventListener("click", (e) => {
 
     window.fecharSidebarMobile = fecharSidebarMobile;
 })();
+
+// ==========================================
+// PICTURE-IN-PICTURE UNIVERSAL + REPRODUÇÃO
+// COM A TELA DESLIGADA (SEGUNDO PLANO)
+// Versão corrigida e definitiva
+// ==========================================
+(function () {
+    "use strict";
+
+    const CHAVE_BG = "streamhub_bg_play";
+    let bgAtivo = false;
+    try { bgAtivo = localStorage.getItem(CHAVE_BG) === "1"; } catch (e) { bgAtivo = false; }
+
+    // Estado de intenção do usuário: só retomamos automaticamente aquilo
+    // que estava tocando (nunca "revivemos" algo pausado de propósito).
+    let usuarioPausou = false;
+
+    let audioSilencioso = null;
+    let urlSilencio = null;
+    let audioCtx = null;
+    let noAr = false;              // áudio destravado por gesto do usuário
+    let timerRetomada = null;
+
+    // Document PiP
+    let janelaDocPip = null;
+    let ancoraPip = null;
+    let modoDocPip = null;         // "mover" | "youtube"
+    let iframeYtPip = null;
+    let tempoYtPip = 0;
+    let ouvinteMensagemPip = null;
+    let timerSondaPip = null;
+
+    // Canvas PiP (fallback)
+    let videoCanvasPip = null;
+    let canvasPip = null;
+    let timerCanvas = null;
+    let capaCarregada = null;
+
+    function avisar(msg) {
+        try {
+            if (typeof castAvisar === "function") { castAvisar(msg); return; }
+            if (typeof mostrarToast === "function") { mostrarToast(String(msg).replace(/<[^>]+>/g, "")); return; }
+        } catch (e) {}
+        try { console.log(String(msg).replace(/<[^>]+>/g, "")); } catch (e) {}
+    }
+
+    function elPlayerContent() { return document.querySelector("#player-container .player-content"); }
+
+    function elVideoBruto() {
+        const v = document.getElementById("raw-player");
+        if (!v) return null;
+        const visivel = !v.classList.contains("hidden");
+        const temFonte = !!(v.currentSrc || v.src);
+        return visivel && temFonte ? v : null;
+    }
+
+    function ytDisponivel() {
+        try {
+            const el = document.getElementById("yt-player");
+            const visivel = !!el && !el.classList.contains("hidden");
+            return visivel && typeof ytPlayer !== "undefined" && !!ytPlayer && typeof ytPlayer.playVideo === "function";
+        } catch (e) { return false; }
+    }
+
+    function iframeUniversal() {
+        const f = document.getElementById("universal-player");
+        if (!f) return null;
+        return (!f.classList.contains("hidden") && f.src) ? f : null;
+    }
+
+    function faixaAtual() {
+        try {
+            if (typeof currentPlaylist !== "undefined" && currentPlaylist && typeof currentTrackIndex !== "undefined") {
+                return currentPlaylist[currentTrackIndex] || null;
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    function tituloAtual() {
+        const f = faixaAtual();
+        return (f && (f["título"] || f.titulo)) ||
+            document.getElementById("current-track-title")?.innerText ||
+            "StreamHub";
+    }
+
+    function capaAtual() {
+        const f = faixaAtual();
+        return (f && f.capa) || "";
+    }
+
+    function idYoutubeAtual() {
+        try {
+            if (!ytDisponivel()) return null;
+            // 1) direto do próprio player (mais confiável)
+            if (typeof ytPlayer.getVideoData === "function") {
+                const d = ytPlayer.getVideoData();
+                if (d && d.video_id) return d.video_id;
+            }
+            const f = faixaAtual();
+            if (f && f.link && typeof extractYoutubeId === "function") return extractYoutubeId(String(f.link).trim());
+        } catch (e) {}
+        return null;
+    }
+
+    // =====================================================
+    // ÁUDIO DE SUSTENTAÇÃO (mantém a aba "audível" e viva)
+    // Correção: o WAV anterior era 100% mudo e com volume
+    // 0.001 — o navegador tratava a aba como silenciosa e
+    // suspendia tudo ao apagar a tela. Agora usamos ruído
+    // de 1 LSB (inaudível ao ouvido, audível ao navegador)
+    // com volume real, + AudioContext para não ser suspenso.
+    // =====================================================
+    function criarUrlSilencio() {
+        if (urlSilencio) return urlSilencio;
+        try {
+            const taxa = 44100, segundos = 5, amostras = taxa * segundos;
+            const buffer = new ArrayBuffer(44 + amostras * 2);
+            const view = new DataView(buffer);
+            const escrever = (pos, txt) => { for (let i = 0; i < txt.length; i++) view.setUint8(pos + i, txt.charCodeAt(i)); };
+            escrever(0, "RIFF"); view.setUint32(4, 36 + amostras * 2, true); escrever(8, "WAVE");
+            escrever(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+            view.setUint32(24, taxa, true); view.setUint32(28, taxa * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+            escrever(36, "data"); view.setUint32(40, amostras * 2, true);
+            for (let i = 0; i < amostras; i++) {
+                // ruído de amplitude 1 (≈ -90 dBFS): inaudível, porém não é silêncio digital
+                view.setInt16(44 + i * 2, (i % 2 === 0 ? 1 : -1), true);
+            }
+            urlSilencio = URL.createObjectURL(new Blob([buffer], { type: "audio/wav" }));
+        } catch (e) { urlSilencio = null; }
+        return urlSilencio;
+    }
+
+    function ligarAudioSilencioso() {
+        try {
+            if (!audioSilencioso) {
+                const url = criarUrlSilencio();
+                if (!url) return;
+                audioSilencioso = document.createElement("audio");
+                audioSilencioso.id = "streamhub-silencio";
+                audioSilencioso.src = url;
+                audioSilencioso.loop = true;
+                audioSilencioso.volume = 1;
+                audioSilencioso.preload = "auto";
+                audioSilencioso.setAttribute("playsinline", "");
+                audioSilencioso.setAttribute("webkit-playsinline", "");
+                audioSilencioso.style.display = "none";
+                document.body.appendChild(audioSilencioso);
+                // se o navegador encerrar o loop por qualquer motivo, reiniciamos
+                audioSilencioso.addEventListener("ended", () => { if (bgAtivo) { try { audioSilencioso.currentTime = 0; audioSilencioso.play().catch(() => {}); } catch (e) {} } });
+                audioSilencioso.addEventListener("pause", () => { if (bgAtivo) setTimeout(() => { try { audioSilencioso.play().catch(() => {}); } catch (e) {} }, 300); });
+            }
+            if (audioSilencioso.paused) {
+                const p = audioSilencioso.play();
+                if (p && p.catch) p.catch(() => {});
+            }
+            manterAudioContext();
+        } catch (e) {}
+    }
+
+    function desligarAudioSilencioso() {
+        try { if (audioSilencioso) { audioSilencioso.pause(); } } catch (e) {}
+        try { if (audioCtx && audioCtx.state === "running") audioCtx.suspend(); } catch (e) {}
+    }
+
+    // AudioContext com ganho ~0: impede que o navegador congele o
+    // pipeline de áudio da aba quando a tela apaga.
+    function manterAudioContext() {
+        try {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return;
+            if (!audioCtx) {
+                audioCtx = new AC();
+                const osc = audioCtx.createOscillator();
+                const ganho = audioCtx.createGain();
+                ganho.gain.value = 0.0001;
+                osc.frequency.value = 30;
+                osc.connect(ganho);
+                ganho.connect(audioCtx.destination);
+                osc.start();
+            }
+            if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+        } catch (e) {}
+    }
+
+    // Destrava a reprodução automática no primeiro gesto do usuário,
+    // para que o modo segundo plano funcione mesmo sendo reativado
+    // automaticamente numa próxima sessão.
+    function destravarAudio() {
+        if (noAr) return;
+        noAr = true;
+        try {
+            manterAudioContext();
+            if (bgAtivo) ligarAudioSilencioso();
+        } catch (e) {}
+    }
+    ["pointerdown", "touchstart", "keydown", "click"].forEach((ev) => {
+        document.addEventListener(ev, destravarAudio, { once: false, passive: true });
+    });
+
+    // ---------- MEDIA SESSION ----------
+    function atualizarMediaSession() {
+        if (!("mediaSession" in navigator)) return;
+        try {
+            const capa = capaAtual();
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: tituloAtual(),
+                artist: "StreamHub",
+                album: "StreamHub by Di Workin'",
+                artwork: capa
+                    ? [
+                        { src: capa, sizes: "256x256", type: "image/jpeg" },
+                        { src: capa, sizes: "512x512", type: "image/jpeg" }
+                    ]
+                    : []
+            });
+            const set = (acao, fn) => { try { navigator.mediaSession.setActionHandler(acao, fn); } catch (e) {} };
+            set("play", () => { usuarioPausou = false; tocar(); });
+            set("pause", () => { usuarioPausou = true; pausar(); });
+            set("previoustrack", () => { try { document.getElementById("btn-prev-track")?.click(); } catch (e) {} });
+            set("nexttrack", () => { try { document.getElementById("btn-next-track")?.click(); } catch (e) {} });
+            set("stop", () => { usuarioPausou = true; pausar(); });
+            // não anunciamos posição (fontes em iframe não expõem tempo confiável)
+            try { navigator.mediaSession.setPositionState && navigator.mediaSession.setPositionState(); } catch (e) {}
+            navigator.mediaSession.playbackState = usuarioPausou ? "paused" : "playing";
+        } catch (e) {}
+    }
+
+    function tocar() {
+        const v = elVideoBruto();
+        if (v) { const p = v.play(); if (p && p.catch) p.catch(() => {}); }
+        if (ytDisponivel()) { try { ytPlayer.playVideo(); } catch (e) {} }
+        if (bgAtivo) ligarAudioSilencioso();
+        if ("mediaSession" in navigator) { try { navigator.mediaSession.playbackState = "playing"; } catch (e) {} }
+        refletirEstadoBotoes();
+    }
+
+    function pausar() {
+        const v = elVideoBruto();
+        if (v) { try { v.pause(); } catch (e) {} }
+        if (ytDisponivel()) { try { ytPlayer.pauseVideo(); } catch (e) {} }
+        if ("mediaSession" in navigator) { try { navigator.mediaSession.playbackState = "paused"; } catch (e) {} }
+    }
+
+    // ---------- MODO SEGUNDO PLANO ----------
+    function pararVigilancia() { if (timerRetomada) { clearInterval(timerRetomada); timerRetomada = null; } }
+
+    function iniciarVigilancia() {
+        pararVigilancia();
+        timerRetomada = setInterval(() => {
+            if (!bgAtivo) return;
+            ligarAudioSilencioso();
+            if (usuarioPausou) return;          // respeita a pausa do usuário
+            if (!document.hidden) return;
+            if (pipAtivo()) return;             // no PiP a mídia já continua visível
+            const v = elVideoBruto();
+            if (v && v.paused) { const p = v.play(); if (p && p.catch) p.catch(() => {}); }
+            if (ytDisponivel()) {
+                try {
+                    const estado = ytPlayer.getPlayerState ? ytPlayer.getPlayerState() : -1;
+                    if (estado === 2 || estado === -1) ytPlayer.playVideo();
+                } catch (e) {}
+            }
+        }, 1000);
+    }
+
+    function pipAtivo() {
+        return !!document.pictureInPictureElement ||
+            !!(janelaDocPip && !janelaDocPip.closed) ||
+            !!(window.documentPictureInPicture && window.documentPictureInPicture.window);
+    }
+
+    function refletirEstadoBotoes() {
+        const b = document.getElementById("btn-bg-play");
+        if (b) {
+            b.classList.toggle("active", bgAtivo);
+            b.setAttribute("aria-pressed", bgAtivo ? "true" : "false");
+            b.title = bgAtivo ? "Segundo plano ativo (toca com a tela desligada)" : "Reproduzir com a tela desligada";
+        }
+        const p = document.getElementById("btn-pip");
+        if (p) {
+            p.classList.toggle("active", pipAtivo());
+            p.setAttribute("aria-pressed", pipAtivo() ? "true" : "false");
+            p.title = pipAtivo() ? "Fechar janela flutuante (PiP)" : "Picture-in-Picture (janela flutuante)";
+        }
+    }
+
+    function definirSegundoPlano(ativo, avisando) {
+        bgAtivo = !!ativo;
+        try { localStorage.setItem(CHAVE_BG, bgAtivo ? "1" : "0"); } catch (e) {}
+        if (bgAtivo) {
+            usuarioPausou = false;
+            manterAudioContext();
+            ligarAudioSilencioso();
+            atualizarMediaSession();
+            iniciarVigilancia();
+            if (avisando) avisar("<b>Segundo plano ativado</b><br>A mídia continua tocando com a tela desligada.");
+        } else {
+            desligarAudioSilencioso();
+            pararVigilancia();
+            if (avisando) avisar("<b>Segundo plano desativado</b>");
+        }
+        refletirEstadoBotoes();
+    }
+
+    document.addEventListener("visibilitychange", () => {
+        if (!bgAtivo) return;
+        if (document.hidden) {
+            ligarAudioSilencioso();
+            manterAudioContext();
+            if (!usuarioPausou && !pipAtivo()) tocar();
+        } else {
+            manterAudioContext();
+            // ao voltar, NÃO forçamos play: apenas ressincronizamos o estado
+            if (!usuarioPausou && !pipAtivo()) setTimeout(() => tocar(), 250);
+            refletirEstadoBotoes();
+        }
+    });
+
+    // ---------- PICTURE-IN-PICTURE ----------
+    function limparPontesYtPip() {
+        if (timerSondaPip) { clearInterval(timerSondaPip); timerSondaPip = null; }
+        if (ouvinteMensagemPip) {
+            try { window.removeEventListener("message", ouvinteMensagemPip); } catch (e) {}
+            try { janelaDocPip && janelaDocPip.removeEventListener("message", ouvinteMensagemPip); } catch (e) {}
+            ouvinteMensagemPip = null;
+        }
+        iframeYtPip = null;
+    }
+
+    function devolverConteudoDoPip() {
+        try {
+            if (modoDocPip === "youtube") {
+                // devolve o vídeo ao player principal no tempo em que parou
+                limparPontesYtPip();
+                if (ancoraPip && ancoraPip.parentNode) ancoraPip.parentNode.removeChild(ancoraPip);
+                ancoraPip = null;
+                const conteudo = elPlayerContent();
+                if (conteudo) conteudo.classList.remove("pip-oculto");
+                if (ytDisponivel()) {
+                    try {
+                        if (tempoYtPip > 0) ytPlayer.seekTo(tempoYtPip, true);
+                        if (!usuarioPausou) ytPlayer.playVideo();
+                    } catch (e) {}
+                }
+            } else {
+                const conteudo = janelaDocPip && janelaDocPip.document
+                    ? janelaDocPip.document.querySelector(".player-content")
+                    : null;
+                if (conteudo && ancoraPip && ancoraPip.parentNode) {
+                    ancoraPip.parentNode.replaceChild(conteudo, ancoraPip);
+                } else if (ancoraPip && ancoraPip.parentNode) {
+                    ancoraPip.parentNode.removeChild(ancoraPip);
+                }
+                ancoraPip = null;
+            }
+        } catch (e) {}
+        modoDocPip = null;
+        janelaDocPip = null;
+        refletirEstadoBotoes();
+    }
+
+    function pararCanvasPip() {
+        if (timerCanvas) { clearInterval(timerCanvas); timerCanvas = null; }
+        try {
+            if (videoCanvasPip) {
+                videoCanvasPip.pause();
+                if (videoCanvasPip.srcObject) {
+                    videoCanvasPip.srcObject.getTracks().forEach((t) => { try { t.stop(); } catch (e) {} });
+                }
+                videoCanvasPip.remove();
+            }
+        } catch (e) {}
+        videoCanvasPip = null;
+        canvasPip = null;
+    }
+
+    async function fecharPip() {
+        try { if (document.pictureInPictureElement) await document.exitPictureInPicture(); } catch (e) {}
+        try {
+            const v = document.getElementById("raw-player");
+            if (v && typeof v.webkitSetPresentationMode === "function" && v.webkitPresentationMode === "picture-in-picture") {
+                v.webkitSetPresentationMode("inline");
+            }
+        } catch (e) {}
+        try { if (janelaDocPip && !janelaDocPip.closed) janelaDocPip.close(); } catch (e) {}
+        devolverConteudoDoPip();
+        pararCanvasPip();
+        refletirEstadoBotoes();
+    }
+
+    function estilosBaseParaPip(win) {
+        try {
+            document.querySelectorAll('link[rel="stylesheet"]').forEach((l) => {
+                const novo = win.document.createElement("link");
+                novo.rel = "stylesheet"; novo.href = l.href;
+                win.document.head.appendChild(novo);
+            });
+            const base = win.document.createElement("style");
+            base.textContent =
+                "html,body{margin:0;padding:0;background:#000;overflow:hidden;height:100%;width:100%}" +
+                ".player-content{display:block!important;width:100%!important;height:100%!important;max-height:none!important;position:absolute;inset:0}" +
+                ".player-content iframe,.player-content video,.player-content>div{width:100%!important;height:100%!important;border:0;display:block}" +
+                "#pip-frame{position:absolute;inset:0;width:100%;height:100%;border:0}" +
+                ".hidden{display:none!important}";
+            win.document.head.appendChild(base);
+            win.document.body.className = document.body.className;
+        } catch (e) {}
+    }
+
+    // --- Document PiP dedicado ao YouTube ---
+    // Correção: mover o <iframe> do YouTube entre documentos o recarrega e
+    // quebra a API. Aqui criamos um player novo na janela flutuante já no
+    // tempo atual, pausamos o principal e, ao fechar, devolvemos o tempo.
+    async function abrirDocumentPipYoutube() {
+        const id = idYoutubeAtual();
+        if (!id || !("documentPictureInPicture" in window)) return false;
+
+        let inicio = 0;
+        try { inicio = Math.max(0, Math.floor(ytPlayer.getCurrentTime() || 0)); } catch (e) { inicio = 0; }
+        tempoYtPip = inicio;
+
+        const conteudo = elPlayerContent();
+        try {
+            const largura = Math.max(400, Math.round((conteudo && conteudo.offsetWidth) || 480));
+            const altura = Math.max(225, Math.round((conteudo && conteudo.offsetHeight) || 270));
+            const win = await window.documentPictureInPicture.requestWindow({ width: largura, height: altura });
+            janelaDocPip = win;
+            modoDocPip = "youtube";
+            estilosBaseParaPip(win);
+
+            const origem = encodeURIComponent(window.location.origin);
+            const frame = win.document.createElement("iframe");
+            frame.id = "pip-frame";
+            frame.allow = "autoplay; encrypted-media; picture-in-picture";
+            frame.setAttribute("allowfullscreen", "");
+            frame.src = "https://www.youtube.com/embed/" + id +
+                "?autoplay=1&playsinline=1&enablejsapi=1&rel=0&start=" + inicio + "&origin=" + origem;
+            win.document.body.appendChild(frame);
+            iframeYtPip = frame;
+
+            // pausa o player principal para não tocar duas vezes
+            try { ytPlayer.pauseVideo(); } catch (e) {}
+
+            // aviso no lugar do player principal
+            ancoraPip = document.createElement("div");
+            ancoraPip.className = "player-content pip-placeholder";
+            ancoraPip.innerHTML = '<div class="pip-aviso">Reproduzindo na janela flutuante (PiP)</div>';
+            if (conteudo && conteudo.parentNode) {
+                conteudo.parentNode.insertBefore(ancoraPip, conteudo);
+                conteudo.classList.add("pip-oculto");
+            }
+
+            // ponte de tempo: handshake com a API do iframe do YouTube
+            tempoYtPip = inicio;
+            ouvinteMensagemPip = (ev) => {
+                try {
+                    if (!ev.data || typeof ev.data !== "string") return;
+                    const dados = JSON.parse(ev.data);
+                    const info = dados && dados.info;
+                    if (info && typeof info.currentTime === "number") tempoYtPip = info.currentTime;
+                } catch (e) {}
+            };
+            try { win.addEventListener("message", ouvinteMensagemPip); } catch (e) {}
+            const enviar = (func, args) => {
+                try {
+                    frame.contentWindow.postMessage(JSON.stringify({ event: "command", func: func, args: args || [] }), "*");
+                } catch (e) {}
+            };
+            frame.addEventListener("load", () => {
+                try { frame.contentWindow.postMessage(JSON.stringify({ event: "listening", id: "pip-frame" }), "*"); } catch (e) {}
+                enviar("playVideo");
+            });
+            timerSondaPip = setInterval(() => {
+                try { frame.contentWindow.postMessage(JSON.stringify({ event: "listening", id: "pip-frame" }), "*"); } catch (e) {}
+            }, 1000);
+
+            win.addEventListener("pagehide", devolverConteudoDoPip, { once: true });
+            win.addEventListener("unload", devolverConteudoDoPip, { once: true });
+            refletirEstadoBotoes();
+            return true;
+        } catch (e) {
+            janelaDocPip = null;
+            modoDocPip = null;
+            return false;
+        }
+    }
+
+    // --- Document PiP genérico (Drive, Archive, outros iframes) ---
+    async function abrirDocumentPipMovendo() {
+        const conteudo = elPlayerContent();
+        if (!conteudo || !("documentPictureInPicture" in window)) return false;
+        try {
+            const largura = Math.max(400, Math.round(conteudo.offsetWidth || 480));
+            const altura = Math.max(225, Math.round(conteudo.offsetHeight || 270));
+            const win = await window.documentPictureInPicture.requestWindow({ width: largura, height: altura });
+            janelaDocPip = win;
+            modoDocPip = "mover";
+            estilosBaseParaPip(win);
+
+            ancoraPip = document.createElement("div");
+            ancoraPip.className = "player-content pip-placeholder";
+            ancoraPip.innerHTML = '<div class="pip-aviso">Reproduzindo na janela flutuante (PiP)</div>';
+            conteudo.parentNode.insertBefore(ancoraPip, conteudo);
+            win.document.body.appendChild(conteudo);
+
+            win.addEventListener("pagehide", devolverConteudoDoPip, { once: true });
+            win.addEventListener("unload", devolverConteudoDoPip, { once: true });
+            refletirEstadoBotoes();
+            return true;
+        } catch (e) {
+            janelaDocPip = null;
+            modoDocPip = null;
+            return false;
+        }
+    }
+
+    // ---------- Fallback universal: miniatura em canvas ----------
+    function desenharCanvas() {
+        if (!canvasPip) return;
+        const ctx = canvasPip.getContext("2d");
+        if (!ctx) return;
+        const L = canvasPip.width, A = canvasPip.height;
+        ctx.fillStyle = "#000"; ctx.fillRect(0, 0, L, A);
+        if (capaCarregada && capaCarregada.complete && capaCarregada.naturalWidth) {
+            const escala = Math.max(L / capaCarregada.naturalWidth, A / capaCarregada.naturalHeight);
+            const cl = capaCarregada.naturalWidth * escala, ca = capaCarregada.naturalHeight * escala;
+            try { ctx.drawImage(capaCarregada, (L - cl) / 2, (A - ca) / 2, cl, ca); } catch (e) {}
+            ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.fillRect(0, 0, L, A);
+        }
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 26px Arial, sans-serif";
+        ctx.textAlign = "center";
+        const texto = String(tituloAtual()).slice(0, 40);
+        ctx.fillText(texto, L / 2, A / 2);
+        ctx.font = "16px Arial, sans-serif";
+        ctx.fillStyle = "#bbb";
+        ctx.fillText(usuarioPausou ? "StreamHub • pausado" : "StreamHub • tocando", L / 2, A / 2 + 32);
+    }
+
+    function esperarEvento(el, evento, ms) {
+        return new Promise((resolve) => {
+            let pronto = false;
+            const fim = () => { if (!pronto) { pronto = true; resolve(); } };
+            el.addEventListener(evento, fim, { once: true });
+            setTimeout(fim, ms || 3000);
+        });
+    }
+
+    async function abrirCanvasPip() {
+        try {
+            if (!document.pictureInPictureEnabled) return false;
+            pararCanvasPip();
+            canvasPip = document.createElement("canvas");
+            canvasPip.width = 640; canvasPip.height = 360;
+            const capa = capaAtual();
+            capaCarregada = null;
+            if (capa) {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.onload = () => { capaCarregada = img; desenharCanvas(); };
+                img.onerror = () => { capaCarregada = null; };
+                img.src = capa;
+            }
+            desenharCanvas();
+            // Correção: 5 fps + PiP imediato falhava ("metadata not loaded").
+            // Agora capturamos a 15 fps, desenhamos antes e esperamos os metadados.
+            const stream = canvasPip.captureStream(15);
+            videoCanvasPip = document.createElement("video");
+            videoCanvasPip.muted = true;
+            videoCanvasPip.autoplay = true;
+            videoCanvasPip.playsInline = true;
+            videoCanvasPip.setAttribute("playsinline", "");
+            videoCanvasPip.className = "pip-canvas-oculto";
+            videoCanvasPip.srcObject = stream;
+            document.body.appendChild(videoCanvasPip);
+            timerCanvas = setInterval(desenharCanvas, 500);
+            if (videoCanvasPip.readyState < 1) await esperarEvento(videoCanvasPip, "loadedmetadata", 3000);
+            try { await videoCanvasPip.play(); } catch (e) {}
+            if (videoCanvasPip.readyState < 2) await esperarEvento(videoCanvasPip, "loadeddata", 2000);
+            await videoCanvasPip.requestPictureInPicture();
+            videoCanvasPip.addEventListener("leavepictureinpicture", () => { pararCanvasPip(); refletirEstadoBotoes(); }, { once: true });
+            refletirEstadoBotoes();
+            return true;
+        } catch (e) {
+            pararCanvasPip();
+            return false;
+        }
+    }
+
+    async function alternarPip() {
+        if (pipAtivo()) { await fecharPip(); return; }
+
+        // 1) Vídeo direto (mp4/webm/mkv): PiP nativo do navegador
+        const v = elVideoBruto();
+        if (v) {
+            // iOS/Safari usam a API webkit de "presentation mode"
+            try {
+                if (typeof v.webkitSupportsPresentationMode === "function" &&
+                    v.webkitSupportsPresentationMode("picture-in-picture")) {
+                    if (v.readyState === 0) { try { v.load(); } catch (e) {} }
+                    if (v.readyState < 1) await esperarEvento(v, "loadedmetadata", 3000);
+                    v.webkitSetPresentationMode("picture-in-picture");
+                    refletirEstadoBotoes();
+                    return;
+                }
+            } catch (e) {}
+            if (document.pictureInPictureEnabled && !v.disablePictureInPicture) {
+                try {
+                    if (v.readyState === 0) { try { v.load(); } catch (e) {} }
+                    // Correção: era preciso aguardar os metadados antes do pedido
+                    if (v.readyState < 1) await esperarEvento(v, "loadedmetadata", 3000);
+                    await v.requestPictureInPicture();
+                    v.addEventListener("leavepictureinpicture", refletirEstadoBotoes, { once: true });
+                    refletirEstadoBotoes();
+                    return;
+                } catch (e) {}
+            }
+        }
+
+        // 2) YouTube: janela flutuante com player próprio (sem recarregar do zero)
+        if (ytDisponivel() && await abrirDocumentPipYoutube()) return;
+
+        // 3) Demais iframes (Drive, Archive...): Document PiP movendo o conteúdo
+        if (iframeUniversal() && await abrirDocumentPipMovendo()) return;
+
+        // 4) Último recurso: miniatura flutuante (mantém o áudio tocando na aba)
+        if (await abrirCanvasPip()) {
+            avisar("<b>Janela flutuante ativa</b><br>O vídeo continua tocando no app e o áudio segue em segundo plano.");
+            return;
+        }
+
+        avisar("<b>Picture-in-Picture indisponível</b><br>Este navegador não permite janela flutuante nesta mídia.");
+    }
+
+    // Sincroniza o botão quando o PiP é aberto/fechado por fora do app
+    document.addEventListener("enterpictureinpicture", refletirEstadoBotoes, true);
+    document.addEventListener("leavepictureinpicture", () => { setTimeout(refletirEstadoBotoes, 50); }, true);
+    try {
+        if (window.documentPictureInPicture && window.documentPictureInPicture.addEventListener) {
+            window.documentPictureInPicture.addEventListener("enter", () => { refletirEstadoBotoes(); });
+        }
+    } catch (e) {}
+
+    // ---------- BOTÕES ----------
+    function criarBotao(id, titulo, icone, alvo, grupo) {
+        let b = document.getElementById(id);
+        if (!b) {
+            b = document.createElement("button");
+            b.id = id; b.type = "button"; b.className = "btn-player-action";
+            b.innerHTML = '<i class="' + icone + '"></i>';
+            if (alvo) alvo.insertAdjacentElement("beforebegin", b); else grupo.appendChild(b);
+        }
+        b.title = titulo;
+        b.setAttribute("aria-label", titulo);
+        if (!b.dataset.ligado) {
+            b.dataset.ligado = "1";
+            b.addEventListener("click", (ev) => {
+                ev.preventDefault(); ev.stopPropagation();
+                destravarAudio();
+                if (id === "btn-pip") alternarPip();
+                else definirSegundoPlano(!bgAtivo, true);
+            });
+        }
+        return b;
+    }
+
+    function garantirBotoesPipEBg() {
+        const grupo = document.querySelector("#player-container .player-controls-group");
+        if (!grupo) return;
+        const alvo = document.getElementById("btn-cast");
+        criarBotao("btn-pip", "Picture-in-Picture (janela flutuante)", "fas fa-clone", alvo, grupo);
+        criarBotao("btn-bg-play", "Reproduzir com a tela desligada", "fas fa-mobile-screen-button", alvo, grupo);
+        refletirEstadoBotoes();
+    }
+
+    // Fecha o PiP ao fechar o player
+    document.addEventListener("click", (e) => {
+        if (e.target.closest && e.target.closest("#btn-close-player")) {
+            usuarioPausou = true;
+            fecharPip();
+            desligarAudioSilencioso();
+        }
+    });
+
+    // Ao trocar de mídia, o PiP do YouTube precisa acompanhar
+    function aoTrocarFaixa() {
+        usuarioPausou = false;
+        tempoYtPip = 0;
+        atualizarMediaSession();
+        desenharCanvas();
+        if (bgAtivo) ligarAudioSilencioso();
+        if (modoDocPip === "youtube" && janelaDocPip && !janelaDocPip.closed) {
+            const id = idYoutubeAtual();
+            if (id && iframeYtPip) {
+                try {
+                    iframeYtPip.src = "https://www.youtube.com/embed/" + id +
+                        "?autoplay=1&playsinline=1&enablejsapi=1&rel=0&origin=" + encodeURIComponent(window.location.origin);
+                    try { ytPlayer.pauseVideo(); } catch (e) {}
+                } catch (e) {}
+            }
+        }
+        refletirEstadoBotoes();
+    }
+
+    function ligarEstadoYoutube() {
+        try {
+            if (typeof ytPlayer === "undefined" || !ytPlayer || typeof ytPlayer.addEventListener !== "function") return;
+            if (ytPlayer.__shPipLigado) return;
+            ytPlayer.__shPipLigado = true;
+            ytPlayer.addEventListener("onStateChange", (e) => {
+                if (!e) return;
+                if (e.data === 1) { usuarioPausou = false; if (bgAtivo) ligarAudioSilencioso(); }
+                if (e.data === 2 && !document.hidden) usuarioPausou = true;
+                if ("mediaSession" in navigator) {
+                    try { navigator.mediaSession.playbackState = usuarioPausou ? "paused" : "playing"; } catch (err) {}
+                }
+            });
+        } catch (e) {}
+    }
+
+    function iniciar() {
+        garantirBotoesPipEBg();
+        atualizarMediaSession();
+        if (bgAtivo) definirSegundoPlano(true, false);
+
+        const titulo = document.getElementById("current-track-title");
+        if (titulo) {
+            try {
+                new MutationObserver(aoTrocarFaixa)
+                    .observe(titulo, { childList: true, characterData: true, subtree: true });
+            } catch (e) {}
+        }
+
+        const v = document.getElementById("raw-player");
+        if (v) {
+            v.setAttribute("playsinline", "");
+            v.setAttribute("webkit-playsinline", "");
+            v.addEventListener("play", () => { usuarioPausou = false; atualizarMediaSession(); if (bgAtivo) ligarAudioSilencioso(); });
+            v.addEventListener("pause", () => {
+                if (bgAtivo && document.hidden && !usuarioPausou) {
+                    const p = v.play(); if (p && p.catch) p.catch(() => {});
+                } else if (!document.hidden) {
+                    usuarioPausou = true;
+                    if ("mediaSession" in navigator) { try { navigator.mediaSession.playbackState = "paused"; } catch (e) {} }
+                }
+            });
+            v.addEventListener("enterpictureinpicture", refletirEstadoBotoes);
+            v.addEventListener("leavepictureinpicture", () => setTimeout(refletirEstadoBotoes, 50));
+        }
+
+        ligarEstadoYoutube();
+        setInterval(ligarEstadoYoutube, 2000);
+    }
+
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", iniciar);
+    else iniciar();
+    setTimeout(garantirBotoesPipEBg, 1500);
+    setTimeout(garantirBotoesPipEBg, 4000);
+    window.addEventListener("pagehide", () => { desligarAudioSilencioso(); });
+
+    // Expõe para uso externo, sem alterar nada mais do app
+    window.streamhubPip = { alternar: alternarPip, fechar: fecharPip, segundoPlano: definirSegundoPlano };
+})();
