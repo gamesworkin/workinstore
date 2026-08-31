@@ -201,6 +201,8 @@
                     </div>
                     
                     <button id="btn-share-media" class="btn-player-action" type="button" title="Compartilhar esta mídia"><i class="fas fa-share-nodes"></i></button>
+                    <button id="btn-pip" class="btn-player-action" type="button" title="Picture-in-Picture (janela flutuante)" aria-label="Picture-in-Picture (janela flutuante)" aria-pressed="false"><i class="fas fa-clone"></i></button>
+                    <button id="btn-bg-play" class="btn-player-action" type="button" title="Reproduzir com a tela desligada" aria-label="Reproduzir com a tela desligada" aria-pressed="false"><i class="fas fa-mobile-screen-button"></i></button>
                     <button id="btn-cast" class="btn-player-action btn-cast" title="Espelhar / Transmitir para a TV"><i class="fab fa-chromecast"></i></button>
                     <button id="btn-toggle-comments" class="btn-player-action" title="Mostrar/Ocultar Comentários"><i class="fas fa-comments"></i></button>
                     <button id="btn-close-player" class="btn-icon-close" title="Fechar Player"><i class="fas fa-times-circle"></i></button>
@@ -208,8 +210,8 @@
             </div>
             <div class="player-content">
                 <div id="yt-player" class="hidden"></div>
-                <iframe id="universal-player" class="hidden" allow="autoplay; encrypted-media" allowfullscreen playsinline="1"></iframe>
-                <video id="raw-player" class="hidden" controls autoplay playsinline></video>
+                <iframe id="universal-player" class="hidden" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen playsinline="1"></iframe>
+                <video id="raw-player" class="hidden" controls autoplay playsinline webkit-playsinline preload="metadata"></video>
             </div>
 
             <div id="player-comments" class="player-comments hidden">
