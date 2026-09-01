@@ -75,6 +75,200 @@ let lastYtSearchResults = [];
 let lastLocalSearchResults = []; 
 let lastLocalCatResults = [];
 let lastLocalSubResults = [];
+
+// ==========================================
+// ORDENACAO: CATEGORIAS, SUBCATEGORIAS E MIDIAS
+// ==========================================
+let ordemAtual = 'catalogo'; // padrao: ordem de catalogacao
+let duracoesCache = {};
+let buscandoDuracoes = false;
+
+function comparadorTexto(a, b) {
+    return String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
+}
+
+function ordenarNomes(lista) {
+    const copia = [...lista];
+    if (ordemAtual === 'az') return copia.sort(comparadorTexto);
+    if (ordemAtual === 'za') return copia.sort((a, b) => comparadorTexto(b, a));
+    return copia;
+}
+
+function chaveDuracao(track) {
+    const vid = extractYoutubeId((track && track.link) || '');
+    return vid ? `yt:${vid}` : `url:${((track && track.link) || '').trim()}`;
+}
+
+function duracaoDaFaixa(track) {
+    const v = duracoesCache[chaveDuracao(track)];
+    return typeof v === 'number' ? v : null;
+}
+
+function ordenarFaixas(lista) {
+    const copia = [...lista];
+    if (ordemAtual === 'az') return copia.sort((a, b) => comparadorTexto(a.título, b.título));
+    if (ordemAtual === 'za') return copia.sort((a, b) => comparadorTexto(b.título, a.título));
+    if (ordemAtual === 'dur-asc' || ordemAtual === 'dur-desc') {
+        garantirDuracoes(copia);
+        const fator = ordemAtual === 'dur-asc' ? 1 : -1;
+        return copia.sort((a, b) => {
+            const da = duracaoDaFaixa(a); const db = duracaoDaFaixa(b);
+            if (da === null && db === null) return comparadorTexto(a.título, b.título);
+            if (da === null) return 1;
+            if (db === null) return -1;
+            return (da - db) * fator;
+        });
+    }
+    return copia;
+}
+
+function iso8601ParaSegundos(iso) {
+    const m = /^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(iso || '');
+    if (!m) return null;
+    return (parseInt(m[1] || 0, 10) * 86400) + (parseInt(m[2] || 0, 10) * 3600) + (parseInt(m[3] || 0, 10) * 60) + parseInt(m[4] || 0, 10);
+}
+
+function lerDuracaoDeArquivo(track) {
+    return new Promise(resolve => {
+        const link = ((track && track.link) || '').trim();
+        const ehArquivo = /\.(mp4|mkv|webm|ogg|mp3|m4a|mov)(\?|$)/i.test(link) || link.includes('raw.githubusercontent');
+        if (!ehArquivo) { duracoesCache[chaveDuracao(track)] = null; return resolve(); }
+        const el = document.createElement('video');
+        let encerrado = false;
+        const finalizar = (valor) => {
+            if (encerrado) return; encerrado = true;
+            duracoesCache[chaveDuracao(track)] = valor;
+            try { el.removeAttribute('src'); el.load(); } catch (e) {}
+            resolve();
+        };
+        el.preload = 'metadata';
+        el.onloadedmetadata = () => finalizar(isFinite(el.duration) ? Math.round(el.duration) : null);
+        el.onerror = () => finalizar(null);
+        setTimeout(() => finalizar(null), 6000);
+        el.src = link;
+    });
+}
+
+async function garantirDuracoes(lista) {
+    if (buscandoDuracoes) return;
+    const pendentesYt = []; const pendentesArquivo = [];
+    lista.forEach(track => {
+        const chave = chaveDuracao(track);
+        if (duracoesCache[chave] !== undefined) return;
+        if (chave.startsWith('yt:')) pendentesYt.push(chave.slice(3));
+        else pendentesArquivo.push(track);
+    });
+    if (pendentesYt.length === 0 && pendentesArquivo.length === 0) return;
+    buscandoDuracoes = true;
+    try {
+        for (let i = 0; i < pendentesYt.length; i += 50) {
+            const bloco = pendentesYt.slice(i, i + 50);
+            try {
+                const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${bloco.join(',')}&key=${CONFIG.YT_API_KEY}`);
+                const data = await res.json();
+                (data.items || []).forEach(item => {
+                    duracoesCache[`yt:${item.id}`] = iso8601ParaSegundos(item.contentDetails && item.contentDetails.duration);
+                });
+            } catch (e) {}
+            bloco.forEach(id => { if (duracoesCache[`yt:${id}`] === undefined) duracoesCache[`yt:${id}`] = null; });
+        }
+        await Promise.all(pendentesArquivo.slice(0, 40).map(track => lerDuracaoDeArquivo(track)));
+        pendentesArquivo.forEach(t => { const k = chaveDuracao(t); if (duracoesCache[k] === undefined) duracoesCache[k] = null; });
+    } finally {
+        buscandoDuracoes = false;
+        renderMosaic();
+    }
+}
+
+function formatarDuracao(seg) {
+    if (typeof seg !== 'number' || !isFinite(seg)) return '';
+    const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60), s = Math.floor(seg % 60);
+    return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function definirOrdenacao(valor) {
+    ordemAtual = valor || 'catalogo';
+    renderMosaic();
+}
+
+function atualizarBarraOrdenacao() {
+    const barra = document.getElementById('sort-bar');
+    const select = document.getElementById('sort-select');
+    if (!barra || !select) return;
+    const ehMidias = currentView === 'tracks' || currentView === 'search_local_results';
+    const rotulo = document.getElementById('sort-label-target');
+    if (rotulo) rotulo.innerText = currentView === 'categories' ? 'categorias' : (currentView === 'subcategories' ? 'subcategorias' : 'mídias');
+    if (currentView === 'search_results') { barra.classList.add('hidden'); return; }
+    barra.classList.remove('hidden');
+    if (!ehMidias && (ordemAtual === 'dur-asc' || ordemAtual === 'dur-desc')) ordemAtual = 'catalogo';
+    const opcoes = [
+        ['catalogo', 'Ordem de catalogação (padrão)'],
+        ['az', 'Título (A → Z)'],
+        ['za', 'Título (Z → A)']
+    ];
+    if (ehMidias) {
+        opcoes.push(['dur-asc', 'Duração (menor → maior)']);
+        opcoes.push(['dur-desc', 'Duração (maior → menor)']);
+    }
+    select.innerHTML = opcoes.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+    select.value = ordemAtual;
+}
+
+// ==========================================
+// REPRODUCAO ALEATORIA (SHUFFLE) NOS PLAYERS
+// ==========================================
+let reproducaoAleatoria = false;
+let jaSorteadas = [];
+
+function alternarReproducaoAleatoria() {
+    reproducaoAleatoria = !reproducaoAleatoria;
+    jaSorteadas = reproducaoAleatoria ? [currentTrackIndex] : [];
+    atualizarBotaoAleatorio();
+}
+
+function atualizarBotaoAleatorio() {
+    document.querySelectorAll('#btn-shuffle').forEach(btn => {
+        btn.classList.toggle('active', reproducaoAleatoria);
+        btn.setAttribute('aria-pressed', reproducaoAleatoria ? 'true' : 'false');
+        btn.title = reproducaoAleatoria ? 'Reprodução aleatória: ligada' : 'Reprodução aleatória: desligada';
+    });
+}
+
+function sortearProximoIndice() {
+    const total = currentPlaylist.length;
+    if (total <= 1) return currentTrackIndex;
+    if (jaSorteadas.length >= total) jaSorteadas = [currentTrackIndex];
+    const disponiveis = [];
+    for (let i = 0; i < total; i++) if (!jaSorteadas.includes(i)) disponiveis.push(i);
+    if (disponiveis.length === 0) return currentTrackIndex;
+    const escolhido = disponiveis[Math.floor(Math.random() * disponiveis.length)];
+    jaSorteadas.push(escolhido);
+    return escolhido;
+}
+
+function avancarFaixa() {
+    if (currentPlaylist.length === 0) return;
+    if (reproducaoAleatoria) { playTrack(sortearProximoIndice()); return; }
+    if (currentTrackIndex + 1 < currentPlaylist.length) playTrack(currentTrackIndex + 1);
+}
+
+function voltarFaixa() {
+    if (currentPlaylist.length === 0) return;
+    if (reproducaoAleatoria) {
+        jaSorteadas.pop();
+        const anterior = jaSorteadas[jaSorteadas.length - 1];
+        if (typeof anterior === 'number') { playTrack(anterior); return; }
+        playTrack(sortearProximoIndice());
+        return;
+    }
+    if (currentTrackIndex > 0) playTrack(currentTrackIndex - 1);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('sort-select')?.addEventListener('change', (e) => definirOrdenacao(e.target.value));
+    atualizarBotaoAleatorio();
+});
+
 let activeEditingIndex = null;
 let canalSelecionadoProvisorio = null;
 
@@ -415,13 +609,14 @@ function alimentarSeletorCategoriasCanais() {
 
 function renderMosaic() {
     const grid = document.getElementById('mosaic-grid'); if (!grid) return; grid.innerHTML = '';
+    atualizarBarraOrdenacao();
     const bcCat = document.getElementById('bc-category'); const bcSub = document.getElementById('bc-subcategory'); const bcSrc = document.getElementById('bc-search');
     if (bcCat) bcCat.classList.add('hidden'); if (bcSub) bcSub.classList.add('hidden'); if (bcSrc) bcSrc.classList.add('hidden');
 
     if (currentView === 'categories') {
         const categories = [...new Set(database.map(item => item.categoria))];
         Object.keys(canaisDinamicos).forEach(key => { try { const c = decodeURIComponent(escape(atob(key))); if(!categories.includes(c)) categories.push(c); } catch(e){} });
-        categories.sort().forEach(cat => {
+        ordenarNomes(categories).forEach(cat => {
             if(!cat) return; const match = database.find(item => item.categoria === cat); const nodeName = btoa(unescape(encodeURIComponent(cat))).replace(/=/g, "");
             const thumbCapa = match ? match.capa : (canaisDinamicos[nodeName] ? canaisDinamicos[nodeName].thumb : '');
             grid.appendChild(createCard(cat, thumbCapa, false, false, () => { selectedCategory = cat; currentView = 'subcategories'; renderMosaic(); }, -1));
@@ -433,7 +628,7 @@ function renderMosaic() {
         const nodeName = btoa(unescape(encodeURIComponent(selectedCategory))).replace(/=/g, "");
         if (canaisDinamicos[nodeName] && !subcategories.includes("Vídeos Recentes")) subcategories.push("Vídeos Recentes");
         
-        subcategories.sort().forEach(sub => {
+        ordenarNomes(subcategories).forEach(sub => {
             const match = database.find(item => item.categoria === selectedCategory && item.subcategoria === sub);
             grid.appendChild(createCard(sub, match ? match.capa : (canaisDinamicos[nodeName] ? canaisDinamicos[nodeName].thumb : ''), false, false, () => { selectedSubcategory = sub; currentView = 'tracks'; renderMosaic(); }, -1));
         });
@@ -446,7 +641,7 @@ function renderMosaic() {
             const nodeName = btoa(unescape(encodeURIComponent(selectedCategory))).replace(/=/g, "");
             if (canaisDinamicos[nodeName]) buscarVideosRecentesDoCanal(canaisDinamicos[nodeName].uploadsPlaylistId);
         } else {
-            currentPlaylist = database.filter(item => item.categoria === selectedCategory && item.subcategoria === selectedSubcategory);
+            currentPlaylist = ordenarFaixas(database.filter(item => item.categoria === selectedCategory && item.subcategoria === selectedSubcategory));
             currentPlaylist.forEach((track, index) => {
                 const realIndex = database.findIndex(dbItem => dbItem.link === track.link && dbItem.título === track.título);
                 grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, realIndex, track));
@@ -521,8 +716,8 @@ function renderMosaic() {
 
         if (lastLocalSearchResults.length > 0) {
             tituloGrupo(`Mídias (${lastLocalSearchResults.length})`);
-            currentPlaylist = lastLocalSearchResults;
-            lastLocalSearchResults.forEach((track, index) => {
+            currentPlaylist = ordenarFaixas(lastLocalSearchResults);
+            currentPlaylist.forEach((track, index) => {
                 const realIndex = database.findIndex(dbItem => dbItem.link === track.link && dbItem.título === track.título);
                 grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, realIndex, track));
             });
@@ -635,14 +830,14 @@ function renderSidebar() {
     const tree = document.getElementById('sidebar-tree'); if (!tree) return; tree.innerHTML = '';
     const categories = [...new Set(database.map(item => item.categoria))];
     Object.keys(canaisDinamicos).forEach(key => { try { const catNome = decodeURIComponent(escape(atob(key))); if(!categories.includes(catNome)) categories.push(catNome); } catch(e){} });
-    categories.sort().forEach(cat => {
+    ordenarNomes(categories).forEach(cat => {
         if(!cat) return;
         const catLi = document.createElement('li'); const catToggle = document.createElement('span'); catToggle.className = 'category-toggle'; catToggle.innerHTML = `<i class="fas fa-folder"></i> ${cat}`;
         const subUl = document.createElement('ul'); subUl.className = 'tree-sub hidden'; catToggle.addEventListener('click', () => subUl.classList.toggle('hidden'));
         const subcategories = [...new Set(database.filter(item => item.categoria === cat).map(item => item.subcategoria))];
         const nodeName = btoa(unescape(encodeURIComponent(cat))).replace(/=/g, ""); if(canaisDinamicos[nodeName]) subcategories.push("Vídeos Recentes");
 
-        subcategories.sort().forEach(sub => {
+        ordenarNomes(subcategories).forEach(sub => {
             if(!sub) return; const subLi = document.createElement('li');
             subLi.innerHTML = sub === "Vídeos Recentes" ? `<i class="fas fa-sync text-red"></i> <b>${sub}</b>` : `<i class="fas fa-photo-film"></i> ${sub}`;
             subLi.addEventListener('click', (e) => { e.stopPropagation(); selectedCategory = cat; selectedSubcategory = sub; currentView = 'tracks'; renderMosaic(); if(window.innerWidth <= 768) handleToggleSidebar(); });
@@ -764,6 +959,7 @@ function extractPlaylistId(url) { const reg = /[&?]list=([^#\&\?]+)/; const matc
 
 function playTrack(index) {
     if(currentPlaylist.length === 0) return; currentTrackIndex = index; const track = currentPlaylist[index];
+    if (reproducaoAleatoria && !jaSorteadas.includes(index)) jaSorteadas.push(index);
     if (document.getElementById('player-container')) document.getElementById('player-container').classList.remove('hidden');
     if (document.getElementById('current-track-title')) document.getElementById('current-track-title').innerText = track.título;
 
@@ -780,7 +976,7 @@ function playTrack(index) {
                 playerVars: { 'autoplay': 1, 'playsinline': 1, 'enablejsapi': 1 }, 
                 events: { 
                     'onReady': () => { aplicarVolume(); }, 
-                    'onStateChange': (e) => { if(e.data === 0 && currentTrackIndex + 1 < currentPlaylist.length) playTrack(currentTrackIndex + 1); } 
+                    'onStateChange': (e) => { if(e.data === 0) avancarFaixa(); } 
                 } 
             }); 
         } 
@@ -790,7 +986,7 @@ function playTrack(index) {
         }
     } 
     else if(linkOriginal.toLowerCase().endsWith('.mp4') || linkOriginal.toLowerCase().endsWith('.mkv') || linkOriginal.toLowerCase().includes('raw.githubusercontent') || linkOriginal.includes('docs.google.com/uc?export=download')) {
-        if (rawPlayerEl) { rawPlayerEl.classList.remove('hidden'); rawPlayerEl.src = linkOriginal; rawPlayerEl.play(); aplicarVolume(); rawPlayerEl.onended = () => { if(currentTrackIndex + 1 < currentPlaylist.length) playTrack(currentTrackIndex + 1); }; }
+        if (rawPlayerEl) { rawPlayerEl.classList.remove('hidden'); rawPlayerEl.src = linkOriginal; rawPlayerEl.play(); aplicarVolume(); rawPlayerEl.onended = () => { avancarFaixa(); }; }
     } 
     else { 
         if (univPlayerEl) { 
@@ -1299,8 +1495,9 @@ function setupEventListeners() {
             if(selectorPerfil) selectorPerfil.style.left = "12%";
         }
 
-        if (e.target.closest('#btn-next-track')) { if(currentTrackIndex + 1 < currentPlaylist.length) playTrack(currentTrackIndex + 1); }
-        if (e.target.closest('#btn-prev-track')) { if(currentTrackIndex > 0) playTrack(currentTrackIndex - 1); }
+        if (e.target.closest('#btn-next-track')) { avancarFaixa(); }
+        if (e.target.closest('#btn-prev-track')) { voltarFaixa(); }
+        if (e.target.closest('#btn-shuffle')) { alternarReproducaoAleatoria(); }
         if (e.target.closest('#btn-close-player')) {
             if(ytPlayer?.stopVideo) ytPlayer.stopVideo(); document.getElementById('universal-player').src = ""; document.getElementById('raw-player').pause();
             document.getElementById('player-container')?.classList.add('hidden');

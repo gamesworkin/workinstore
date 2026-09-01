@@ -2393,3 +2393,57 @@ video.pip-canvas-oculto { position: fixed; left: -9999px; width: 1px; height: 1p
 
 /* PiP: oculta o player principal enquanto a janela flutuante do YouTube está ativa */
 .player-content.pip-oculto { display: none !important; }
+
+
+/* ==========================================
+   BARRA DE ORDENACAO (CATEGORIAS / SUBCATEGORIAS / MIDIAS)
+   ========================================== */
+.sort-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 8px 0 14px;
+    padding: 8px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+.sort-bar.hidden { display: none; }
+.sort-label {
+    color: var(--text-gray);
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.sort-label i { color: var(--theme-color); }
+.sort-select {
+    background: var(--bg-main);
+    color: var(--text-white);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    outline: none;
+    max-width: 100%;
+}
+.sort-select:focus { border-color: var(--theme-color); }
+body.theme-claro .sort-select {
+    background: #afafaf;
+    color: #050505;
+    border: 1px solid #858585;
+}
+
+/* Botao de reproducao aleatoria ativo */
+#btn-shuffle.active {
+    color: var(--theme-color);
+    text-shadow: 0 0 8px var(--theme-color);
+}
+
+@media (max-width: 768px) {
+    .sort-bar { margin: 6px 0 10px; padding: 6px 8px; }
+    .sort-label span { display: inline; }
+}
