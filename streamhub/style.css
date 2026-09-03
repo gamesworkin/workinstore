@@ -304,6 +304,7 @@ button:active {
     flex: 1;
     margin-top: 60px;
     min-height: calc(100vh - 60px);
+    transition: padding-left 0.3s ease;
 }
 
 .main-wrapper:has(.mobile-search-container:not(.hidden)) .content-body {
@@ -388,6 +389,55 @@ button:active {
     transition: background .2s, color .2s;
 }
 .quick-edit-badge:hover { color: #fff; background: var(--theme-color); }
+.card:has(.media-delete-badge) .quick-edit-badge { right: 44px; }
+.media-delete-badge {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    background: rgba(0,0,0,0.75);
+    color: #e74c3c;
+    cursor: pointer;
+    z-index: 5;
+    transition: background .2s, color .2s, transform .15s;
+}
+.media-delete-badge:hover { background: #c0392b; color: #fff; transform: scale(1.08); }
+.card:has(.media-delete-badge) h4 { padding-right: 82px; min-height: 52px; }
+
+/* Ações rápidas dos cards de categorias e subcategorias */
+.collection-card-actions {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    display: flex;
+    gap: 6px;
+    z-index: 6;
+}
+.collection-action-btn {
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    background: rgba(0,0,0,0.78);
+    color: var(--text-white);
+    cursor: pointer;
+    transition: background .2s, color .2s, transform .15s;
+}
+.collection-action-btn:hover { transform: scale(1.08); }
+.collection-edit-btn { color: var(--theme-color); }
+.collection-edit-btn:hover { background: var(--theme-color); color: #fff; }
+.collection-delete-btn { color: #e74c3c; }
+.collection-delete-btn:hover { background: #c0392b; color: #fff; }
+.card:has(.collection-card-actions) h4 { padding-right: 82px; min-height: 52px; }
 
 .search-btn-group { display: flex; gap: 2px; padding: 0 8px 8px 8px; }
 .search-btn-group button { flex: 1; padding: 6px; font-size: 0.8rem; color: #fff; }
@@ -751,6 +801,12 @@ body.theme-claro .theme-switcher-float {
         height: 28px !important;
         padding: 0 !important;
     }
+    #mosaic-grid .card:has(.media-delete-badge) .quick-edit-badge { right: 39px; }
+    #mosaic-grid .card .media-delete-badge { right: 6px; bottom: 6px; width: 28px; height: 28px; font-size: 0.8rem; padding: 0; }
+    #mosaic-grid .card:has(.media-delete-badge) h4 { padding-right: 68px; min-height: 48px; }
+    #mosaic-grid .card .collection-card-actions { right: 6px; bottom: 6px; gap: 5px; }
+    #mosaic-grid .card .collection-action-btn { width: 28px; height: 28px; font-size: 0.8rem; padding: 0; }
+    #mosaic-grid .card:has(.collection-card-actions) h4 { padding-right: 68px; min-height: 48px; }
 }
 
 /* ==========================================
@@ -2355,6 +2411,7 @@ html, body {
     }
 
     .content-body { padding-left: 260px; }
+    .content-body.sidebar-collapsed,
     .content-body:has(.sidebar-panel.collapsed) { padding-left: 0; }
 
     .main-wrapper:has(.mobile-search-container:not(.hidden)) .sidebar-panel {
@@ -2446,4 +2503,242 @@ body.theme-claro .sort-select {
 @media (max-width: 768px) {
     .sort-bar { margin: 6px 0 10px; padding: 6px 8px; }
     .sort-label span { display: inline; }
+}
+
+/* ==========================================
+   ATUALIZAÇÕES: DURAÇÃO, TÍTULOS, FAVORITOS,
+   HAMBURGER MOBILE E DESCRIÇÃO DO VÍDEO
+   ========================================== */
+
+/* Miniatura com selo de duração */
+.card .card-thumb { position: relative; display: block; width: 100%; line-height: 0; }
+.card .duration-badge {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    background: rgba(0,0,0,0.82);
+    color: #fff;
+    font-size: 0.72rem;
+    line-height: 1;
+    padding: 4px 6px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 3;
+    pointer-events: none;
+}
+.card .duration-badge i { font-size: 0.65rem; }
+
+/* Títulos dos cards: no máximo duas linhas com reticências */
+.card h4 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+}
+@media (max-width: 768px) {
+    #mosaic-grid .card h4 {
+        -webkit-line-clamp: 2 !important;
+        line-clamp: 2 !important;
+    }
+    .card .duration-badge { font-size: 0.65rem; padding: 3px 5px; }
+}
+
+/* Coração de favoritar nos cards */
+.card .fav-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.72);
+    color: var(--text-white);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    font-size: 0.85rem;
+    cursor: pointer;
+    z-index: 5;
+    transition: background .2s, color .2s, transform .15s;
+}
+.card .fav-badge:hover { transform: scale(1.08); color: #fff; background: var(--theme-color); }
+.card .fav-badge.ativo { color: #e74c3c; border-color: #e74c3c; }
+@media (max-width: 480px) {
+    .card .fav-badge { width: 26px; height: 26px; font-size: 0.75rem; top: 6px; right: 6px; }
+}
+
+/* Botão de favoritos no cabeçalho */
+.btn-favorites-header { font-size: 1.2rem; color: var(--theme-color); }
+.btn-favorites-header:hover { color: #e74c3c; }
+
+/* Hamburger de categorias no cabeçalho mobile (fora da engrenagem) */
+#btn-sidebar-mobile-header { font-size: 1.2rem; color: var(--theme-color); }
+@media (min-width: 769px) { #btn-sidebar-mobile-header { display: none !important; } }
+
+/* Modal de favoritos */
+.favorites-box .modal-body { max-height: 70vh; overflow-y: auto; }
+.fav-secao-titulo { color: var(--theme-color); margin: 12px 0 8px 0; font-size: 0.95rem; }
+.fav-lista { display: flex; flex-direction: column; gap: 8px; }
+.fav-item {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 8px;
+    cursor: pointer;
+}
+.fav-item:hover { border-color: var(--theme-color); }
+.fav-item img { width: 76px; height: 44px; object-fit: cover; border-radius: 4px; background: #000; flex: none; }
+.fav-item-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fav-item-info strong {
+    color: var(--text-white); font-size: 0.9rem;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.fav-item-info span { color: var(--text-gray); font-size: 0.75rem; }
+.fav-item-remove {
+    background: transparent; border: none; color: #e74c3c;
+    font-size: 1rem; cursor: pointer; padding: 6px; flex: none;
+}
+.fav-vazio { color: var(--text-gray); font-size: 0.9rem; line-height: 1.4rem; padding: 10px 0; }
+
+/* Modal de descrição do vídeo */
+.video-desc-title { color: var(--text-white); margin-bottom: 10px; font-size: 1rem; }
+.video-desc-text {
+    color: var(--text-gray);
+    font-size: 0.9rem;
+    line-height: 1.45rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+/* Rótulos das novas opções no menu de três pontos do player (mobile) */
+.player-header.compact-mode .player-controls-group #btn-shuffle::after { content: "Aleatório"; }
+.player-header.compact-mode .player-controls-group #btn-video-desc::after { content: "Descrição"; }
+.player-header.compact-mode .player-controls-group #btn-fav-current::after { content: "Favoritar"; }
+#btn-fav-current.ativo { color: #e74c3c; }
+
+/* ==========================================
+   CORREÇÃO: ALINHAMENTO DOS BOTÕES DE AÇÃO DOS CARDS
+   (engrenagem, compartilhar e apagar lado a lado,
+   no desktop e no mobile, também em categorias/subcategorias)
+   ========================================== */
+.card {
+    --card-btn-size: 30px;
+    --card-btn-gap: 6px;
+    --card-btn-edge: 8px;
+    --card-btn-step: calc(var(--card-btn-size) + var(--card-btn-gap));
+}
+
+/* Mesmo tamanho e mesma linha de base para os três botões */
+.card .share-badge,
+.card .quick-edit-badge,
+.card .media-delete-badge {
+    width: var(--card-btn-size);
+    height: var(--card-btn-size);
+    padding: 0;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    line-height: 1;
+    bottom: var(--card-btn-edge);
+    z-index: 6;
+}
+
+/* Slot 1 (canto): apagar */
+.card .media-delete-badge { right: var(--card-btn-edge); }
+
+/* Slot 2: engrenagem (assume o canto quando não há apagar) */
+.card .quick-edit-badge { right: var(--card-btn-edge); }
+.card:has(.media-delete-badge) .quick-edit-badge {
+    right: calc(var(--card-btn-edge) + var(--card-btn-step));
+}
+
+/* Slot 3: compartilhar (recua conforme os botões existentes) */
+.card .share-badge { right: var(--card-btn-edge); }
+.card:has(.quick-edit-badge) .share-badge,
+.card:has(.media-delete-badge) .share-badge {
+    right: calc(var(--card-btn-edge) + var(--card-btn-step));
+}
+.card:has(.quick-edit-badge):has(.media-delete-badge) .share-badge {
+    right: calc(var(--card-btn-edge) + var(--card-btn-step) * 2);
+}
+
+/* Cards de categorias e subcategorias: botões sempre lado a lado */
+.card .collection-card-actions {
+    right: var(--card-btn-edge);
+    bottom: var(--card-btn-edge);
+    gap: var(--card-btn-gap);
+    flex-wrap: nowrap;
+    align-items: center;
+}
+.card .collection-action-btn {
+    width: var(--card-btn-size);
+    height: var(--card-btn-size);
+    padding: 0;
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
+/* Espaço reservado no título para não ficar sob os botões */
+.card:has(.share-badge) h4,
+.card:has(.quick-edit-badge) h4,
+.card:has(.media-delete-badge) h4,
+.card:has(.collection-card-actions) h4 {
+    padding-right: calc(var(--card-btn-edge) * 2 + var(--card-btn-size) * 2 + var(--card-btn-gap));
+    min-height: 52px;
+}
+.card:has(.share-badge):has(.quick-edit-badge):has(.media-delete-badge) h4 {
+    padding-right: calc(var(--card-btn-edge) * 2 + var(--card-btn-size) * 3 + var(--card-btn-gap) * 2);
+}
+
+@media (max-width: 768px) {
+    .card {
+        --card-btn-size: 28px;
+        --card-btn-gap: 5px;
+        --card-btn-edge: 6px;
+    }
+    .card .share-badge,
+    .card .quick-edit-badge,
+    .card .media-delete-badge,
+    #mosaic-grid .card .share-badge,
+    #mosaic-grid .card .quick-edit-badge,
+    #mosaic-grid .card .media-delete-badge,
+    #mosaic-grid .card .collection-action-btn {
+        width: var(--card-btn-size) !important;
+        height: var(--card-btn-size) !important;
+        padding: 0 !important;
+        font-size: 0.8rem !important;
+    }
+    #mosaic-grid .card .media-delete-badge { right: var(--card-btn-edge); bottom: var(--card-btn-edge); }
+    #mosaic-grid .card:has(.media-delete-badge) .quick-edit-badge {
+        right: calc(var(--card-btn-edge) + var(--card-btn-step));
+    }
+    #mosaic-grid .card .collection-card-actions {
+        right: var(--card-btn-edge);
+        bottom: var(--card-btn-edge);
+        gap: var(--card-btn-gap);
+    }
+    #mosaic-grid .card:has(.media-delete-badge) h4,
+    #mosaic-grid .card:has(.collection-card-actions) h4 {
+        padding-right: calc(var(--card-btn-edge) * 2 + var(--card-btn-size) * 2 + var(--card-btn-gap));
+        min-height: 48px;
+    }
+    #mosaic-grid .card:has(.share-badge):has(.quick-edit-badge):has(.media-delete-badge) h4 {
+        padding-right: calc(var(--card-btn-edge) * 2 + var(--card-btn-size) * 3 + var(--card-btn-gap) * 2);
+    }
+}
+
+@media (max-width: 480px) {
+    .card .share-badge { padding: 0; font-size: 0.8rem; }
+    .card .fav-badge { width: 26px; height: 26px; }
 }

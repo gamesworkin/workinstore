@@ -79,7 +79,7 @@ let lastLocalSubResults = [];
 // ==========================================
 // ORDENACAO: CATEGORIAS, SUBCATEGORIAS E MIDIAS
 // ==========================================
-let ordemAtual = 'catalogo'; // padrao: ordem de catalogacao
+let ordemAtual = 'az'; // padrao: ordem alfabetica (A -> Z)
 let duracoesCache = {};
 let buscandoDuracoes = false;
 
@@ -187,8 +187,10 @@ function formatarDuracao(seg) {
 }
 
 function definirOrdenacao(valor) {
-    ordemAtual = valor || 'catalogo';
+    ordemAtual = valor || 'az';
     renderMosaic();
+    // O filtro escolhido tambem reordena o menu lateral de categorias/subcategorias
+    try { renderSidebar(); } catch (e) {}
 }
 
 function atualizarBarraOrdenacao() {
@@ -202,8 +204,8 @@ function atualizarBarraOrdenacao() {
     barra.classList.remove('hidden');
     if (!ehMidias && (ordemAtual === 'dur-asc' || ordemAtual === 'dur-desc')) ordemAtual = 'catalogo';
     const opcoes = [
-        ['catalogo', 'Ordem de catalogação (padrão)'],
-        ['az', 'Título (A → Z)'],
+        ['catalogo', 'Ordem de catalogação'],
+        ['az', 'Título (A → Z) (padrão)'],
         ['za', 'Título (Z → A)']
     ];
     if (ehMidias) {
@@ -438,6 +440,7 @@ function checkSession() {
                 
                 CONFIG.FIREBASE_URL = perfil.firebaseUrl;
                 CONFIG.YT_API_KEY = YT_API_KEY_GLOBAL;
+                carregarFavoritosDoPerfil(perfil.favoritos);
                 
                 aplicarCorTema(perfil.cor_tema || "#ff0000");
                 posicionarSetaPelaCor(perfil.cor_tema || "#ff0000");
@@ -619,7 +622,7 @@ function renderMosaic() {
         ordenarNomes(categories).forEach(cat => {
             if(!cat) return; const match = database.find(item => item.categoria === cat); const nodeName = btoa(unescape(encodeURIComponent(cat))).replace(/=/g, "");
             const thumbCapa = match ? match.capa : (canaisDinamicos[nodeName] ? canaisDinamicos[nodeName].thumb : '');
-            grid.appendChild(createCard(cat, thumbCapa, false, false, () => { selectedCategory = cat; currentView = 'subcategories'; renderMosaic(); }, -1));
+            grid.appendChild(createCard(cat, thumbCapa, false, false, () => { selectedCategory = cat; currentView = 'subcategories'; renderMosaic(); }, -1, null, { tipo: 'categoria', categoria: cat }));
         });
     } 
     else if (currentView === 'subcategories') {
@@ -630,7 +633,7 @@ function renderMosaic() {
         
         ordenarNomes(subcategories).forEach(sub => {
             const match = database.find(item => item.categoria === selectedCategory && item.subcategoria === sub);
-            grid.appendChild(createCard(sub, match ? match.capa : (canaisDinamicos[nodeName] ? canaisDinamicos[nodeName].thumb : ''), false, false, () => { selectedSubcategory = sub; currentView = 'tracks'; renderMosaic(); }, -1));
+            grid.appendChild(createCard(sub, match ? match.capa : (canaisDinamicos[nodeName] ? canaisDinamicos[nodeName].thumb : ''), false, false, () => { selectedSubcategory = sub; currentView = 'tracks'; renderMosaic(); }, -1, null, { tipo: 'subcategoria', categoria: selectedCategory, subcategoria: sub }));
         });
     } 
     else if (currentView === 'tracks') {
@@ -642,9 +645,10 @@ function renderMosaic() {
             if (canaisDinamicos[nodeName]) buscarVideosRecentesDoCanal(canaisDinamicos[nodeName].uploadsPlaylistId);
         } else {
             currentPlaylist = ordenarFaixas(database.filter(item => item.categoria === selectedCategory && item.subcategoria === selectedSubcategory));
+            garantirDuracoes(currentPlaylist);
             currentPlaylist.forEach((track, index) => {
                 const realIndex = database.findIndex(dbItem => dbItem.link === track.link && dbItem.título === track.título);
-                grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, realIndex, track));
+                grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, realIndex, track, { tipo: 'midia', track: track }));
             });
         }
     }
@@ -695,7 +699,7 @@ function renderMosaic() {
                 const capa = match ? match.capa : (canaisDinamicos[nodeName] ? canaisDinamicos[nodeName].thumb : '');
                 const card = createCard(cat, capa, false, false, () => {
                     selectedCategory = cat; selectedSubcategory = ''; currentView = 'subcategories'; renderMosaic();
-                }, -1);
+                }, -1, null, { tipo: 'categoria', categoria: cat });
                 card.insertAdjacentHTML('afterbegin', '<span class="local-kind-badge"><i class="fas fa-folder"></i> Categoria</span>');
                 grid.appendChild(card);
             });
@@ -708,7 +712,7 @@ function renderMosaic() {
                 const match = database.find(item => item.categoria === par.categoria && item.subcategoria === par.subcategoria);
                 const card = createCard(`${par.subcategoria}`, match ? match.capa : '', false, false, () => {
                     selectedCategory = par.categoria; selectedSubcategory = par.subcategoria; currentView = 'tracks'; renderMosaic();
-                }, -1);
+                }, -1, null, { tipo: 'subcategoria', categoria: par.categoria, subcategoria: par.subcategoria });
                 card.insertAdjacentHTML('afterbegin', `<span class="local-kind-badge"><i class="fas fa-video"></i> ${par.categoria}</span>`);
                 grid.appendChild(card);
             });
@@ -717,9 +721,10 @@ function renderMosaic() {
         if (lastLocalSearchResults.length > 0) {
             tituloGrupo(`Mídias (${lastLocalSearchResults.length})`);
             currentPlaylist = ordenarFaixas(lastLocalSearchResults);
+            garantirDuracoes(currentPlaylist);
             currentPlaylist.forEach((track, index) => {
                 const realIndex = database.findIndex(dbItem => dbItem.link === track.link && dbItem.título === track.título);
-                grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, realIndex, track));
+                grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, realIndex, track, { tipo: 'midia', track: track }));
             });
         }
     }
@@ -739,17 +744,76 @@ function alternarModoCategoriaCanal(modo) {
     }
 }
 
-function createCard(title, imgSrc, showAddButton = false, isPlaylist = false, clickCallback, realIndex = -1, shareInfo = null) {
+function createCard(title, imgSrc, showAddButton = false, isPlaylist = false, clickCallback, realIndex = -1, shareInfo = null, favInfo = null) {
     const card = document.createElement('div'); card.className = 'card';
-    let htmlContent = `<img src="${imgSrc || 'https://placehold.co/160x90?text=Sem+Capa'}"><h4>${title}</h4>`;
+    let selo = '';
+    if (favInfo && favInfo.tipo === 'midia') {
+        const seg = duracaoDaFaixa(favInfo.track || shareInfo || {});
+        const txt = formatarDuracao(seg);
+        if (txt) selo = `<span class="duration-badge"><i class="fas fa-clock"></i> ${txt}</span>`;
+    }
+    let htmlContent = `<div class="card-thumb"><img src="${imgSrc || 'https://placehold.co/160x90?text=Sem+Capa'}">${selo}</div><h4 title="${String(title || '').replace(/"/g, '&quot;')}">${title}</h4>`;
+    if (favInfo) {
+        const ativo = ehFavorito(favInfo) ? ' ativo' : '';
+        htmlContent += `<div class="fav-badge${ativo}" title="Favoritar"><i class="fa-heart ${ativo ? 'fas' : 'far'}"></i></div>`;
+    }
     if (shareInfo && shareInfo.link) htmlContent += `<div class="share-badge" title="Compartilhar"><i class="fas fa-share-nodes"></i></div>`;
     if(isPlaylist) htmlContent += `<span class="media-type-badge"><i class="fas fa-photo-film"></i> Playlist</span>`;
     if(showAddButton) htmlContent += `<button class="add-music-badge"><i class="fas fa-plus"></i> ${isPlaylist ? "Add Playlist" : "Adicionar"}</button>`;
-    if(realIndex >= 0) htmlContent += `<div class="quick-edit-badge" title="Editar"><i class="fas fa-cog"></i></div>`;
+    if(realIndex >= 0) {
+        htmlContent += `<div class="quick-edit-badge" title="Editar mídia" aria-label="Editar mídia"><i class="fas fa-cog"></i></div>`;
+        htmlContent += `<button type="button" class="media-delete-badge" title="Excluir mídia" aria-label="Excluir mídia"><i class="fas fa-trash"></i></button>`;
+    }
+    const isCollectionCard = favInfo && (favInfo.tipo === 'categoria' || favInfo.tipo === 'subcategoria');
+    const isDynamicRecent = favInfo && favInfo.tipo === 'subcategoria' && favInfo.subcategoria === 'Vídeos Recentes';
+    if (isCollectionCard && !isDynamicRecent) {
+        htmlContent += `<div class="collection-card-actions">
+            <button type="button" class="collection-action-btn collection-edit-btn" title="Editar" aria-label="Editar ${favInfo.tipo}"><i class="fas fa-cog"></i></button>
+            <button type="button" class="collection-action-btn collection-delete-btn" title="Excluir" aria-label="Excluir ${favInfo.tipo}"><i class="fas fa-trash"></i></button>
+        </div>`;
+    }
     card.innerHTML = htmlContent;
     if(clickCallback) card.addEventListener('click', clickCallback);
     if(realIndex >= 0 && card.querySelector('.quick-edit-badge')) {
         card.querySelector('.quick-edit-badge').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openAdvancedEditModal(realIndex); });
+    }
+    const mediaDelete = card.querySelector('.media-delete-badge');
+    if (mediaDelete && realIndex >= 0) {
+        mediaDelete.addEventListener('click', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            if (confirm(`Excluir a mídia "${title}"?`)) deletarMidiaUnica(realIndex);
+        });
+    }
+    const collectionEdit = card.querySelector('.collection-edit-btn');
+    if (collectionEdit && favInfo) {
+        collectionEdit.addEventListener('click', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            if (favInfo.tipo === 'categoria') {
+                const novoNome = prompt('Novo nome para a Categoria:', favInfo.categoria);
+                if (novoNome && novoNome.trim() && novoNome.trim() !== favInfo.categoria) renomearCategoriaCompleta(favInfo.categoria, novoNome.trim());
+            } else {
+                const novoNome = prompt('Novo nome para a Subcategoria:', favInfo.subcategoria);
+                if (novoNome && novoNome.trim() && novoNome.trim() !== favInfo.subcategoria) renomearSubcategoriaCompleta(favInfo.categoria, favInfo.subcategoria, novoNome.trim());
+            }
+        });
+    }
+    const collectionDelete = card.querySelector('.collection-delete-btn');
+    if (collectionDelete && favInfo) {
+        collectionDelete.addEventListener('click', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            if (favInfo.tipo === 'categoria') {
+                if (confirm(`Excluir a categoria "${favInfo.categoria}" e todo o seu conteúdo?`)) deletarCategoriaCompleta(favInfo.categoria);
+            } else if (confirm(`Excluir a subcategoria "${favInfo.subcategoria}" e todo o seu conteúdo?`)) {
+                deletarSubcategoria(favInfo.categoria, favInfo.subcategoria);
+            }
+        });
+    }
+    const badgeFav = card.querySelector('.fav-badge');
+    if (badgeFav && favInfo) {
+        badgeFav.addEventListener('click', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            alternarFavorito(favInfo);
+        });
     }
     const badgeShare = card.querySelector('.share-badge');
     if (badgeShare && shareInfo) {
@@ -775,7 +839,8 @@ async function buscarVideosRecentesDoCanal(playlistId) {
             }));
             if (grid) { 
                 grid.innerHTML = ''; 
-                currentPlaylist.forEach((track, index) => { grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, -1, track)); }); 
+                garantirDuracoes(currentPlaylist);
+                currentPlaylist.forEach((track, index) => { grid.appendChild(createCard(track.título, track.capa, false, false, () => { playTrack(index); }, -1, track, { tipo: 'midia', track: track })); }); 
             }
         }
     } catch (e) { if (grid) grid.innerHTML = '<h3>Erro ao carregar feeds do canal.</h3>'; }
@@ -962,6 +1027,7 @@ function playTrack(index) {
     if (reproducaoAleatoria && !jaSorteadas.includes(index)) jaSorteadas.push(index);
     if (document.getElementById('player-container')) document.getElementById('player-container').classList.remove('hidden');
     if (document.getElementById('current-track-title')) document.getElementById('current-track-title').innerText = track.título;
+    try { atualizarBotaoFavoritoDoPlayer(); } catch (e) {}
 
     const ytPlayerEl = document.getElementById('yt-player'); const univPlayerEl = document.getElementById('universal-player'); const rawPlayerEl = document.getElementById('raw-player');
     if (univPlayerEl) univPlayerEl.src = ""; if (rawPlayerEl) rawPlayerEl.src = "";
@@ -1107,12 +1173,12 @@ async function renomearCategoriaCompleta(antiga, nova) {
             const newNodeName = btoa(unescape(encodeURIComponent(nova))).replace(/=/g, ""); 
             let urlNovoCanal = obterUrlBaseCanais().replace(".json", `/${newNodeName}.json`);
             let urlAntigoCanal = obterUrlBaseCanais().replace(".json", `/${oldNodeName}.json`);
-            await dbFetch(urlNovoCanal, { method: "PUT", body: JSON.stringify(canaisDinamicos[oldNodeName]) }); 
+            await dbFetch(urlNovoCanal, { method: "PUT", body: JSON.stringify(canaisDinamicos[oldNodeName]), headers: { 'Content-Type': 'application/json' } }); 
             await dbFetch(urlAntigoCanal, { method: "DELETE" }); 
         } 
         await recarregarDadosDoBanco(); 
         renderCrudManager(); 
-    } catch(e){ console.error("Erro ao renomear categoria:", e); } 
+    } catch(e){ console.error("Erro ao renomear categoria:", e); alert("Erro ao renomear categoria: " + e.message); } 
 }
 
 function openAdvancedEditModal(index) {
@@ -1125,21 +1191,36 @@ function openAdvancedEditModal(index) {
 
 async function saveAdvancedEditChanges(e) {
     if(e) e.preventDefault();
+    if (activeEditingIndex === null || !database[activeEditingIndex]) {
+        return alert("Não foi possível identificar a mídia em edição. Reabra a edição e tente novamente.");
+    }
     const t = document.getElementById('edit-field-title').value.trim(); const l = document.getElementById('edit-field-link').value.trim();
     const c = document.getElementById('edit-field-capa').value.trim(); const cat = document.getElementById('edit-field-category').value.trim();
     const sub = document.getElementById('edit-field-subcategory').value.trim();
     if(!t || !l || !cat) return alert("Preencha os campos!");
 
+    const btnSalvar = document.getElementById('btn-submit-edit-media');
+    const textoOriginal = btnSalvar ? btnSalvar.innerHTML : "";
+    const itemOriginal = { ...database[activeEditingIndex] };
+
     database[activeEditingIndex].título = t; database[activeEditingIndex].link = l; database[activeEditingIndex].capa = c;
     database[activeEditingIndex].categoria = cat; database[activeEditingIndex].subcategoria = sub;
-    
+
     try {
+        if (btnSalvar) { btnSalvar.disabled = true; btnSalvar.innerHTML = "Salvando..."; }
         await empurrarBancoIntegralParaServidor();
         document.getElementById('edit-media-modal').classList.add('hidden');
-        await recarregarDadosDoBanco(); 
+        activeEditingIndex = null;
+        await recarregarDadosDoBanco();
         renderCrudManager();
         alert("Alteração salva com sucesso!");
-    } catch (err) { alert("Erro: " + err.message); }
+    } catch (err) {
+        // Desfaz a alteração local se a gravação remota falhar
+        database[activeEditingIndex] = itemOriginal;
+        alert("Erro ao salvar: " + err.message);
+    } finally {
+        if (btnSalvar) { btnSalvar.disabled = false; btnSalvar.innerHTML = textoOriginal; }
+    }
 }
 
 async function saveMediaToDatabase(e) {
@@ -1196,13 +1277,27 @@ async function processarInjecaoDeDadosAcumulativa(novosItens) {
 }
 
 async function empurrarBancoIntegralParaServidor() {
+    if (!CONFIG.FIREBASE_URL) throw new Error("Banco de dados não configurado. Faça login novamente antes de salvar.");
+    if (!firebase.auth().currentUser) throw new Error("Sessão expirada. Entre novamente para salvar suas alterações.");
     const loteLimpoParaSalvar = database.map(({idFirebase, ...resto}) => resto);
     let resposta = await dbFetch(CONFIG.FIREBASE_URL, { method: "PUT", body: JSON.stringify(loteLimpoParaSalvar), headers: { 'Content-Type': 'application/json' } });
-    if (!resposta.ok) throw new Error("Erro na gravação remota do banco.");
+    if (!resposta.ok) {
+        let detalhe = "";
+        try { detalhe = (await resposta.text()) || ""; } catch (e) {}
+        throw new Error(`Erro na gravação remota do banco (HTTP ${resposta.status}). ${detalhe}`.trim());
+    }
 }
 
-async function deletarMidiaUnica(indexNoBanco) { try { database.splice(indexNoBanco, 1); await empurrarBancoIntegralParaServidor(); await recarregarDadosDoBanco(); renderCrudManager(); } catch(e){} }
-async function deletarSubcategoria(cat, sub) { try { database = database.filter(item => !(item.categoria === cat && item.subcategoria === sub)); await empurrarBancoIntegralParaServidor(); await recarregarDadosDoBanco(); renderCrudManager(); } catch(e){} }
+async function deletarMidiaUnica(indexNoBanco) {
+    const backup = database.slice();
+    try { database.splice(indexNoBanco, 1); await empurrarBancoIntegralParaServidor(); await recarregarDadosDoBanco(); renderCrudManager(); }
+    catch(e){ database = backup; alert("Erro ao excluir mídia: " + e.message); }
+}
+async function deletarSubcategoria(cat, sub) {
+    const backup = database.slice();
+    try { database = database.filter(item => !(item.categoria === cat && item.subcategoria === sub)); await empurrarBancoIntegralParaServidor(); await recarregarDadosDoBanco(); renderCrudManager(); }
+    catch(e){ database = backup; alert("Erro ao excluir subcategoria: " + e.message); }
+}
 async function deletarCategoriaCompleta(cat) { 
     try { 
         database = database.filter(item => item.categoria !== cat); 
@@ -1215,10 +1310,19 @@ async function deletarCategoriaCompleta(cat) {
         selectedSubcategory = ''; 
         await recarregarDadosDoBanco(); 
         renderCrudManager(); 
-    } catch(e){ console.error("Erro ao deletar categoria completa:", e); } 
+    } catch(e){ console.error("Erro ao deletar categoria completa:", e); alert("Erro ao excluir categoria: " + e.message); } 
 }
 
-async function renameSubcategoryComplete(cat, antigaSub, novaSub) { try { database.forEach(item => { if(item.categoria === cat && item.subcategoria === antigaSub) item.subcategoria = novaSub; }); await empurrarBancoIntegralParaServidor(); await recarregarDadosDoBanco(); renderCrudManager(); } catch(e){} }
+async function renomearSubcategoriaCompleta(cat, antigaSub, novaSub) {
+    try {
+        database.forEach(item => { if(item.categoria === cat && item.subcategoria === antigaSub) item.subcategoria = novaSub; });
+        await empurrarBancoIntegralParaServidor();
+        await recarregarDadosDoBanco();
+        renderCrudManager();
+    } catch(e){ alert("Erro ao renomear subcategoria: " + e.message); }
+}
+// Alias mantido para compatibilidade com chamadas antigas
+const renameSubcategoryComplete = renomearSubcategoriaCompleta;
 
 function downloadJSON(obj, filename) {
     const prepararObjeto = Array.isArray(obj) ? obj.map(({idFirebase, ...r}) => r) : obj;
@@ -1227,11 +1331,32 @@ function downloadJSON(obj, filename) {
     document.body.appendChild(a); a.click(); a.remove();
 }
 
+function syncSidebarLayout() {
+    const sidebar = document.getElementById('sidebar');
+    const contentBody = document.querySelector('.content-body');
+    if (!sidebar || !contentBody) return;
+
+    const isMobile = window.innerWidth <= 768;
+    const expanded = isMobile ? sidebar.classList.contains('open') : !sidebar.classList.contains('collapsed');
+    contentBody.classList.toggle('sidebar-collapsed', !isMobile && !expanded);
+    document.getElementById('toggle-sidebar')?.setAttribute('aria-expanded', String(!isMobile && expanded));
+    document.getElementById('btn-sidebar-mobile-header')?.setAttribute('aria-expanded', String(isMobile && expanded));
+}
+
 function handleToggleSidebar() {
     const sidebar = document.getElementById('sidebar'); if (!sidebar) return;
-    if (window.innerWidth <= 768) { sidebar.classList.toggle('open'); sidebar.classList.remove('collapsed'); }
-    else { sidebar.classList.toggle('collapsed'); sidebar.classList.remove('open'); }
+    if (window.innerWidth <= 768) {
+        sidebar.classList.toggle('open');
+        sidebar.classList.remove('collapsed');
+    } else {
+        sidebar.classList.toggle('collapsed');
+        sidebar.classList.remove('open');
+    }
+    syncSidebarLayout();
 }
+
+window.addEventListener('resize', syncSidebarLayout);
+document.addEventListener('DOMContentLoaded', syncSidebarLayout);
 
 function switchTabs(targetTabId, activeTriggerBtnId) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); 
@@ -1375,7 +1500,7 @@ function setupEventListeners() {
             header.classList.toggle('dropdown-open', !menu.classList.contains('hidden'));
         })();
 
-        if (e.target.closest('#btn-toggle-sidebar-mobile')) {
+        if (e.target.closest('#btn-toggle-sidebar-mobile') || e.target.closest('#btn-sidebar-mobile-header')) {
             handleToggleSidebar();
         }
 
@@ -1432,7 +1557,8 @@ function setupEventListeners() {
                 const nodeName = btoa(unescape(encodeURIComponent(catDestino))).replace(/=/g, "");
                 let urlCanalIndividual = obterUrlBaseCanais().replace(".json", `/${nodeName}.json`);
                 
-                await dbFetch(urlCanalIndividual, { method: "PUT", body: JSON.stringify(payload) });
+                const respCanal = await dbFetch(urlCanalIndividual, { method: "PUT", body: JSON.stringify(payload), headers: { 'Content-Type': 'application/json' } });
+                if (!respCanal.ok) throw new Error(`Falha ao gravar o canal (HTTP ${respCanal.status}).`);
                 
                 alert(`Canal vinculado com sucesso na categoria "${catDestino}"!`);
                 
@@ -1622,9 +1748,9 @@ function setupEventListeners() {
         if (termo === "") { currentView = 'categories'; selectedCategory = ''; selectedSubcategory = ''; renderMosaic(); }
     });
 
-    document.getElementById('search-internal-input')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            const termo = e.target.value.toLowerCase().trim();
+    const executarBuscaLocal = (e) => {
+        {
+            const termo = (e.target.value || '').toLowerCase().trim();
             if (!termo) return;
 
             lastLocalSearchResults = database.filter(item => {
@@ -1656,9 +1782,23 @@ function setupEventListeners() {
             lastLocalSubResults.sort((a, b) => a.subcategoria.localeCompare(b.subcategoria));
 
             currentView = 'search_local_results'; renderMosaic();
-            if (window.innerWidth <= 768) document.getElementById('sidebar')?.classList.remove('open');
+            // No mobile o menu lateral se recolhe para o mosaico com os resultados aparecer
+            if (window.innerWidth <= 768) {
+                document.getElementById('sidebar')?.classList.remove('open');
+                try { e.target.blur(); } catch (err) {}
+                document.getElementById('mosaic-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         }
-    });
+    };
+
+    const inputBuscaLocal = document.getElementById('search-internal-input');
+    if (inputBuscaLocal) {
+        // keypress nao dispara em varios teclados de celular: keydown/search/change cobrem todos
+        inputBuscaLocal.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); executarBuscaLocal(e); } });
+        inputBuscaLocal.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.keyCode === 13) { e.preventDefault(); executarBuscaLocal(e); } });
+        inputBuscaLocal.addEventListener('search', executarBuscaLocal);
+        inputBuscaLocal.addEventListener('change', executarBuscaLocal);
+    }
 
     document.getElementById('file-import-json')?.addEventListener('change', (e) => {
         const file = e.target.files[0]; if (!file) return; const reader = new FileReader();
@@ -3461,7 +3601,7 @@ document.addEventListener("click", (e) => {
         if (!sidebar || !sidebar.classList.contains("open")) return;
         if (e.target.closest("#sidebar")) return;
         // Não fecha ao usar os próprios botões que abrem/fecham o menu
-        if (e.target.closest("#toggle-sidebar, #btn-toggle-sidebar-mobile")) return;
+        if (e.target.closest("#toggle-sidebar, #btn-toggle-sidebar-mobile, #btn-sidebar-mobile-header")) return;
         fecharSidebarMobile();
     }, true);
 
@@ -4247,3 +4387,213 @@ document.addEventListener("click", (e) => {
     // Expõe para uso externo, sem alterar nada mais do app
     window.streamhubPip = { alternar: alternarPip, fechar: fecharPip, segundoPlano: definirSegundoPlano };
 })();
+
+
+// ==========================================
+// FAVORITOS: MIDIAS, CATEGORIAS E SUBCATEGORIAS
+// ==========================================
+let favoritos = { midias: [], categorias: [], subcategorias: [] };
+
+function carregarFavoritosDoPerfil(dados) {
+    favoritos = {
+        midias: Array.isArray(dados && dados.midias) ? dados.midias : [],
+        categorias: Array.isArray(dados && dados.categorias) ? dados.categorias : [],
+        subcategorias: Array.isArray(dados && dados.subcategorias) ? dados.subcategorias : []
+    };
+    atualizarBotaoFavoritoDoPlayer();
+}
+
+function salvarFavoritos() {
+    try { salvarPreferenciaNoFirebase({ favoritos: favoritos }); } catch (e) {}
+}
+
+function chaveFavorito(info) {
+    if (!info) return "";
+    if (info.tipo === 'categoria') return `cat::${info.categoria || ''}`;
+    if (info.tipo === 'subcategoria') return `sub::${info.categoria || ''}::${info.subcategoria || ''}`;
+    const t = info.track || {};
+    return `mid::${(t.link || '').trim()}`;
+}
+
+function ehFavorito(info) {
+    if (!info) return false;
+    const chave = chaveFavorito(info);
+    if (info.tipo === 'categoria') return favoritos.categorias.some(c => `cat::${c.categoria}` === chave);
+    if (info.tipo === 'subcategoria') return favoritos.subcategorias.some(c => `sub::${c.categoria}::${c.subcategoria}` === chave);
+    return favoritos.midias.some(m => `mid::${(m.link || '').trim()}` === chave);
+}
+
+function alternarFavorito(info) {
+    if (!info) return;
+    const jaEra = ehFavorito(info);
+    if (info.tipo === 'categoria') {
+        favoritos.categorias = jaEra
+            ? favoritos.categorias.filter(c => c.categoria !== info.categoria)
+            : favoritos.categorias.concat([{ categoria: info.categoria, capa: capaDaCategoria(info.categoria) }]);
+    } else if (info.tipo === 'subcategoria') {
+        favoritos.subcategorias = jaEra
+            ? favoritos.subcategorias.filter(c => !(c.categoria === info.categoria && c.subcategoria === info.subcategoria))
+            : favoritos.subcategorias.concat([{ categoria: info.categoria, subcategoria: info.subcategoria, capa: capaDaSubcategoria(info.categoria, info.subcategoria) }]);
+    } else {
+        const t = info.track || {};
+        const link = (t.link || '').trim();
+        if (!link) return;
+        favoritos.midias = jaEra
+            ? favoritos.midias.filter(m => (m.link || '').trim() !== link)
+            : favoritos.midias.concat([{ título: t.título || t.titulo || 'Mídia', link: link, capa: t.capa || '', categoria: t.categoria || '', subcategoria: t.subcategoria || '' }]);
+    }
+    salvarFavoritos();
+    atualizarBotaoFavoritoDoPlayer();
+    try { renderMosaic(); } catch (e) {}
+    if (!document.getElementById('favorites-modal')?.classList.contains('hidden')) renderizarFavoritos();
+}
+
+function capaDaCategoria(cat) {
+    const m = database.find(i => i.categoria === cat);
+    if (m) return m.capa || '';
+    try {
+        const nodeName = btoa(unescape(encodeURIComponent(cat))).replace(/=/g, "");
+        return canaisDinamicos[nodeName] ? canaisDinamicos[nodeName].thumb : '';
+    } catch (e) { return ''; }
+}
+
+function capaDaSubcategoria(cat, sub) {
+    const m = database.find(i => i.categoria === cat && i.subcategoria === sub);
+    return m ? (m.capa || '') : '';
+}
+
+function abrirModalFavoritos() {
+    renderizarFavoritos();
+    document.getElementById('favorites-modal')?.classList.remove('hidden');
+}
+
+function fecharModalFavoritos() {
+    document.getElementById('favorites-modal')?.classList.add('hidden');
+}
+
+function renderizarFavoritos() {
+    const corpo = document.getElementById('favorites-body');
+    if (!corpo) return;
+    corpo.innerHTML = '';
+
+    const total = favoritos.categorias.length + favoritos.subcategorias.length + favoritos.midias.length;
+    if (total === 0) {
+        corpo.innerHTML = '<p class="fav-vazio">Você ainda não favoritou nada. Toque no coração dos cards de mídias, categorias ou subcategorias para salvar aqui.</p>';
+        return;
+    }
+
+    const criarSecao = (titulo, itens, montar) => {
+        if (!itens.length) return;
+        const h = document.createElement('h4');
+        h.className = 'fav-secao-titulo';
+        h.innerText = `${titulo} (${itens.length})`;
+        corpo.appendChild(h);
+        const lista = document.createElement('div');
+        lista.className = 'fav-lista';
+        itens.forEach(item => lista.appendChild(montar(item)));
+        corpo.appendChild(lista);
+    };
+
+    const linha = (capa, titulo, subtitulo, aoAbrir, aoRemover) => {
+        const div = document.createElement('div');
+        div.className = 'fav-item';
+        div.innerHTML = `<img src="${capa || 'https://placehold.co/160x90?text=Sem+Capa'}">
+            <div class="fav-item-info"><strong>${titulo}</strong><span>${subtitulo || ''}</span></div>
+            <button type="button" class="fav-item-remove" title="Remover dos favoritos"><i class="fas fa-heart-crack"></i></button>`;
+        div.addEventListener('click', (e) => { if (e.target.closest('.fav-item-remove')) return; aoAbrir(); });
+        div.querySelector('.fav-item-remove').addEventListener('click', (e) => { e.stopPropagation(); aoRemover(); });
+        return div;
+    };
+
+    criarSecao('Categorias', favoritos.categorias, (c) => linha(c.capa, c.categoria, 'Categoria',
+        () => { selectedCategory = c.categoria; selectedSubcategory = ''; currentView = 'subcategories'; fecharModalFavoritos(); renderMosaic(); },
+        () => alternarFavorito({ tipo: 'categoria', categoria: c.categoria })));
+
+    criarSecao('Subcategorias', favoritos.subcategorias, (c) => linha(c.capa, c.subcategoria, c.categoria,
+        () => { selectedCategory = c.categoria; selectedSubcategory = c.subcategoria; currentView = 'tracks'; fecharModalFavoritos(); renderMosaic(); },
+        () => alternarFavorito({ tipo: 'subcategoria', categoria: c.categoria, subcategoria: c.subcategoria })));
+
+    criarSecao('Mídias', favoritos.midias, (m) => linha(m.capa, m.título, [m.categoria, m.subcategoria].filter(Boolean).join(' • '),
+        () => { currentPlaylist = favoritos.midias.slice(); fecharModalFavoritos(); playTrack(favoritos.midias.indexOf(m)); },
+        () => alternarFavorito({ tipo: 'midia', track: m })));
+}
+
+function faixaAtualDoPlayer() {
+    return currentPlaylist && currentPlaylist[currentTrackIndex] ? currentPlaylist[currentTrackIndex] : null;
+}
+
+function atualizarBotaoFavoritoDoPlayer() {
+    const btn = document.getElementById('btn-fav-current');
+    if (!btn) return;
+    const faixa = faixaAtualDoPlayer();
+    const ativo = faixa ? ehFavorito({ tipo: 'midia', track: faixa }) : false;
+    btn.classList.toggle('ativo', ativo);
+    btn.title = ativo ? 'Remover dos favoritos' : 'Favoritar esta mídia';
+    btn.innerHTML = `<i class="${ativo ? 'fas' : 'far'} fa-heart"></i>`;
+}
+
+// ==========================================
+// DESCRICAO DO VIDEO EM REPRODUCAO
+// ==========================================
+let cacheDescricoes = {};
+
+async function abrirDescricaoDoVideo() {
+    const faixa = faixaAtualDoPlayer();
+    const modal = document.getElementById('video-desc-modal');
+    const elTitulo = document.getElementById('video-desc-title');
+    const elTexto = document.getElementById('video-desc-text');
+    if (!modal || !elTexto) return;
+
+    modal.classList.remove('hidden');
+    if (!faixa) { if (elTitulo) elTitulo.innerText = ''; elTexto.innerText = 'Nenhuma mídia em reprodução.'; return; }
+
+    if (elTitulo) elTitulo.innerText = faixa.título || '';
+    const vid = extractYoutubeId((faixa.link || '').trim());
+
+    if (!vid) {
+        elTexto.innerText = faixa.descricao || faixa["descrição"] || 'Esta mídia não possui descrição disponível.';
+        return;
+    }
+
+    if (cacheDescricoes[vid] !== undefined) {
+        elTexto.innerText = cacheDescricoes[vid] || 'Este vídeo não possui descrição.';
+        return;
+    }
+
+    elTexto.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Carregando descrição...';
+    try {
+        const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${vid}&key=${CONFIG.YT_API_KEY}`);
+        const data = await res.json();
+        const desc = data.items && data.items[0] ? (data.items[0].snippet.description || '') : '';
+        cacheDescricoes[vid] = desc;
+        elTexto.innerText = desc || 'Este vídeo não possui descrição.';
+    } catch (e) {
+        elTexto.innerText = 'Não foi possível carregar a descrição agora.';
+    }
+}
+
+// ==========================================
+// EVENTOS DOS FAVORITOS E DA DESCRICAO
+// ==========================================
+document.addEventListener('click', (e) => {
+    if (e.target.closest('#btn-favorites') || e.target.closest('#btn-favorites-mobile')) {
+        e.preventDefault();
+        abrirModalFavoritos();
+        return;
+    }
+    if (e.target.closest('#btn-close-favorites')) { fecharModalFavoritos(); return; }
+    if (e.target.closest('#favorites-modal') && !e.target.closest('.modal-box')) { fecharModalFavoritos(); return; }
+
+    if (e.target.closest('#btn-video-desc')) { e.preventDefault(); abrirDescricaoDoVideo(); return; }
+    if (e.target.closest('#btn-close-video-desc')) { document.getElementById('video-desc-modal')?.classList.add('hidden'); return; }
+    if (e.target.closest('#video-desc-modal') && !e.target.closest('.modal-box')) { document.getElementById('video-desc-modal')?.classList.add('hidden'); return; }
+
+    if (e.target.closest('#btn-fav-current')) {
+        e.preventDefault();
+        const faixa = faixaAtualDoPlayer();
+        if (faixa) alternarFavorito({ tipo: 'midia', track: faixa });
+        return;
+    }
+});
+
+document.addEventListener('DOMContentLoaded', atualizarBotaoFavoritoDoPlayer);
