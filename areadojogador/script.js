@@ -268,6 +268,7 @@ auth.onAuthStateChanged(user => {
                 ouvirEConstruirMenuCliente();
                 inicializarBotaoWhatsApp();
                 ouvirMensagensDoUsuario(user.uid);
+                ouvirNovidadesCliente(user.uid);
             });
         }
     } else {
@@ -1007,10 +1008,12 @@ if (formCriarCard) {
         try {
             if (idEdicao) {
                 await database.ref(`cards_disponiveis/${idEdicao}`).set(dadosCard);
+                await registrarEventoTemporada('card_editado', { titulo: dadosCard.titulo, valor: dadosCard.preco });
                 alert("🔄 Card atualizado!");
                 cancelarEdicaoCard();
             } else {
                 await database.ref('cards_disponiveis').push(dadosCard);
+                await registrarEventoTemporada('card_criado', { titulo: dadosCard.titulo, valor: dadosCard.preco });
                 alert("🎯 Novo Card criado!");
                 cancelarEdicaoCard();
             }
@@ -1136,6 +1139,8 @@ function abrirAbaAdmin(nomeAba) {
     if (nomeAba === 'relatorios') renderizarRelatorios();
     if (nomeAba === 'pagamentos') renderizarConferenciaPagamentos();
     if (nomeAba === 'mensagens') popularSelectDestinatariosAdmin();
+    if (nomeAba === 'temporadas') renderizarPainelTemporadas();
+    if (nomeAba === 'novidades') renderizarNovidadesAdmin();
 }
 
 document.querySelectorAll('#barra-abas-admin .tab-btn').forEach(btn => {
@@ -1154,6 +1159,8 @@ function iniciarAmbienteAdmin() {
     ouvirCardsGlobaisAdmin();
     ouvirEPovoarMenuVisualAdmin();
     ouvirSugestoesAdmin();
+    iniciarModuloTemporadas();
+    iniciarModuloNovidadesAdmin();
 
     escutar('usuarios', 'value', snapshot => {
         cacheUsuariosAdmin = snapshot.val() || {};
@@ -1336,6 +1343,15 @@ async function marcarPagamentoValido(uid, pedidoId, cardId) {
             validado_em: Date.now()
         });
         await database.ref(`usuarios/${uid}/pedidos/${pedidoId}`).remove();
+        await registrarEventoTemporada('pagamento_valido', {
+            uid: uid,
+            jogador: `${usuario.nome || ""} ${usuario.sobrenome || ""}`.trim(),
+            email: usuario.email || "",
+            whatsapp: usuario.whatsapp || "",
+            patch: card ? card.titulo : cardId,
+            valor: card ? (card.preco || "") : "",
+            descricao: "Comprovante conferido e patch liberado para o jogador."
+        });
         await enviarMensagemInterna(uid, usuario.email || "", "Pagamento aprovado ✅",
             `Olá ${usuario.nome || ""}, seu comprovante foi conferido e marcado como VÁLIDO. O patch "${card ? card.titulo : ''}" já está liberado na sua conta.`);
         alert("🔥 Pagamento validado e patch liberado!");
@@ -1348,6 +1364,13 @@ async function marcarPagamentoInvalido(uid, pedidoId) {
     try {
         const usuario = cacheUsuariosAdmin[uid] || {};
         await database.ref(`usuarios/${uid}/pedidos/${pedidoId}`).remove();
+        await registrarEventoTemporada('pagamento_invalido', {
+            uid: uid,
+            jogador: `${usuario.nome || ""} ${usuario.sobrenome || ""}`.trim(),
+            email: usuario.email || "",
+            whatsapp: usuario.whatsapp || "",
+            motivo: motivo
+        });
         await enviarMensagemInterna(uid, usuario.email || "", "Comprovante recusado ❌",
             `Seu comprovante não foi validado.\nMotivo: ${motivo}\nVocê pode reenviar um novo comprovante pela vitrine.`);
         alert("Pedido recusado e jogador notificado.");
@@ -1628,6 +1651,14 @@ if (formSugestao) {
                 texto: texto,
                 status: "nova",
                 timestamp: Date.now()
+            });
+            await registrarEventoTemporada('sugestao', {
+                uid: usuarioLogadoUid,
+                jogador: `${dadosClienteAtual.nome || ""} ${dadosClienteAtual.sobrenome || ""}`.trim(),
+                email: dadosClienteAtual.email || "",
+                whatsapp: dadosClienteAtual.whatsapp || "",
+                titulo: assunto,
+                descricao: texto
             });
             alert("💡 Sugestão enviada ao administrador. Obrigado!");
             formSugestao.reset();
@@ -2137,6 +2168,13 @@ if (formCadastroAuth) {
                 jogos_liberados: {},
                 pedidos: {}
             });
+            await registrarEventoTemporada('cadastro', {
+                uid: uid,
+                jogador: `${nome} ${sobrenome}`,
+                email: email,
+                whatsapp: whatsapp,
+                descricao: "Novo jogador cadastrado na temporada."
+            });
             alert("🎯 Conta criada com sucesso! Seja bem-vindo ao HUB.");
             formCadastroAuth.reset();
         } catch (erro) {
@@ -2263,6 +2301,14 @@ if (formComprovanteElement) {
                 timestamp: Date.now()
             });
             await database.ref(`usuarios/${usuarioLogadoUid}/status_cadastro`).set("comprovante_enviado");
+            await registrarEventoTemporada('comprovante_enviado', {
+                uid: usuarioLogadoUid,
+                jogador: `${dadosClienteAtual.nome || ""} ${dadosClienteAtual.sobrenome || ""}`.trim(),
+                email: dadosClienteAtual.email || "",
+                whatsapp: dadosClienteAtual.whatsapp || "",
+                patch: (cacheCardsAdmin[cardIdEscolhido] && cacheCardsAdmin[cardIdEscolhido].titulo) || cardIdEscolhido,
+                descricao: "Jogador enviou comprovante PIX para conferência."
+            });
             alert("🚀 Comprovante enviado com sucesso!\nO administrador analisará este pedido para liberação.");
             if (modalFormEnvio) modalFormEnvio.classList.remove('active');
             formComprovanteElement.reset();
@@ -2291,3 +2337,592 @@ document.addEventListener('contextmenu', (e) => {
         if (target) { e.preventDefault(); return false; }
     }
 });
+
+// ==========================================================================
+// MÓDULO GERENCIAL: TEMPORADAS MENSAIS (HISTÓRICO COMPLETO)
+// ==========================================================================
+const MESES_TEMPORADA = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+const ROTULOS_EVENTOS = {
+    cadastro: "👤 Novo cadastro",
+    comprovante_enviado: "📤 Comprovante enviado",
+    pagamento_valido: "✅ Pagamento aprovado",
+    pagamento_invalido: "❌ Pagamento recusado",
+    sugestao: "💡 Sugestão",
+    card_criado: "🎮 Card criado",
+    card_editado: "🔄 Card editado",
+    card_excluido: "🗑️ Card excluído",
+    acesso_manual: "🎁 Patch liberado manualmente",
+    acesso_removido: "🚫 Patch removido",
+    novidade: "📣 Novidade publicada",
+    novidade_editada: "✏️ Novidade editada",
+    novidade_excluida: "🗑️ Novidade excluída",
+    comentario: "💬 Comentário em novidade",
+    exclusao_conta: "🚨 Solicitação de exclusão de conta",
+    mensagem: "✉️ Mensagem interna",
+    encerramento: "🗓️ Encerramento da temporada"
+};
+
+let cacheTemporadas = {};
+let cacheEventosTemporadaAberta = {};
+let filtroEventosTemporada = "todos";
+let temporadaDetalheId = null;
+
+function idTemporadaDeData(ts) {
+    const d = new Date(ts || Date.now());
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function nomeTemporada(id) {
+    const partes = String(id || "").split('-');
+    const mes = Number(partes[1]);
+    return `${MESES_TEMPORADA[mes - 1] || '?'} / ${partes[0] || '?'}`;
+}
+
+function idTemporadaSeguinte(id) {
+    const partes = String(id).split('-');
+    let ano = Number(partes[0]);
+    let mes = Number(partes[1]) + 1;
+    if (mes > 12) { mes = 1; ano++; }
+    return `${ano}-${String(mes).padStart(2, '0')}`;
+}
+
+// Grava qualquer acontecimento no histórico da temporada corrente
+async function registrarEventoTemporada(tipo, dados) {
+    try {
+        const agora = Date.now();
+        const idTemp = idTemporadaDeData(agora);
+        const refInfo = database.ref(`temporadas/${idTemp}/info`);
+        const infoAtual = (await refInfo.once('value')).val();
+        if (!infoAtual) {
+            await refInfo.set({ id: idTemp, nome: nomeTemporada(idTemp), status: "aberta", aberta_em: agora, atualizado_em: agora });
+        } else {
+            await refInfo.update({ atualizado_em: agora });
+        }
+        await database.ref(`temporadas/${idTemp}/eventos`).push(Object.assign({
+            tipo: tipo,
+            rotulo: ROTULOS_EVENTOS[tipo] || tipo,
+            timestamp: agora
+        }, dados || {}));
+    } catch (erro) {
+        console.warn("Não foi possível registrar o evento da temporada:", erro && erro.message);
+    }
+}
+
+function iniciarModuloTemporadas() {
+    escutar('temporadas', 'value', snapshot => {
+        cacheTemporadas = snapshot.val() || {};
+        const idAtual = idTemporadaDeData();
+        const temp = cacheTemporadas[idAtual] || {};
+        cacheEventosTemporadaAberta = temp.eventos || {};
+        renderizarPainelTemporadas();
+        if (temporadaDetalheId) renderizarDetalheTemporada(temporadaDetalheId);
+    });
+}
+
+function linhasEventos(eventos, filtro) {
+    const ids = Object.keys(eventos || {})
+        .filter(id => filtro === "todos" || eventos[id].tipo === filtro)
+        .sort((a, b) => (eventos[b].timestamp || 0) - (eventos[a].timestamp || 0));
+    if (!ids.length) return `<p class="vazio-lista">Nenhum registro para este filtro.</p>`;
+    return `<div class="lista-eventos-temporada">${ids.map(id => {
+        const e = eventos[id];
+        const detalhes = [];
+        if (e.jogador) detalhes.push(`<strong>Jogador:</strong> ${escapar(e.jogador)}`);
+        if (e.email) detalhes.push(`<strong>E-mail:</strong> ${escapar(e.email)}`);
+        if (e.whatsapp) detalhes.push(`<strong>WhatsApp:</strong> ${escapar(e.whatsapp)}`);
+        if (e.patch) detalhes.push(`<strong>Patch:</strong> ${escapar(e.patch)}`);
+        if (e.valor) detalhes.push(`<strong>Valor:</strong> ${escapar(e.valor)}`);
+        if (e.titulo) detalhes.push(`<strong>Título:</strong> ${escapar(e.titulo)}`);
+        if (e.motivo) detalhes.push(`<strong>Motivo:</strong> ${escapar(e.motivo)}`);
+        if (e.uid) detalhes.push(`<strong>ID interno:</strong> ${escapar(e.uid)}`);
+        return `
+            <div class="evento-temporada">
+                <div class="evento-cabecalho">
+                    <span class="evento-tag">${escapar(e.rotulo || ROTULOS_EVENTOS[e.tipo] || e.tipo)}</span>
+                    <span class="evento-data">${formatarData(e.timestamp)}</span>
+                </div>
+                ${detalhes.length ? `<p class="evento-detalhe">${detalhes.join(" · ")}</p>` : ""}
+                ${e.descricao ? `<div class="corpo-email" style="margin-top:6px;">${escapar(e.descricao)}</div>` : ""}
+            </div>`;
+    }).join("")}</div>`;
+}
+
+function barraFiltrosEventos(eventos, filtroAtivo, funcaoJs) {
+    const tipos = Array.from(new Set(Object.keys(eventos || {}).map(id => eventos[id].tipo)));
+    return `<div class="tabs-scroll" style="margin:10px 0;">
+        <button type="button" class="tab-btn ${filtroAtivo === 'todos' ? 'active' : ''}" onclick="${funcaoJs}('todos')">Todos (${Object.keys(eventos || {}).length})</button>
+        ${tipos.map(t => `<button type="button" class="tab-btn ${filtroAtivo === t ? 'active' : ''}" onclick="${funcaoJs}('${t}')">${escapar(ROTULOS_EVENTOS[t] || t)}</button>`).join("")}
+    </div>`;
+}
+
+function filtrarEventosTemporadaAberta(tipo) {
+    filtroEventosTemporada = tipo;
+    renderizarPainelTemporadas();
+}
+
+function renderizarPainelTemporadas() {
+    const area = document.getElementById('area-temporada-aberta');
+    const lista = document.getElementById('lista-temporadas-historico');
+    if (!area || !lista) return;
+
+    const idAtual = idTemporadaDeData();
+    const m = calcularMetricas();
+    const eventos = cacheEventosTemporadaAberta || {};
+
+    document.getElementById('titulo-temporada-atual').innerText = `Temporada aberta: ${nomeTemporada(idAtual)}`;
+    montarKpis(document.getElementById('grid-kpis-temporada-aberta'), [
+        { rotulo: "Faturamento no mês", valor: formatarMoeda(m.faturamento) },
+        { rotulo: "Patches vendidos", valor: m.patchesVendidos },
+        { rotulo: "Registros no histórico", valor: Object.keys(eventos).length },
+        { rotulo: "Comprovantes pendentes", valor: m.pedidosPendentes, classe: m.pedidosPendentes ? "alerta" : "" },
+        { rotulo: "Jogadores cadastrados", valor: m.totalUsuarios },
+        { rotulo: "Novos no mês", valor: m.novos30 }
+    ]);
+
+    area.innerHTML = barraFiltrosEventos(eventos, filtroEventosTemporada, 'filtrarEventosTemporadaAberta') + linhasEventos(eventos, filtroEventosTemporada);
+
+    const ids = Object.keys(cacheTemporadas).sort().reverse();
+    lista.innerHTML = ids.length ? ids.map(id => {
+        const t = cacheTemporadas[id] || {};
+        const info = t.info || {};
+        const f = t.fechamento || {};
+        const qtd = Object.keys(t.eventos || {}).length;
+        const encerrada = info.status === "encerrada";
+        return `
+            <div class="user-item" style="border-left:4px solid ${encerrada ? '#8899a6' : '#00ff66'};">
+                <div class="user-info">
+                    <p><strong>🗓️ ${escapar(nomeTemporada(id))}</strong> ${encerrada ? '<span class="tag-temporada">ENCERRADA</span>' : '<span class="tag-temporada aberta">EM ANDAMENTO</span>'}</p>
+                    <p><strong>Registros:</strong> ${qtd}</p>
+                    ${encerrada ? `<p><strong>Faturamento apurado:</strong> ${escapar(formatarMoeda(f.faturamento || 0))} · <strong>Patches:</strong> ${escapar(f.patches_vendidos != null ? f.patches_vendidos : 0)}</p>
+                    <p style="font-size:0.75rem; color:#8899a6;">Encerrada em ${formatarData(f.encerrada_em)}</p>` : ""}
+                </div>
+                <button class="btn-visualizar-comprovante" onclick="abrirDetalheTemporada('${id}')">📚 Ver histórico completo</button>
+            </div>`;
+    }).join("") : `<p class="vazio-lista">Nenhuma temporada registrada ainda.</p>`;
+}
+
+function abrirDetalheTemporada(id) {
+    temporadaDetalheId = id;
+    filtroEventosDetalhe = "todos";
+    renderizarDetalheTemporada(id);
+    document.getElementById('modal-temporada-detalhe').classList.add('active');
+}
+
+let filtroEventosDetalhe = "todos";
+function filtrarEventosDetalhe(tipo) {
+    filtroEventosDetalhe = tipo;
+    renderizarDetalheTemporada(temporadaDetalheId);
+}
+
+function renderizarDetalheTemporada(id) {
+    const t = cacheTemporadas[id] || {};
+    const info = t.info || {};
+    const f = t.fechamento || {};
+    const eventos = t.eventos || {};
+    document.getElementById('titulo-temporada-detalhe').innerText = `🗓️ Temporada ${nomeTemporada(id)}`;
+
+    const kpis = info.status === "encerrada" ? [
+        { rotulo: "Faturamento", valor: formatarMoeda(f.faturamento || 0) },
+        { rotulo: "Patches vendidos", valor: f.patches_vendidos || 0 },
+        { rotulo: "Ticket médio", valor: formatarMoeda(f.ticket_medio || 0) },
+        { rotulo: "Jogadores pagantes", valor: f.jogadores_pagantes || 0 },
+        { rotulo: "Cadastros no período", valor: f.novos_usuarios || 0 },
+        { rotulo: "Registros", valor: Object.keys(eventos).length }
+    ] : [
+        { rotulo: "Status", valor: "Em andamento" },
+        { rotulo: "Registros", valor: Object.keys(eventos).length },
+        { rotulo: "Aberta em", valor: formatarData(info.aberta_em) }
+    ];
+    montarKpis(document.getElementById('grid-kpis-temporada-detalhe'), kpis);
+
+    document.getElementById('conteudo-temporada-detalhe').innerHTML =
+        barraFiltrosEventos(eventos, filtroEventosDetalhe, 'filtrarEventosDetalhe') +
+        linhasEventos(eventos, filtroEventosDetalhe);
+}
+
+function exportarHistoricoTemporada() {
+    const t = cacheTemporadas[temporadaDetalheId] || {};
+    const eventos = t.eventos || {};
+    const linhas = [["Data", "Tipo", "Jogador", "E-mail", "WhatsApp", "Patch/Título", "Valor", "Detalhe"]];
+    Object.keys(eventos)
+        .sort((a, b) => (eventos[a].timestamp || 0) - (eventos[b].timestamp || 0))
+        .forEach(id => {
+            const e = eventos[id];
+            linhas.push([formatarData(e.timestamp), ROTULOS_EVENTOS[e.tipo] || e.tipo, e.jogador || "", e.email || "", e.whatsapp || "", e.patch || e.titulo || "", e.valor || "", (e.descricao || e.motivo || "").replace(/\n/g, " ")]);
+        });
+    const csv = linhas.map(l => l.map(c => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `temporada-${temporadaDetalheId}.csv`;
+    a.click();
+}
+
+// Encerramento mensal: fotografa os números, arquiva os aprovados e abre o mês seguinte
+async function encerrarTemporadaMensal() {
+    const idAtual = idTemporadaDeData();
+    if (!confirm(`⚠️ ENCERRAMENTO DA TEMPORADA ${nomeTemporada(idAtual).toUpperCase()}\n\nOs números serão fotografados e ficarão salvos no histórico, os aprovados serão arquivados e a temporada seguinte será aberta.\n\nConfirmar encerramento?`)) return;
+    const botao = document.getElementById('btn-encerrar-temporada');
+    try {
+        if (botao) { botao.disabled = true; botao.innerText = "ENCERRANDO TEMPORADA..."; }
+        const m = calcularMetricas();
+        const agora = Date.now();
+
+        const fechamento = {
+            faturamento: m.faturamento,
+            patches_vendidos: m.patchesVendidos,
+            ticket_medio: m.patchesVendidos ? m.faturamento / m.patchesVendidos : 0,
+            jogadores_pagantes: m.totalPagos,
+            total_usuarios: m.totalUsuarios,
+            novos_usuarios: m.novos30,
+            comprovantes_pendentes: m.pedidosPendentes,
+            cards_no_catalogo: m.totalCards,
+            vendas_por_patch: m.vendasPorPatch,
+            encerrada_em: agora
+        };
+
+        await database.ref(`temporadas/${idAtual}/fechamento`).set(fechamento);
+        await database.ref(`temporadas/${idAtual}/info`).update({
+            id: idAtual, nome: nomeTemporada(idAtual), status: "encerrada", encerrada_em: agora
+        });
+
+        await registrarEventoTemporada('encerramento', {
+            titulo: `Encerramento da temporada ${nomeTemporada(idAtual)}`,
+            valor: formatarMoeda(m.faturamento),
+            descricao: `Temporada encerrada com ${m.patchesVendidos} patch(es) vendido(s), ${m.totalPagos} jogador(es) pagante(s) e faturamento de ${formatarMoeda(m.faturamento)}.`
+        });
+
+        // arquiva os aprovados do período
+        const snapshot = await database.ref('usuarios').once('value');
+        const usuarios = snapshot.val() || {};
+        const lote = {};
+        Object.keys(usuarios).forEach(uid => {
+            if (usuarios[uid].email !== EMAIL_ADMIN && usuarios[uid].status_cadastro === "pago") {
+                lote[`usuarios/${uid}/status_cadastro`] = "cliente_cadastrado";
+                lote[`usuarios/${uid}/pedidos`] = null;
+            }
+        });
+        if (Object.keys(lote).length) await database.ref().update(lote);
+
+        const proxima = idTemporadaSeguinte(idAtual);
+        await database.ref(`temporadas/${proxima}/info`).update({
+            id: proxima, nome: nomeTemporada(proxima), status: "aberta", aberta_em: agora
+        });
+        await database.ref('temporada_atual').set({ id: proxima, aberta_em: agora });
+
+        alert(`🗂️ Temporada ${nomeTemporada(idAtual)} encerrada e arquivada!\nTudo o que aconteceu continua disponível no menu Temporadas.`);
+    } catch (erro) {
+        alert("Erro ao encerrar a temporada: " + erro.message);
+    } finally {
+        if (botao) { botao.disabled = false; botao.innerText = "🗓️ ENCERRAR TEMPORADA DO MÊS"; }
+    }
+}
+
+// ==========================================================================
+// MÓDULO NOVIDADES! (ADMIN PUBLICA / JOGADOR LÊ E COMENTA)
+// ==========================================================================
+let cacheNovidades = {};
+let cacheNovidadesLidas = {};
+let novidadeAbertaId = null;
+let novidadeEmEdicao = "";
+
+function ordemNovidades(dados) {
+    return Object.keys(dados || {}).sort((a, b) => (dados[b].publicado_em || 0) - (dados[a].publicado_em || 0));
+}
+
+function linksDaNovidade(n) {
+    return (n.links || []).filter(l => l && l.url);
+}
+
+// ---------- ADMIN ----------
+function iniciarModuloNovidadesAdmin() {
+    escutar('novidades', 'value', snapshot => {
+        cacheNovidades = snapshot.val() || {};
+        renderizarNovidadesAdmin();
+    });
+}
+
+function renderizarNovidadesAdmin() {
+    const lista = document.getElementById('lista-novidades-admin');
+    if (!lista) return;
+    const ids = ordemNovidades(cacheNovidades);
+    if (!ids.length) { lista.innerHTML = `<p class="vazio-lista">Nenhuma novidade publicada ainda.</p>`; return; }
+    lista.innerHTML = ids.map(id => {
+        const n = cacheNovidades[id];
+        const comentarios = n.comentarios || {};
+        const idsCom = Object.keys(comentarios).sort((a, b) => (comentarios[a].timestamp || 0) - (comentarios[b].timestamp || 0));
+        return `
+            <div class="user-item" style="border-left:4px solid #00ff66;">
+                <div class="user-info">
+                    <p><strong>📣 ${escapar(n.titulo || 'Sem título')}</strong></p>
+                    <p style="font-size:0.75rem; color:#8899a6;">Publicada em ${formatarData(n.publicado_em)}${n.atualizado_em ? ` · editada em ${formatarData(n.atualizado_em)}` : ''}</p>
+                    <div class="corpo-email" style="margin-top:8px;">${escapar(n.descricao || "")}</div>
+                    ${linksDaNovidade(n).length ? `<p style="margin-top:8px;"><strong>Downloads:</strong> ${linksDaNovidade(n).map(l => escapar(l.texto || l.url)).join(" · ")}</p>` : ""}
+                    <p style="margin-top:6px;"><strong>Comentários:</strong> ${n.comentarios_ativos === false ? '<span style="color:#ff5555;">desativados</span>' : '<span style="color:#00ff66;">liberados</span>'} · ${idsCom.length} recebido(s)</p>
+                    ${idsCom.length ? `<div class="lista-comentarios-admin">${idsCom.map(cid => {
+                        const c = comentarios[cid];
+                        return `<div class="comentario-item">
+                            <p class="comentario-autor">${escapar(c.nome || 'Jogador')} <span>${formatarData(c.timestamp)}</span></p>
+                            <p class="comentario-texto">${escapar(c.texto || "")}</p>
+                            <button type="button" class="btn-mini-msg perigo" onclick="excluirComentarioNovidade('${id}','${cid}')">🗑️ Excluir comentário</button>
+                        </div>`;
+                    }).join("")}</div>` : ""}
+                </div>
+                <button class="btn-inject" onclick="carregarNovidadeParaEdicao('${id}')">✏️ Editar novidade</button>
+                <button class="btn-visualizar-comprovante" onclick="alternarComentariosNovidade('${id}')">${n.comentarios_ativos === false ? '💬 Liberar comentários' : '🔇 Bloquear comentários'}</button>
+                <button class="btn-sair" style="width:100%; margin-top:6px;" onclick="excluirNovidade('${id}')">🗑️ Apagar novidade</button>
+            </div>`;
+    }).join("");
+}
+
+const formNovidade = document.getElementById('form-novidade');
+if (formNovidade) {
+    formNovidade.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const titulo = document.getElementById('novidade-titulo').value.trim();
+        const descricao = document.getElementById('novidade-descricao').value.trim();
+        if (!titulo || !descricao) return alert("Preencha o título e a descrição da novidade.");
+
+        const links = [];
+        for (let i = 1; i <= 4; i++) {
+            const texto = document.getElementById(`novidade-link-txt-${i}`).value.trim();
+            const url = document.getElementById(`novidade-link-url-${i}`).value.trim();
+            if (url) links.push({ texto: texto || `Download ${i}`, url: url });
+        }
+
+        const comentariosAtivos = document.getElementById('novidade-permitir-comentarios').checked;
+
+        try {
+            if (novidadeEmEdicao) {
+                const anterior = cacheNovidades[novidadeEmEdicao] || {};
+                await database.ref(`novidades/${novidadeEmEdicao}`).update({
+                    titulo, descricao, links, comentarios_ativos: comentariosAtivos, atualizado_em: Date.now()
+                });
+                await registrarEventoTemporada('novidade_editada', { titulo, descricao });
+                alert("🔄 Novidade atualizada!");
+            } else {
+                await database.ref('novidades').push({
+                    titulo, descricao, links,
+                    comentarios_ativos: comentariosAtivos,
+                    publicado_em: Date.now(),
+                    autor: "Administração do Hub"
+                });
+                await registrarEventoTemporada('novidade', { titulo, descricao });
+                alert("📣 Novidade publicada! Todos os jogadores serão avisados na tela.");
+            }
+            cancelarEdicaoNovidade();
+        } catch (erro) { alert("Erro ao salvar novidade: " + erro.message); }
+    });
+}
+
+function carregarNovidadeParaEdicao(id) {
+    const n = cacheNovidades[id];
+    if (!n) return;
+    novidadeEmEdicao = id;
+    document.getElementById('novidade-titulo').value = n.titulo || "";
+    document.getElementById('novidade-descricao').value = n.descricao || "";
+    document.getElementById('novidade-permitir-comentarios').checked = n.comentarios_ativos !== false;
+    for (let i = 1; i <= 4; i++) {
+        const l = (n.links || [])[i - 1] || {};
+        document.getElementById(`novidade-link-txt-${i}`).value = l.texto || "";
+        document.getElementById(`novidade-link-url-${i}`).value = l.url || "";
+    }
+    document.getElementById('titulo-form-novidade').innerText = "Editando novidade";
+    document.getElementById('btn-cancelar-novidade').style.display = "block";
+    abrirAbaAdmin('novidades');
+    window.scrollTo(0, 0);
+}
+
+function cancelarEdicaoNovidade() {
+    novidadeEmEdicao = "";
+    if (formNovidade) formNovidade.reset();
+    document.getElementById('novidade-permitir-comentarios').checked = true;
+    document.getElementById('titulo-form-novidade').innerText = "Publicar nova novidade";
+    document.getElementById('btn-cancelar-novidade').style.display = "none";
+}
+
+const btnCancelarNovidade = document.getElementById('btn-cancelar-novidade');
+if (btnCancelarNovidade) btnCancelarNovidade.addEventListener('click', cancelarEdicaoNovidade);
+
+async function excluirNovidade(id) {
+    const n = cacheNovidades[id] || {};
+    if (!confirm(`Apagar definitivamente a novidade "${n.titulo || ''}" e todos os comentários dela?`)) return;
+    try {
+        await database.ref(`novidades/${id}`).remove();
+        await registrarEventoTemporada('novidade_excluida', { titulo: n.titulo || "" });
+        if (novidadeEmEdicao === id) cancelarEdicaoNovidade();
+    } catch (erro) { alert("Erro: " + erro.message); }
+}
+
+async function alternarComentariosNovidade(id) {
+    const n = cacheNovidades[id] || {};
+    await database.ref(`novidades/${id}/comentarios_ativos`).set(n.comentarios_ativos === false);
+}
+
+async function excluirComentarioNovidade(idNovidade, idComentario) {
+    if (!confirm("Excluir este comentário?")) return;
+    await database.ref(`novidades/${idNovidade}/comentarios/${idComentario}`).remove();
+}
+
+// ---------- JOGADOR ----------
+function ouvirNovidadesCliente(uid) {
+    escutar('novidades', 'value', snapshot => {
+        cacheNovidades = snapshot.val() || {};
+        renderizarNovidadesCliente();
+    });
+    escutar(`usuarios/${uid}/novidades_lidas`, 'value', snapshot => {
+        cacheNovidadesLidas = snapshot.val() || {};
+        renderizarNovidadesCliente();
+    });
+}
+
+function idsNovidadesNaoLidas() {
+    return ordemNovidades(cacheNovidades).filter(id => !cacheNovidadesLidas[id]);
+}
+
+function renderizarNovidadesCliente() {
+    const ids = ordemNovidades(cacheNovidades);
+    const naoLidas = idsNovidadesNaoLidas();
+
+    const badge = document.getElementById('badge-novidades-nao-lidas');
+    if (badge) {
+        badge.innerText = naoLidas.length;
+        badge.style.display = naoLidas.length ? "inline-block" : "none";
+    }
+
+    const alerta = document.getElementById('alerta-novidades-novas');
+    const listaAlerta = document.getElementById('lista-alerta-novidades');
+    if (alerta && listaAlerta) {
+        if (naoLidas.length) {
+            listaAlerta.innerHTML = naoLidas.map(id => {
+                const n = cacheNovidades[id];
+                return `<button type="button" class="item-alerta-novidade" onclick="abrirNovidade('${id}')">
+                    <strong>📣 ${escapar(n.titulo || 'Novidade')}</strong>
+                    <span>${formatarData(n.publicado_em)} · toque para ler</span>
+                </button>`;
+            }).join("");
+            alerta.style.display = "block";
+        } else {
+            alerta.style.display = "none";
+        }
+    }
+
+    const lista = document.getElementById('lista-novidades-cliente');
+    if (lista) {
+        lista.innerHTML = ids.length ? ids.map(id => {
+            const n = cacheNovidades[id];
+            const lida = !!cacheNovidadesLidas[id];
+            return `<button type="button" class="item-novidade ${lida ? '' : 'nao-lida'}" onclick="abrirNovidade('${id}')">
+                <span class="item-novidade-titulo">📣 ${escapar(n.titulo || 'Novidade')} ${lida ? '' : '<em class="tag-nova">NOVA</em>'}</span>
+                <span class="item-novidade-data">${formatarData(n.publicado_em)}</span>
+                <span class="item-novidade-previa">${escapar((n.descricao || "").slice(0, 120))}${(n.descricao || "").length > 120 ? '…' : ''}</span>
+            </button>`;
+        }).join("") : `<p class="vazio-lista">Nenhuma novidade publicada até agora.</p>`;
+    }
+
+    if (novidadeAbertaId && cacheNovidades[novidadeAbertaId]) renderizarNovidadeAberta(novidadeAbertaId);
+}
+
+async function abrirNovidade(id) {
+    const n = cacheNovidades[id];
+    if (!n) return;
+    novidadeAbertaId = id;
+    renderizarNovidadeAberta(id);
+    document.getElementById('modal-novidade-detalhe').classList.add('active');
+    if (usuarioLogadoUid && !cacheNovidadesLidas[id]) {
+        try { await database.ref(`usuarios/${usuarioLogadoUid}/novidades_lidas/${id}`).set(Date.now()); } catch (e) { }
+    }
+}
+
+function fecharNovidade() {
+    novidadeAbertaId = null;
+    document.getElementById('modal-novidade-detalhe').classList.remove('active');
+}
+
+function renderizarNovidadeAberta(id) {
+    const n = cacheNovidades[id];
+    if (!n) return;
+    const ehAdmin = auth.currentUser && auth.currentUser.email === EMAIL_ADMIN;
+    document.getElementById('novidade-detalhe-titulo').innerText = n.titulo || "Novidade";
+    document.getElementById('novidade-detalhe-data').innerText = `Publicada em ${formatarData(n.publicado_em)}${n.atualizado_em ? ` · atualizada em ${formatarData(n.atualizado_em)}` : ''}`;
+    document.getElementById('novidade-detalhe-descricao').innerHTML = escapar(n.descricao || "").replace(/\n/g, "<br>");
+
+    const areaLinks = document.getElementById('novidade-detalhe-links');
+    const links = linksDaNovidade(n);
+    areaLinks.innerHTML = links.length
+        ? links.map(l => `<a class="btn-download-dinamico" href="${escapar(l.url)}" target="_blank" rel="noopener">⬇️ ${escapar(l.texto || 'Download')}</a>`).join("")
+        : "";
+
+    const comentarios = n.comentarios || {};
+    const idsCom = Object.keys(comentarios).sort((a, b) => (comentarios[a].timestamp || 0) - (comentarios[b].timestamp || 0));
+    document.getElementById('novidade-detalhe-comentarios').innerHTML = idsCom.length
+        ? idsCom.map(cid => {
+            const c = comentarios[cid];
+            return `<div class="comentario-item">
+                <p class="comentario-autor">${escapar(c.nome || 'Jogador')} <span>${formatarData(c.timestamp)}</span></p>
+                <p class="comentario-texto">${escapar(c.texto || "")}</p>
+                ${ehAdmin ? `<button type="button" class="btn-mini-msg perigo" onclick="excluirComentarioNovidade('${id}','${cid}')">🗑️ Excluir</button>` : ""}
+            </div>`;
+        }).join("")
+        : `<p class="vazio-lista">Nenhum comentário ainda. Seja o primeiro!</p>`;
+
+    const form = document.getElementById('form-comentario-novidade');
+    const aviso = document.getElementById('aviso-comentarios-bloqueados');
+    const permitido = n.comentarios_ativos !== false;
+    if (form) form.style.display = permitido && !ehAdmin ? "block" : "none";
+    if (aviso) aviso.style.display = permitido ? "none" : "block";
+}
+
+const formComentarioNovidade = document.getElementById('form-comentario-novidade');
+if (formComentarioNovidade) {
+    formComentarioNovidade.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!novidadeAbertaId || !usuarioLogadoUid) return;
+        const campo = document.getElementById('novidade-comentario-texto');
+        const texto = campo.value.trim();
+        if (!texto) return;
+        const n = cacheNovidades[novidadeAbertaId] || {};
+        try {
+            await database.ref(`novidades/${novidadeAbertaId}/comentarios`).push({
+                uid: usuarioLogadoUid,
+                nome: `${dadosClienteAtual.nome || ""} ${dadosClienteAtual.sobrenome || ""}`.trim() || "Jogador",
+                email: dadosClienteAtual.email || "",
+                texto: texto,
+                timestamp: Date.now()
+            });
+            await registrarEventoTemporada('comentario', {
+                titulo: n.titulo || "",
+                jogador: `${dadosClienteAtual.nome || ""} ${dadosClienteAtual.sobrenome || ""}`.trim(),
+                email: dadosClienteAtual.email || "",
+                whatsapp: dadosClienteAtual.whatsapp || "",
+                uid: usuarioLogadoUid,
+                descricao: texto
+            });
+            campo.value = "";
+        } catch (erro) { alert("Erro ao comentar: " + erro.message); }
+    });
+}
+
+const btnAbrirNovidades = document.getElementById('btn-abrir-novidades');
+if (btnAbrirNovidades) btnAbrirNovidades.addEventListener('click', () => {
+    renderizarNovidadesCliente();
+    document.getElementById('modal-novidades').classList.add('active');
+});
+const btnFecharNovidades = document.getElementById('btn-fechar-novidades');
+if (btnFecharNovidades) btnFecharNovidades.addEventListener('click', () => document.getElementById('modal-novidades').classList.remove('active'));
+const btnFecharNovidadeDetalhe = document.getElementById('btn-fechar-novidade-detalhe');
+if (btnFecharNovidadeDetalhe) btnFecharNovidadeDetalhe.addEventListener('click', fecharNovidade);
+const btnFecharAlertaNovidades = document.getElementById('btn-fechar-alerta-novidades');
+if (btnFecharAlertaNovidades) btnFecharAlertaNovidades.addEventListener('click', () => {
+    document.getElementById('alerta-novidades-novas').style.display = "none";
+});
+const btnFecharTemporadaDetalhe = document.getElementById('btn-fechar-temporada-detalhe');
+if (btnFecharTemporadaDetalhe) btnFecharTemporadaDetalhe.addEventListener('click', () => {
+    temporadaDetalheId = null;
+    document.getElementById('modal-temporada-detalhe').classList.remove('active');
+});
+const btnEncerrarTemporada = document.getElementById('btn-encerrar-temporada');
+if (btnEncerrarTemporada) btnEncerrarTemporada.addEventListener('click', encerrarTemporadaMensal);
+const btnExportarTemporada = document.getElementById('btn-exportar-temporada');
+if (btnExportarTemporada) btnExportarTemporada.addEventListener('click', exportarHistoricoTemporada);

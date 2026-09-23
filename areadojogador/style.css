@@ -1199,3 +1199,105 @@ body {
 .input-ordem::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .arrastando { opacity: 0.55; border: 1px dashed #00ff66 !important; }
 .alvo-arrasto { outline: 2px dashed #00ff66; outline-offset: 2px; }
+
+/* ================= TEMPORADAS & NOVIDADES ================= */
+.tag-temporada {
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid #8899a6;
+    color: #8899a6;
+    margin-left: 6px;
+}
+.tag-temporada.aberta { border-color: #00ff66; color: #00ff66; }
+
+.caixa-temporada-atual {
+    background: #131924;
+    border: 1px solid #242f41;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 15px;
+}
+.caixa-temporada-atual h4 { color: #00ff66; margin: 0 0 10px 0; font-size: 1rem; }
+
+.lista-eventos-temporada { display: flex; flex-direction: column; gap: 8px; }
+.evento-temporada {
+    background: #0b0e14;
+    border: 1px solid #1f2a3c;
+    border-left: 3px solid #00ff66;
+    border-radius: 6px;
+    padding: 10px 12px;
+}
+.evento-cabecalho {
+    display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: center;
+}
+.evento-tag { color: #fff; font-size: 0.85rem; font-weight: bold; }
+.evento-data { color: #8899a6; font-size: 0.72rem; }
+.evento-detalhe { color: #8899a6; font-size: 0.78rem; margin-top: 6px; line-height: 1.5; }
+
+/* novidades - admin */
+.lista-comentarios-admin { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.comentario-item {
+    background: #0b0e14;
+    border: 1px solid #1f2a3c;
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+.comentario-autor { color: #00ff66; font-size: 0.8rem; font-weight: bold; margin: 0 0 4px 0; }
+.comentario-autor span { color: #8899a6; font-weight: normal; font-size: 0.7rem; margin-left: 6px; }
+.comentario-texto { color: #cfd8e3; font-size: 0.85rem; line-height: 1.5; margin: 0 0 6px 0; white-space: pre-wrap; }
+
+.linha-checkbox {
+    display: flex; align-items: center; gap: 8px; margin: 10px 0;
+    color: #8899a6; font-size: 0.85rem;
+}
+.linha-checkbox input { width: auto; margin: 0; }
+
+/* novidades - jogador */
+.lista-novidades { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.item-novidade {
+    display: flex; flex-direction: column; gap: 4px; text-align: left;
+    background: #0b0e14; border: 1px solid #1f2a3c; border-left: 3px solid #8899a6;
+    border-radius: 6px; padding: 12px; cursor: pointer; width: 100%;
+}
+.item-novidade.nao-lida { border-left-color: #00ff66; background: rgba(0, 255, 102, 0.04); }
+.item-novidade-titulo { color: #fff; font-size: 0.95rem; font-weight: bold; }
+.item-novidade-data { color: #8899a6; font-size: 0.72rem; }
+.item-novidade-previa { color: #8899a6; font-size: 0.82rem; line-height: 1.5; }
+.tag-nova {
+    font-style: normal; font-size: 0.62rem; letter-spacing: 1px;
+    background: #00ff66; color: #0b0e14; padding: 2px 5px; border-radius: 3px; margin-left: 6px;
+}
+
+#alerta-novidades-novas {
+    position: fixed; right: 16px; bottom: 150px; z-index: 1200;
+    width: min(330px, calc(100vw - 32px));
+    background: #121824; border: 1px solid #00ff66; border-radius: 8px;
+    padding: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+}
+#alerta-novidades-novas header {
+    display: flex; justify-content: space-between; align-items: center;
+    color: #00ff66; font-size: 0.85rem; font-weight: bold; margin-bottom: 8px;
+}
+#alerta-novidades-novas header button {
+    background: none; border: none; color: #8899a6; font-size: 1.1rem; cursor: pointer;
+}
+.item-alerta-novidade {
+    display: flex; flex-direction: column; gap: 2px; text-align: left; width: 100%;
+    background: #0b0e14; border: 1px solid #1f2a3c; border-radius: 6px;
+    padding: 9px 10px; margin-bottom: 6px; cursor: pointer;
+}
+.item-alerta-novidade strong { color: #fff; font-size: 0.85rem; }
+.item-alerta-novidade span { color: #8899a6; font-size: 0.7rem; }
+
+.area-links-novidade { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.area-links-novidade a { text-align: center; text-decoration: none; display: block; }
+.bloco-comentarios-novidade { margin-top: 18px; border-top: 1px solid #242f41; padding-top: 14px; }
+.bloco-comentarios-novidade h4 { color: #fff; font-size: 0.95rem; margin-bottom: 10px; }
+.lista-comentarios-novidade { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.texto-novidade { color: #cfd8e3; font-size: 0.9rem; line-height: 1.7; white-space: pre-wrap; }
+.aviso-bloqueado {
+    background: rgba(255, 51, 51, 0.07); border: 1px solid #ff3333; color: #ff5555;
+    font-size: 0.82rem; padding: 10px; border-radius: 6px;
+}
