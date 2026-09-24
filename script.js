@@ -41,7 +41,9 @@ const state = {
   bannerIndex: 0,
   bannerTimer: null,
   search: "",
-  theme: "dark"
+  theme: "dark",
+  sharingProduct: null,
+  sharedProductOpened: false
 };
 
 /* ============================================================
@@ -97,7 +99,8 @@ function openModal(id) {
 
 function closeModal(id) {
   document.getElementById(id).classList.remove("open");
-  document.body.style.overflow = "";
+  const hasOpenModal = document.querySelector(".modal-overlay.open");
+  document.body.style.overflow = hasOpenModal ? "hidden" : "";
 }
 
 function normalize(str) {
@@ -265,6 +268,7 @@ function loadData() {
     state.page = 1;
     renderProdutos();
     renderAdminProdutos();
+    openSharedProductFromUrl();
   });
 
   db.ref("menu").on("value", (snap) => {
@@ -582,7 +586,12 @@ function buildCard(p) {
       <div class="card-body">
         <h3 class="card-title">${escapeHtml(p.title)}</h3>
         <p class="card-desc">${escapeHtml(p.description)}</p>
-        <p class="card-price">${priceLabel(p)}</p>
+        <div class="card-footer">
+          <p class="card-price">${priceLabel(p)}</p>
+          <button type="button" class="card-share-btn" onclick="event.stopPropagation(); openShareModal('${p.id}')" aria-label="Compartilhar ${escapeHtml(p.title)}" title="Compartilhar produto">
+            <span aria-hidden="true">↗</span>
+          </button>
+        </div>
       </div>
     </article>
   `;
@@ -619,6 +628,7 @@ function openProdutoModal(id) {
   document.getElementById("modal-cities").textContent = p.cities || "Nacional";
   document.getElementById("modal-price").textContent = priceLabel(p);
   document.getElementById("modal-buy").href = p.buyLink || "#";
+  document.getElementById("modal-share").onclick = () => openShareModal(p.id);
 
   const triggers = (p.triggers || []).map((t) => {
     const opt = MARKETING_TRIGGERS.find((x) => x.id === t);
@@ -627,6 +637,79 @@ function openProdutoModal(id) {
   document.getElementById("modal-triggers").innerHTML = triggers;
 
   openModal("produto-modal");
+}
+
+
+function getProductShareData(p) {
+  const url = new URL(window.location.href);
+  url.hash = "produto=" + encodeURIComponent(p.id);
+  return {
+    title: p.title || "Produto Workin'Store",
+    text: `${p.title || "Produto"} — ${priceLabel(p)} | Workin'Store`,
+    url: url.toString()
+  };
+}
+
+function openShareModal(id) {
+  const p = state.produtos.find((x) => x.id === id);
+  if (!p) return;
+
+  state.sharingProduct = p;
+  const share = getProductShareData(p);
+  const textAndUrl = encodeURIComponent(`${share.text}
+${share.url}`);
+  const encodedUrl = encodeURIComponent(share.url);
+  const encodedTitle = encodeURIComponent(share.title);
+
+  document.getElementById("share-product-name").textContent = share.text;
+  document.getElementById("share-whatsapp").href = `https://wa.me/?text=${textAndUrl}`;
+  document.getElementById("share-facebook").href = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+  document.getElementById("share-x").href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(share.text)}&url=${encodedUrl}`;
+  document.getElementById("share-telegram").href = `https://t.me/share/url?url=${encodedUrl}&text=${encodeURIComponent(share.text)}`;
+  document.getElementById("share-linkedin").href = `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`;
+  document.getElementById("share-email").href = `mailto:?subject=${encodedTitle}&body=${textAndUrl}`;
+
+  const nativeButton = document.getElementById("share-native");
+  nativeButton.classList.toggle("hidden", !navigator.share);
+  openModal("share-modal");
+}
+
+async function shareToDeviceApps() {
+  if (!state.sharingProduct || !navigator.share) return;
+  const share = getProductShareData(state.sharingProduct);
+  try {
+    await navigator.share(share);
+    closeModal("share-modal");
+  } catch (err) {
+    if (err && err.name !== "AbortError") showToast("Não foi possível compartilhar.", "error");
+  }
+}
+
+async function copyProductLink() {
+  if (!state.sharingProduct) return;
+  const share = getProductShareData(state.sharingProduct);
+  try {
+    await navigator.clipboard.writeText(share.url);
+    showToast("Link do produto copiado!", "success");
+  } catch (err) {
+    const input = document.createElement("textarea");
+    input.value = share.url;
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+    input.select();
+    const copied = document.execCommand("copy");
+    input.remove();
+    showToast(copied ? "Link do produto copiado!" : "Não foi possível copiar o link.", copied ? "success" : "error");
+  }
+}
+
+function openSharedProductFromUrl() {
+  if (state.sharedProductOpened || !window.location.hash.startsWith("#produto=")) return;
+  const id = decodeURIComponent(window.location.hash.slice(9));
+  if (!state.produtos.some((p) => p.id === id)) return;
+  state.sharedProductOpened = true;
+  openProdutoModal(id);
 }
 
 /* ============================================================
@@ -1132,6 +1215,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("produto-form").addEventListener("submit", saveProduto);
   document.getElementById("produto-cancel").addEventListener("click", resetProdutoForm);
+  document.getElementById("share-native").addEventListener("click", shareToDeviceApps);
+  document.getElementById("share-copy").addEventListener("click", copyProductLink);
   document.getElementById("menu-form").addEventListener("submit", saveMenuItem);
   document.getElementById("menu-cancel").addEventListener("click", resetMenuForm);
   document.getElementById("brand-form").addEventListener("submit", saveBrand);
@@ -1140,16 +1225,14 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".modal-close").forEach((btn) => {
     btn.addEventListener("click", () => {
       const modal = btn.closest(".modal-overlay");
-      modal.classList.remove("open");
-      document.body.style.overflow = "";
+      if (modal) closeModal(modal.id);
     });
   });
 
   document.querySelectorAll(".modal-overlay").forEach((overlay) => {
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) {
-        overlay.classList.remove("open");
-        document.body.style.overflow = "";
+        closeModal(overlay.id);
       }
     });
   });
