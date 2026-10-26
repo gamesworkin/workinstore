@@ -42,77 +42,89 @@
   </div>
 
   <!-- Hero -->
-  <!-- Feed de postagens: Games Workin&#39; -->
-<iframe <div class="blog-feed" id="bf-nfcd4e">
-  <h3 class="blog-feed-title">Últimas postagens</h3>
-  <ul class="blog-feed-list"><li>Carregando...</li></ul>
+  <!-- Bloco de postagens: Games Workin&#39; | cole onde quiser que o bloco apareça -->
+<div class="bf-wrap" id="bf-6dj3st">
+  <div class="bf-title">Últimas postagens</div>
+  <ul class="bf-list"><li class="bf-msg">Carregando...</li></ul>
 </div>
 <style>
-#bf-nfcd4e{font:inherit;color:inherit}
-#bf-nfcd4e .blog-feed-list{list-style:none;margin:0;padding:0}
-#bf-nfcd4e .blog-feed-item{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid currentColor;border-bottom-color:rgba(127,127,127,.25)}
-#bf-nfcd4e .blog-feed-item:last-child{border-bottom:0}
-#bf-nfcd4e .blog-feed-item img{width:80px;height:60px;object-fit:cover;flex-shrink:0;border-radius:4px}
-#bf-nfcd4e .blog-feed-item a{color:inherit;text-decoration:none;font-weight:bold}
-#bf-nfcd4e .blog-feed-item a:hover{text-decoration:underline}
-#bf-nfcd4e .blog-feed-date{display:block;font-size:.8em;opacity:.7;margin-top:2px}
-#bf-nfcd4e .blog-feed-sum{margin:4px 0 0;font-size:.9em;opacity:.85}
+#bf-6dj3st,#bf-6dj3st *{box-sizing:border-box}
+#bf-6dj3st{display:block;position:relative;float:none;clear:both;width:100%;max-width:720px;margin:0 auto;padding:0;background:#00001a;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.4;text-align:left;overflow:hidden;contain:layout paint;border:1px solid rgba(0,0,0,.12);border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.08);}
+#bf-6dj3st .bf-title{margin:0;padding:10px 12px;font-size:15px;font-weight:bold;color:#00001a;background:#808080;text-transform:uppercase;letter-spacing:.5px}
+#bf-6dj3st .bf-list{list-style:none;margin:0;padding:0 12px;max-height:400px;overflow-y:auto;}
+#bf-6dj3st .bf-list li{list-style:none;margin:0;padding:0;background:none}
+#bf-6dj3st .bf-list li:before{content:none;display:none}
+#bf-6dj3st .bf-item{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid rgba(127,127,127,.2)}
+#bf-6dj3st .bf-item:last-child{border-bottom:0}
+#bf-6dj3st .bf-msg{padding:12px 0;opacity:.7}
+#bf-6dj3st .bf-item img{display:block;width:70px;height:52px;max-width:none;object-fit:cover;flex-shrink:0;border-radius:4px;margin:0;border:0}
+#bf-6dj3st .bf-txt{min-width:0;flex:1}
+#bf-6dj3st a{color:#ffffff;text-decoration:none;font-weight:bold;word-wrap:break-word}
+#bf-6dj3st a:hover{color:#808080}
+#bf-6dj3st .bf-date{display:block;font-size:11px;opacity:.65;margin-top:2px;color:#808080}
+#bf-6dj3st .bf-sum{margin:4px 0 0;font-size:12px;opacity:.85;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 </style>
 <script>
 (function(){
-  var C={"db":"https://novo-games-workin-default-rtdb.firebaseio.com","url":"https://games.workinstore.org/","qty":5,"img":true,"date":true,"sum":true};
-  var box=document.getElementById("bf-nfcd4e"),ul=box.querySelector(".blog-feed-list");
+  var C={"db":"https://novo-games-workin-default-rtdb.firebaseio.com","url":"null/C:/Users/Valdevino/Downloads/blogs%20no%20github/gamesworkin/atualiza%C3%A7%C3%A3o%203/","qty":5,"img":true,"date":true,"sum":true};
+  var box=document.getElementById("bf-6dj3st");if(!box)return;var ul=box.querySelector(".bf-list");
   function e(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
   function txt(h){var d=document.createElement("div");d.innerHTML=h||"";return(d.textContent||"").trim()}
   fetch(C.db.replace(/\/$/,"")+"/posts.json").then(function(r){return r.json()}).then(function(d){
     var l=Object.keys(d||{}).map(function(k){var p=d[k];p.id=k;return p}).sort(function(a,b){return(b.date||0)-(a.date||0)}).slice(0,C.qty);
-    if(!l.length){ul.innerHTML="<li>Nenhuma postagem.</li>";return}
+    if(!l.length){ul.innerHTML='<li class="bf-msg">Nenhuma postagem.</li>';return}
     ul.innerHTML=l.map(function(p){
       var u=C.url+"#/post/"+encodeURIComponent(p.id),s=txt(p.content);
-      return '<li class="blog-feed-item">'+(C.img&&p.image?'<a href="'+u+'" target="_blank" rel="noopener"><img src="'+e(p.image)+'" alt="'+e(p.title)+'" loading="lazy"></a>':"")+
-        '<div><a href="'+u+'" target="_blank" rel="noopener">'+e(p.title)+'</a>'+
-        (C.date&&p.date?'<span class="blog-feed-date">'+new Date(p.date).toLocaleDateString("pt-BR",{day:"2-digit",month:"long",year:"numeric"})+'</span>':"")+
-        (C.sum&&s?'<p class="blog-feed-sum">'+e(s.slice(0,140))+(s.length>140?"…":"")+'</p>':"")+'</div></li>';
+      return '<li class="bf-item">'+(C.img&&p.image?'<a href="'+u+'" target="_blank" rel="noopener"><img src="'+e(p.image)+'" alt="'+e(p.title)+'" loading="lazy"></a>':"")+
+        '<div class="bf-txt"><a href="'+u+'" target="_blank" rel="noopener">'+e(p.title)+'</a>'+
+        (C.date&&p.date?'<span class="bf-date">'+new Date(p.date).toLocaleDateString("pt-BR",{day:"2-digit",month:"long",year:"numeric"})+'</span>':"")+
+        (C.sum&&s?'<p class="bf-sum">'+e(s.slice(0,140))+(s.length>140?"…":"")+'</p>':"")+'</div></li>';
     }).join("");
-  }).catch(function(){ul.innerHTML="<li>Não foi possível carregar as postagens.</li>"});
+  }).catch(function(){ul.innerHTML='<li class="bf-msg">Não foi possível carregar as postagens.</li>'});
 })();
-</script></iframe><br/>
+</script><br/>
 
-	<!-- Feed de postagens: Bomba Patch Workin&#39; -->
-<iframe <div class="blog-feed" id="bf-50ckay">
-  <h3 class="blog-feed-title">Últimas postagens</h3>
-  <ul class="blog-feed-list"><li>Carregando...</li></ul>
+	<!-- Bloco de postagens: Bomba Patch Workin&#39; | cole onde quiser que o bloco apareça -->
+<div class="bf-wrap" id="bf-iphjyx">
+  <div class="bf-title">Últimas postagens</div>
+  <ul class="bf-list"><li class="bf-msg">Carregando...</li></ul>
 </div>
 <style>
-#bf-50ckay{font:inherit;color:inherit}
-#bf-50ckay .blog-feed-list{list-style:none;margin:0;padding:0}
-#bf-50ckay .blog-feed-item{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid currentColor;border-bottom-color:rgba(127,127,127,.25)}
-#bf-50ckay .blog-feed-item:last-child{border-bottom:0}
-#bf-50ckay .blog-feed-item img{width:80px;height:60px;object-fit:cover;flex-shrink:0;border-radius:4px}
-#bf-50ckay .blog-feed-item a{color:inherit;text-decoration:none;font-weight:bold}
-#bf-50ckay .blog-feed-item a:hover{text-decoration:underline}
-#bf-50ckay .blog-feed-date{display:block;font-size:.8em;opacity:.7;margin-top:2px}
-#bf-50ckay .blog-feed-sum{margin:4px 0 0;font-size:.9em;opacity:.85}
+#bf-iphjyx,#bf-iphjyx *{box-sizing:border-box}
+#bf-iphjyx{display:block;position:relative;float:none;clear:both;width:100%;max-width:720px;margin:0 auto;padding:0;background:#000017;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.4;text-align:left;overflow:hidden;contain:layout paint;border:1px solid rgba(0,0,0,.12);border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.08);}
+#bf-iphjyx .bf-title{margin:0;padding:10px 12px;font-size:15px;font-weight:bold;color:#000017;background:#808080;text-transform:uppercase;letter-spacing:.5px}
+#bf-iphjyx .bf-list{list-style:none;margin:0;padding:0 12px;max-height:400px;overflow-y:auto;}
+#bf-iphjyx .bf-list li{list-style:none;margin:0;padding:0;background:none}
+#bf-iphjyx .bf-list li:before{content:none;display:none}
+#bf-iphjyx .bf-item{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid rgba(127,127,127,.2)}
+#bf-iphjyx .bf-item:last-child{border-bottom:0}
+#bf-iphjyx .bf-msg{padding:12px 0;opacity:.7}
+#bf-iphjyx .bf-item img{display:block;width:70px;height:52px;max-width:none;object-fit:cover;flex-shrink:0;border-radius:4px;margin:0;border:0}
+#bf-iphjyx .bf-txt{min-width:0;flex:1}
+#bf-iphjyx a{color:#ffffff;text-decoration:none;font-weight:bold;word-wrap:break-word}
+#bf-iphjyx a:hover{color:#808080}
+#bf-iphjyx .bf-date{display:block;font-size:11px;opacity:.65;margin-top:2px;color:#808080}
+#bf-iphjyx .bf-sum{margin:4px 0 0;font-size:12px;opacity:.85;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 </style>
 <script>
 (function(){
-  var C={"db":"https://novo-bomba-patch-workin-default-rtdb.firebaseio.com","url":"https://bombapatch.workinstore.org/","qty":5,"img":true,"date":true,"sum":true};
-  var box=document.getElementById("bf-50ckay"),ul=box.querySelector(".blog-feed-list");
+  var C={"db":"https://novo-bomba-patch-workin-default-rtdb.firebaseio.com","url":"null/C:/Users/Valdevino/Downloads/blogs%20no%20github/bpworkin/atualiza%C3%A7%C3%A3o%203/","qty":5,"img":true,"date":true,"sum":true};
+  var box=document.getElementById("bf-iphjyx");if(!box)return;var ul=box.querySelector(".bf-list");
   function e(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
   function txt(h){var d=document.createElement("div");d.innerHTML=h||"";return(d.textContent||"").trim()}
   fetch(C.db.replace(/\/$/,"")+"/posts.json").then(function(r){return r.json()}).then(function(d){
     var l=Object.keys(d||{}).map(function(k){var p=d[k];p.id=k;return p}).sort(function(a,b){return(b.date||0)-(a.date||0)}).slice(0,C.qty);
-    if(!l.length){ul.innerHTML="<li>Nenhuma postagem.</li>";return}
+    if(!l.length){ul.innerHTML='<li class="bf-msg">Nenhuma postagem.</li>';return}
     ul.innerHTML=l.map(function(p){
       var u=C.url+"#/post/"+encodeURIComponent(p.id),s=txt(p.content);
-      return '<li class="blog-feed-item">'+(C.img&&p.image?'<a href="'+u+'" target="_blank" rel="noopener"><img src="'+e(p.image)+'" alt="'+e(p.title)+'" loading="lazy"></a>':"")+
-        '<div><a href="'+u+'" target="_blank" rel="noopener">'+e(p.title)+'</a>'+
-        (C.date&&p.date?'<span class="blog-feed-date">'+new Date(p.date).toLocaleDateString("pt-BR",{day:"2-digit",month:"long",year:"numeric"})+'</span>':"")+
-        (C.sum&&s?'<p class="blog-feed-sum">'+e(s.slice(0,140))+(s.length>140?"…":"")+'</p>':"")+'</div></li>';
+      return '<li class="bf-item">'+(C.img&&p.image?'<a href="'+u+'" target="_blank" rel="noopener"><img src="'+e(p.image)+'" alt="'+e(p.title)+'" loading="lazy"></a>':"")+
+        '<div class="bf-txt"><a href="'+u+'" target="_blank" rel="noopener">'+e(p.title)+'</a>'+
+        (C.date&&p.date?'<span class="bf-date">'+new Date(p.date).toLocaleDateString("pt-BR",{day:"2-digit",month:"long",year:"numeric"})+'</span>':"")+
+        (C.sum&&s?'<p class="bf-sum">'+e(s.slice(0,140))+(s.length>140?"…":"")+'</p>':"")+'</div></li>';
     }).join("");
-  }).catch(function(){ul.innerHTML="<li>Não foi possível carregar as postagens.</li>"});
+  }).catch(function(){ul.innerHTML='<li class="bf-msg">Não foi possível carregar as postagens.</li>'});
 })();
-</script></iframe>
+</script>
 
 
   <!-- Footer -->
