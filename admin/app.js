@@ -81,7 +81,7 @@ const STATE = {
   user: null, profile: null, perms: {}, isAdmin: false,
   products: {}, kits: {}, entries: {}, sales: {},
   payables: {}, receivables: {}, expenses: {}, users: {}, settings: {},
-  accounts: {}, fin: {}, finTab: "contas",
+  accounts: {}, fin: {}, logs: {}, finTab: "contas",
   view: "dashboard", unsubs: []
 };
 
@@ -135,7 +135,7 @@ $("#forgotForm").addEventListener("submit", async e => {
     msg.className = "alert ok";
   } catch (ex) { msg.textContent = fbErr(ex); msg.className = "alert"; }
 });
-$("#logoutBtn").onclick = () => signOut(auth);
+$("#logoutBtn").onclick = async () => { await logAction("logout", "sessao", "Saiu do sistema"); signOut(auth); };
 
 /* ================= Sessão ================= */
 onAuthStateChanged(auth, async user => {
@@ -179,7 +179,23 @@ onAuthStateChanged(auth, async user => {
   renderShell();
 });
 
-function can(p) { return STATE.isAdmin || p === "perfil" || p === "dashboard" ? true : !!STATE.perms[p]; }
+function can(p) {
+  if (p === "logs") return STATE.isAdmin; // menu de log: exclusivo do administrador geral
+  return STATE.isAdmin || p === "perfil" || p === "dashboard" ? true : !!STATE.perms[p];
+}
+
+/* ================= LOG DE OPERAÇÕES =================
+   Cada operação relevante grava um registro em /logs (Realtime Database).
+   Somente o administrador geral (ADMIN_EMAIL) visualiza o menu de Log. */
+async function logAction(action, entity, details = "", refId = "") {
+  try {
+    await push(ref(db, "logs"), {
+      ts: Date.now(), action, entity, details: String(details || "").slice(0, 400), refId: refId || "",
+      user: STATE.user?.email || "", uid: STATE.user?.uid || "",
+      userName: ((STATE.profile?.firstName || "") + " " + (STATE.profile?.lastName || "")).trim()
+    });
+  } catch (e) { console.warn("Falha ao gravar log", e); }
+}
 
 /* ================= Bindings do Realtime Database ================= */
 function bindNode(path, key, cb) {
@@ -201,6 +217,8 @@ function bindData() {
   };
   ["products", "kits", "entries", "sales", "payables", "receivables", "expenses", "users", "settings", "accounts", "fin"]
     .forEach(k => bindNode(k, k, rerender));
+  if (STATE.isAdmin) bindNode("logs", "logs", () => { if (STATE.view === "logs") renderView(); });
+  logAction("login", "sessao", "Entrou no sistema");
   // mantém o perfil (permissões, cargo de chat, silenciamento) sempre atualizado
   bindNode("users", "users", () => {
     const me = STATE.users[STATE.user?.uid];
@@ -244,8 +262,10 @@ const VIEWS = {
   financeiro: ["Financeiro", viewFinanceiro], despesas: ["Despesas Gerais", viewDespesas],
   relatorios: ["Relatórios", viewRelatorios], mensagens: ["Mensagens", viewMensagens],
   usuarios: ["Usuários & Permissões", viewUsuarios],
-  perfil: ["Perfil", viewPerfil], config: ["Configurações", viewConfig]
+  perfil: ["Perfil", viewPerfil], config: ["Configurações", viewConfig],
+  logs: ["Log de operações", viewLogs]
 };
+let _mountedView = null;
 function renderView() {
   applySettingsUI();
   const v = VIEWS[STATE.view] ? STATE.view : "dashboard";
@@ -253,7 +273,15 @@ function renderView() {
   const [title, fn] = VIEWS[STATE.view];
   $("#viewTitle").textContent = title;
   $$("#nav .nav-item").forEach(b => b.classList.toggle("active", b.dataset.view === STATE.view));
+  // Mensagens/Chat: atualiza no lugar. Recriar o HTML a cada mudança do banco
+  // destruía o chat aberto (perdia o texto digitado, o foco e remontava o listener).
+  if (STATE.view === "mensagens" && _mountedView === "mensagens" && $("#msgBody")) {
+    const modalOpen = !$("#modalBackdrop")?.classList.contains("hidden");
+    if (!modalOpen) renderMensagensBody();
+    return;
+  }
   $("#content").innerHTML = "";
+  _mountedView = STATE.view;
   fn($("#content"));
 }
 
@@ -287,6 +315,19 @@ function kitAvailable(kit) {
   if (!items.length) return 0;
   return Math.min(...items.map(it => Math.floor(num(STATE.products[it.productId]?.qty) / (num(it.qty) || 1))));
 }
+/* Lucro de uma venda: o "frete a contratar" (s.freight) é repassado a terceiros e NÃO entra no lucro;
+   a "nossa entrega" (s.ownFreight) é receita da empresa e entra no lucro. */
+function saleProfit(s) { return num(s.total) - num(s.cost) - num(s.freight); }
+/* Rateio do frete a contratar:
+   s.freight         = valor total pago ao terceiro que fez a entrega
+   s.freightCustomer = parte cobrada do cliente (entra no faturamento)
+   s.freightCompany  = parte bancada pela empresa (sai do lucro)
+   Vendas antigas nao possuem freightCustomer: nelas o cliente pagou o frete todo. */
+function saleFreightCustomer(s) {
+  const v = s?.freightCustomer;
+  return (v === undefined || v === null || v === "") ? num(s?.freight) : num(v);
+}
+function saleFreightCompany(s) { return num(s?.freight) - saleFreightCustomer(s); }
 function margin(p) {
   const price = num(p.promo) || num(p.price);
   const cost = num(p.avgCost);
@@ -422,7 +463,7 @@ function viewDashboard(root) {
   const today = todayISO(), month = today.slice(0, 7);
   const salesMonth = sales.filter(s => (s.date || "").startsWith(month));
   const revenue = salesMonth.reduce((s, v) => s + num(v.total), 0);
-  const cogs = salesMonth.reduce((s, v) => s + num(v.cost), 0);
+  const cogs = salesMonth.reduce((s, v) => s + num(v.cost) + num(v.freight), 0); // inclui frete repassado a terceiros
   const expMonth = list(STATE.expenses).filter(e => (e.date || "").startsWith(month)).reduce((s, e) => s + num(e.amount), 0);
   const recPend = list(STATE.receivables).filter(r => r.status !== "recebido");
   const payPend = list(STATE.payables).filter(r => r.status !== "pago");
@@ -557,7 +598,8 @@ function viewProdutos(root) {
     bindPager("prodPg", draw);
     $$("[data-edit]", $("#pTable")).forEach(b => b.onclick = () => productForm(b.dataset.edit));
     $$("[data-del]", $("#pTable")).forEach(b => b.onclick = () => confirmDialog("Excluir este item do catálogo?", async () => {
-      await remove(ref(db, "products/" + b.dataset.del)); toast("Item excluído", "ok");
+      const nm = STATE.products[b.dataset.del]?.name || ""; await remove(ref(db, "products/" + b.dataset.del));
+      await logAction("excluir", "produto", nm, b.dataset.del); toast("Item excluído", "ok");
     }));
   };
   $("#pSearch").oninput = draw; $("#pCat").onchange = draw; $("#pNew").onclick = () => productForm();
@@ -622,8 +664,10 @@ function productForm(id) {
       image, description: $("#f_desc").value.trim(), notes: $("#f_notes").value.trim(),
       active: $("#f_active").checked, updatedAt: Date.now()
     };
+    let pidLog = id;
     if (id) await update(ref(db, "products/" + id), data);
-    else await push(ref(db, "products"), { ...data, createdAt: Date.now() });
+    else pidLog = (await push(ref(db, "products"), { ...data, createdAt: Date.now() })).key;
+    await logAction(id ? "editar" : "criar", "produto", `${data.name} · preço ${money(data.price)}`, pidLog);
     closeModal(); toast("Item salvo com sucesso", "ok");
   };
 }
@@ -659,7 +703,8 @@ function viewKits(root) {
   $("#kNew").onclick = () => kitForm();
   $$("[data-edit]", $("#kTable")).forEach(b => b.onclick = () => kitForm(b.dataset.edit));
   $$("[data-del]", $("#kTable")).forEach(b => b.onclick = () => confirmDialog("Excluir este kit?", async () => {
-    await remove(ref(db, "kits/" + b.dataset.del)); toast("Kit excluído", "ok");
+    const nm = STATE.kits[b.dataset.del]?.name || ""; await remove(ref(db, "kits/" + b.dataset.del));
+    await logAction("excluir", "kit", nm, b.dataset.del); toast("Kit excluído", "ok");
   }));
 }
 
@@ -719,8 +764,10 @@ function kitForm(id) {
       name, sku: $("#k_sku").value.trim(), description: $("#k_desc").value.trim(),
       extraCost: num($("#k_extra").value), price: num($("#k_price").value), items, updatedAt: Date.now()
     };
+    let kidLog = id;
     if (id) await update(ref(db, "kits/" + id), data);
-    else await push(ref(db, "kits"), { ...data, createdAt: Date.now() });
+    else kidLog = (await push(ref(db, "kits"), { ...data, createdAt: Date.now() })).key;
+    await logAction(id ? "editar" : "criar", "kit", `${data.name} · preço ${money(data.price)}`, kidLog);
     closeModal(); toast("Kit salvo", "ok");
   };
 }
@@ -854,6 +901,7 @@ function viewEstoque(root) {
         await remove(ref(db, "payables/" + r.id));
       }
       await remove(ref(db, "entries/" + e.id));
+      await logAction("excluir", "entrada", `${num(e.qty)} un de ${STATE.products[e.productId]?.name || e.productName || "produto"} · ${money(e.total)}`, e.id);
       toast("Entrada excluída e estoque ajustado", "ok");
       renderView();
     });
@@ -918,6 +966,7 @@ function viewEstoque(root) {
     const mode = $("#e_pay").value;
     const accId = $("#e_acc") ? $("#e_acc").value : "";
     const eDate = $("#e_date").value || todayISO();
+    await logAction("criar", "entrada", `${q} un de ${p.name} · custo unit. ${money(unit)} · total ${money(total)}`);
     const entRef = await push(ref(db, "entries"), {
       productId: pid, productName: p.name, qty: q, unitCost: Number(unit.toFixed(4)), total,
       freight, prevAvg, newAvg: Number(newAvg.toFixed(4)), supplier: $("#e_supplier").value.trim(),
@@ -1210,6 +1259,7 @@ function entryForm(id) {
       supplier: $("#x_supplier").value.trim(), doc: $("#x_doc").value.trim(),
       date: $("#x_date").value || todayISO(), updatedAt: Date.now(), editedBy: STATE.user?.email || ""
     });
+    await logAction("editar", "entrada", `${c.q} un de ${p.name || e.productName || "item"} · custo unit. ${money(c.unit)}`, id);
     if (e.settlement === "prazo") {
       const linked = list(STATE.payables).filter(x => x.refKind === "entry" && x.refId === id);
       if (linked.some(x => x.status === "pago")) {
@@ -1256,25 +1306,31 @@ function viewVendas(root) {
       .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     const rev = rows.reduce((a, s) => a + num(s.total), 0);
     const cost = rows.reduce((a, s) => a + num(s.cost), 0);
+    const fr3 = rows.reduce((a, s) => a + num(s.freight), 0);
+    const frEmp = rows.reduce((a, s) => a + saleFreightCompany(s), 0);
+    const profit = rows.reduce((a, s) => a + saleProfit(s), 0);
     $("#vBody").innerHTML = `
       <div class="stats" style="margin-bottom:14px">
         ${stat("Faturamento do período", money(rev), rows.length + " venda(s)")}
-        ${stat("Custo das vendas", money(cost))}
-        ${stat("Lucro bruto", money(rev - cost), rev > 0 ? pct((rev - cost) / rev * 100) : "")}
+        ${stat("Custo das vendas", money(cost), fr3 ? "+ " + money(fr3) + " frete a contratar" + (frEmp ? " · " + money(frEmp) + " bancado pela empresa" : "") : "")}
+        ${stat("Lucro bruto", money(profit), rev > 0 ? pct(profit / rev * 100) : "")}
         ${stat("Ticket médio", money(rows.length ? rev / rows.length : 0), periodLabel(pid))}
       </div>
-      ${rows.length ? tbl(["Data", "Cliente", "Itens", "Pagamento", "Recebimento", "Custo", "Total", "Lucro (R$ · %)", "Ações"],
+      ${rows.length ? tbl(["Data", "Cliente", "Itens", "Pagamento", "Recebimento", "Custo", "Fretes", "Total", "Lucro (R$ · %)", "Ações"],
       paged("venPg", rows).map(s => `<tr><td>${fmtDate(s.date)}</td><td>${esc(s.customer || "—")}</td>
       <td>${(s.items || []).map(i => `${num(i.qty)}× ${esc(i.name)}`).join("<br>")}</td>
       <td>${esc(s.payment || "—")}</td>
       <td>${s.settlement === "prazo" ? `<span class="pill warn">a receber</span>` : `<span class="pill ok">${esc(accName(s.accountId))}</span>`}</td>
       <td class="right">${money(s.cost)}</td>
+      <td class="right muted">${num(s.freight) ? `a contratar ${money(s.freight)}<br><span class="muted">cliente ${money(saleFreightCustomer(s))}${saleFreightCompany(s) ? ` · empresa ${money(saleFreightCompany(s))}` : ""}</span>` : ""}${num(s.freight) && num(s.ownFreight) ? "<br>" : ""}${num(s.ownFreight) ? "nossa entrega " + money(s.ownFreight) : ""}${!num(s.freight) && !num(s.ownFreight) ? "—" : ""}</td>
       <td class="right"><strong>${money(s.total)}</strong></td>
-      <td class="right">${marginCell(num(s.total) - num(s.cost), num(s.total) > 0 ? (num(s.total) - num(s.cost)) / num(s.total) * 100 : 0, num(s.total) > 0)}</td>
-      <td><button class="btn btn-sm" data-edit="${s.id}">Editar</button>
+      <td class="right">${marginCell(saleProfit(s), num(s.total) > 0 ? (saleProfit(s)) / num(s.total) * 100 : 0, num(s.total) > 0)}</td>
+      <td><button class="btn btn-sm" data-rcpt="${s.id}">Recibo</button>
+          <button class="btn btn-sm" data-edit="${s.id}">Editar</button>
           <button class="btn btn-sm btn-danger" data-del="${s.id}">Excluir</button></td></tr>`).join("")) + pagerHTML("venPg", rows.length)
       : `<div class="empty">Nenhuma venda no período.</div>`}`;
     bindPager("venPg", draw);
+    $$("[data-rcpt]", root).forEach(b => b.onclick = () => printReceipt({ id: b.dataset.rcpt, ...STATE.sales[b.dataset.rcpt] }));
     $$("[data-edit]", root).forEach(b => b.onclick = () => saleForm(b.dataset.edit));
     $$("[data-del]", root).forEach(b => b.onclick = () => confirmDialog("Excluir a venda? Os lançamentos financeiros e títulos gerados por ela também serão desfeitos (o estoque não é devolvido automaticamente).", async () => {
       const id = b.dataset.del;
@@ -1283,26 +1339,31 @@ function viewVendas(root) {
         await finRemoveByRef("receivables", r.id);
         await remove(ref(db, "receivables/" + r.id));
       }
+      const old = STATE.sales[id] || {};
       await remove(ref(db, "sales/" + id));
+      await logAction("excluir", "venda", `Venda de ${fmtDate(old.date)} · ${old.customer || "balcão"} · ${money(old.total)}`, id);
       toast("Venda excluída e saldo ajustado", "ok");
     }));
   };
   $("#sNew").onclick = () => saleForm();
   $("#v_q").oninput = draw;
   $("#v_csv").onclick = () => downloadCsv(`vendas_${periodOf(pid).from || "tudo"}`,
-    [["Data", "Cliente", "Pagamento", "Recebimento", "Conta", "Itens", "Custo", "Total", "Lucro"],
+    [["Data", "Cliente", "Pagamento", "Recebimento", "Conta", "Itens", "Custo", "Frete a contratar (total)", "Frete pago pelo cliente", "Frete pago pela empresa", "Nossa entrega", "Total", "Lucro"],
     ...rows.map(s => [s.date, s.customer || "", s.payment || "", s.settlement || "", accName(s.accountId),
       (s.items || []).map(i => `${num(i.qty)}x ${i.name}`).join(" | "),
-      num(s.cost).toFixed(2), num(s.total).toFixed(2), (num(s.total) - num(s.cost)).toFixed(2)])]);
+      num(s.cost).toFixed(2), num(s.freight).toFixed(2), saleFreightCustomer(s).toFixed(2), saleFreightCompany(s).toFixed(2),
+      num(s.ownFreight).toFixed(2), num(s.total).toFixed(2), (saleProfit(s)).toFixed(2)])]);
   $("#v_pdf").onclick = () => printHTML(`Vendas — ${periodLabel(pid)}`,
     kpiHTML([["Faturamento", money(rows.reduce((a, s) => a + num(s.total), 0))],
     ["Custo", money(rows.reduce((a, s) => a + num(s.cost), 0))],
-    ["Lucro bruto", money(rows.reduce((a, s) => a + num(s.total) - num(s.cost), 0))],
+    ["Frete a contratar (terceiros)", money(rows.reduce((a, s) => a + num(s.freight), 0))],
+    ["Frete bancado pela empresa", money(rows.reduce((a, s) => a + saleFreightCompany(s), 0))],
+    ["Lucro bruto", money(rows.reduce((a, s) => a + saleProfit(s), 0))],
     ["Vendas", String(rows.length)]]) +
     tblHTML(["Data", "Cliente", "Pagamento", "Custo", "Total", "Lucro"],
       rows.map(s => `<tr><td>${fmtDate(s.date)}</td><td>${esc(s.customer || "")}</td><td>${esc(s.payment || "")}</td>
       <td class="right">${money(s.cost)}</td><td class="right">${money(s.total)}</td>
-      <td class="right">${money(num(s.total) - num(s.cost))}</td></tr>`).join("")));
+      <td class="right">${money(saleProfit(s))}</td></tr>`).join("")));
   bindPeriod(pid, draw);
   draw();
 }
@@ -1321,7 +1382,10 @@ function saleForm(id) {
       <label class="field"><span>Forma de pagamento</span><select id="s_pay">
         <option>Dinheiro</option><option>PIX</option><option>Débito</option><option>Crédito</option><option>Boleto</option><option>A prazo</option></select></label>
       <label class="field"><span>Desconto (R$)</span><input id="s_disc" type="number" step="0.01" value="${num(editing?.discount)}"></label>
-      <label class="field"><span>Frete cobrado (R$)</span><input id="s_freight" type="number" step="0.01" value="${num(editing?.freight)}"></label>
+      <label class="field"><span>Frete a contratar (R$) <small class="muted">— total pago ao terceiro que entrega</small></span><input id="s_freight" type="number" step="0.01" value="${num(editing?.freight)}"></label>
+      <label class="field"><span>↳ Pago pelo cliente (R$) <small class="muted">— cobrado na venda, entra no faturamento</small></span><input id="s_frCli" type="number" step="0.01" value="${editing ? saleFreightCustomer(editing) : 0}"></label>
+      <label class="field"><span>↳ Pago pela empresa (R$) <small class="muted">— diferença, descontada do lucro</small></span><input id="s_frEmp" type="number" step="0.01" value="0" readonly tabindex="-1"></label>
+      <label class="field"><span>Nossa entrega (R$) <small class="muted">— frete por conta da empresa, entra no lucro</small></span><input id="s_own" type="number" step="0.01" value="${num(editing?.ownFreight)}"></label>
       <label class="field"><span>Recebimento</span><select id="s_rec">
         <option value="imediato">À vista — credita no saldo agora</option>
         <option value="prazo">A prazo — gera conta a receber</option></select></label>
@@ -1346,7 +1410,7 @@ function saleForm(id) {
     </div>
     <div id="s_list"></div>
     <div class="stat" style="margin-top:6px"><small>Total da venda</small><b id="s_total">R$ 0,00</b><div class="delta" id="s_info"></div></div>
-  `, `<button class="btn" id="mCancel">Cancelar</button><button class="btn btn-primary" id="mSave">${editing ? "Salvar alterações" : "Registrar venda"}</button>`);
+  `, `<button class="btn" id="mCancel">Cancelar</button><button class="btn" id="mReceipt" title="Gera o recibo em PDF para enviar ao cliente (sem custos e lucros)">🧾 Recibo PDF</button><button class="btn btn-primary" id="mSave">${editing ? "Salvar alterações" : "Registrar venda"}</button>`);
 
   if (editing) {
     $("#s_pay").value = editing.payment || "Dinheiro";
@@ -1368,11 +1432,14 @@ function saleForm(id) {
     $$("[data-price]", $("#s_list")).forEach(inp => inp.onchange = () => { items[+inp.dataset.price].price = num(inp.value); draw(); });
     const sub = items.reduce((s, i) => s + num(i.price) * num(i.qty), 0);
     const cost = items.reduce((s, i) => s + num(i.cost) * num(i.qty), 0);
-    const base = sub - num($("#s_disc").value) + num($("#s_freight").value);
+    const fr3 = num($("#s_freight").value), own = num($("#s_own").value);
+    const frCli = num($("#s_frCli").value), frEmp = fr3 - frCli;
+    $("#s_frEmp").value = frEmp.toFixed(2);
+    const base = sub - num($("#s_disc").value) + frCli + own;
     const rate = num($("#s_juros").value);
     const total = withRate(base, rate);
     $("#s_total").textContent = money(total);
-    $("#s_info").textContent = `Custo ${money(cost)} · Lucro estimado ${money(total - cost)}`
+    $("#s_info").textContent = `Custo ${money(cost)}${fr3 ? ` · Frete a contratar ${money(fr3)} (cliente ${money(frCli)}${frEmp > 0 ? ` · empresa ${money(frEmp)} do lucro` : frEmp < 0 ? ` · sobra ${money(-frEmp)} para a empresa` : ""})` : ""}${own ? ` · Nossa entrega ${money(own)}` : ""} · Lucro estimado ${money(total - cost - fr3)}`
       + (rate ? ` · ${rate > 0 ? "juros" : "desconto"} de cartão ${pct(Math.abs(rate))} (${money(total - base)})` : "");
     saleInstPreview(total);
   };
@@ -1397,7 +1464,32 @@ function saleForm(id) {
         : "As parcelas ficam em aberto no Contas a receber para quitação manual."}</div></div>`
       : `<div class="muted">Adicione itens para simular as parcelas.</div>`;
   };
-  ["s_disc", "s_freight", "s_juros"].forEach(i => $("#" + i).oninput = draw);
+  ["s_disc", "s_own", "s_juros"].forEach(i => $("#" + i).oninput = draw);
+  $("#s_freight").oninput = () => {
+    // por padrão o cliente paga o frete inteiro; se o valor cobrado dele já foi ajustado à mão, respeita
+    if (!$("#s_frCli").dataset.touched) $("#s_frCli").value = num($("#s_freight").value).toFixed(2);
+    draw();
+  };
+  $("#s_frCli").oninput = () => { $("#s_frCli").dataset.touched = "1"; draw(); };
+  if (editing && num(editing.freight)) $("#s_frCli").dataset.touched = "1";
+  const currentSaleData = () => {
+    const sub = items.reduce((s, i) => s + num(i.price) * num(i.qty), 0);
+    const cardRate = num($("#s_juros").value);
+    const frTot = num($("#s_freight").value), frCli = num($("#s_frCli").value);
+    const total = withRate(sub - num($("#s_disc").value) + frCli + num($("#s_own").value), cardRate);
+    return {
+      id: editing?.id || "", customer: $("#s_customer").value.trim(), date: $("#s_date").value || todayISO(),
+      payment: $("#s_pay").value, discount: num($("#s_disc").value), freight: frTot,
+      freightCustomer: frCli, freightCompany: frTot - frCli, ownFreight: num($("#s_own").value),
+      cardRate, items, subtotal: sub, total, settlement: $("#s_rec").value,
+      installments: $("#s_rec").value === "prazo" ? (parseInt($("#s_inst").value) || 1) : 1,
+      firstDue: $("#s_first").value, createdAt: editing?.createdAt || Date.now(), user: editing?.user || STATE.user?.email
+    };
+  };
+  $("#mReceipt").onclick = () => {
+    if (!items.length) return toast("Adicione itens à venda para gerar o recibo", "err");
+    printReceipt(currentSaleData());
+  };
   ["s_rec", "s_inst", "s_first", "s_auto", "s_date", "s_pay"].forEach(i => $("#" + i).addEventListener("change", draw));
   $("#s_date").addEventListener("change", () => { if (!$("#s_first").dataset.touched) $("#s_first").value = addMonthsISO($("#s_date").value || todayISO(), 1); });
   $("#s_first").addEventListener("change", () => { $("#s_first").dataset.touched = "1"; });
@@ -1412,7 +1504,8 @@ function saleForm(id) {
     const sub = items.reduce((s, i) => s + num(i.price) * num(i.qty), 0);
     const cost = items.reduce((s, i) => s + num(i.cost) * num(i.qty), 0);
     const cardRate = num($("#s_juros").value);
-    const total = withRate(sub - num($("#s_disc").value) + num($("#s_freight").value), cardRate);
+    const frTot = num($("#s_freight").value), frCli = num($("#s_frCli").value);
+    const total = withRate(sub - num($("#s_disc").value) + frCli + num($("#s_own").value), cardRate);
     if (editing) {
       const linked = list(STATE.receivables).filter(r => r.refKind === "sale" && r.refId === id);
       if (linked.some(r => r.status === "recebido"))
@@ -1437,7 +1530,11 @@ function saleForm(id) {
     const accId = $("#s_acc") ? $("#s_acc").value : "";
     const sale = {
       customer: $("#s_customer").value.trim(), date: $("#s_date").value || todayISO(),
-      payment: $("#s_pay").value, discount: num($("#s_disc").value), freight: num($("#s_freight").value),
+      payment: $("#s_pay").value, discount: num($("#s_disc").value),
+      freight: frTot,                           // frete a contratar — total pago ao terceiro
+      freightCustomer: frCli,                   // parte cobrada do cliente — entra no faturamento
+      freightCompany: frTot - frCli,            // parte bancada pela empresa — sai do lucro
+      ownFreight: num($("#s_own").value),       // nossa entrega — receita da empresa (entra no lucro)
       cardRate, items, subtotal: sub, cost, total,
       settlement, accountId: settlement === "imediato" ? accId : "",
       user: editing ? (editing.user || STATE.user.email) : STATE.user.email
@@ -1454,6 +1551,8 @@ function saleForm(id) {
     } else {
       saleId = (await push(ref(db, "sales"), { ...sale, createdAt: Date.now() })).key;
     }
+    await logAction(editing ? "editar" : "criar", "venda",
+      `${sale.customer || "balcão"} · ${items.map(i => `${num(i.qty)}x ${i.name}`).join(", ")} · ${money(total)} · ${sale.payment}`, saleId);
     if (settlement === "prazo") {
       const n = Math.max(1, Math.min(12, parseInt($("#s_inst").value) || 1));
       const first = $("#s_first").value || sale.date;
@@ -1483,7 +1582,129 @@ function saleForm(id) {
       toast(editing ? "Venda atualizada (sem conta de destino, nada foi creditado no saldo)" : "Venda registrada, mas cadastre uma conta no Financeiro para creditar o saldo", editing ? "ok" : "err");
     }
     closeModal();
+    if (!editing) offerReceipt({ ...sale, id: saleId });
   };
+}
+
+/* ================= RECIBO DA VENDA (PDF) =================
+   Documento para o cliente: contém apenas dados da compra — nunca custos, margens ou lucros. */
+function offerReceipt(sale) {
+  openModal("Venda registrada", `<p>Deseja gerar o recibo em PDF para enviar ao cliente?</p>
+    <p class="muted">O recibo traz os dados da compra (itens, valores, frete, pagamento, data e hora). Nenhuma informação de custo ou lucro é incluída.</p>`,
+    `<button class="btn" id="rNo">Agora não</button><button class="btn btn-primary" id="rYes">🧾 Gerar recibo PDF</button>`);
+  $("#rNo").onclick = closeModal;
+  $("#rYes").onclick = () => { closeModal(); printReceipt(sale); };
+}
+function printReceipt(sale) {
+  const w = window.open("", "_blank");
+  if (!w) return toast("Permita pop-ups para gerar o recibo em PDF", "err");
+  const st = STATE.settings || {};
+  const when = new Date(sale.createdAt || Date.now());
+  const dateTime = when.toLocaleDateString("pt-BR") + " às " + when.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const items = sale.items || [];
+  const sub = num(sale.subtotal) || items.reduce((s, i) => s + num(i.price) * num(i.qty), 0);
+  const disc = num(sale.discount), fr3 = saleFreightCustomer(sale), own = num(sale.ownFreight), rate = num(sale.cardRate);
+  const base = sub - disc + fr3 + own;
+  const rateVal = withRate(base, rate) - base;
+  const n = Math.max(1, num(sale.installments) || 1);
+  const parts = sale.settlement === "prazo" && n > 0 ? installmentPlan(num(sale.total), n, sale.firstDue || sale.date || todayISO()) : [];
+  const recNo = sale.id ? String(sale.id).slice(-8).toUpperCase() : "PRÉVIA";
+  const row = (l, v, strong = false) => `<tr><td>${l}</td><td class="right">${strong ? `<strong>${v}</strong>` : v}</td></tr>`;
+  w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Recibo ${esc(recNo)}</title>
+<style>body{font-family:Inter,system-ui,sans-serif;color:#111;padding:26px;max-width:720px;margin:0 auto}
+.head{display:flex;align-items:center;gap:14px;border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:14px}
+.head img{width:56px;height:56px;object-fit:contain;border-radius:8px}
+h1{font-size:22px;margin:0}.sub{color:#555;font-size:12px}
+h2{font-size:13px;margin:16px 0 6px;text-transform:uppercase;letter-spacing:.06em;color:#444}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border-bottom:1px solid #ddd;padding:7px 6px;text-align:left;vertical-align:top}th{background:#f2f4f8;font-size:12px}
+.right{text-align:right}.tot td{border-top:2px solid #111;border-bottom:0;font-size:15px}
+.meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;font-size:13px}.meta b{display:block;font-size:11px;color:#666;font-weight:600;text-transform:uppercase}
+.foot{margin-top:26px;color:#666;font-size:11px;text-align:center;border-top:1px solid #ddd;padding-top:10px}
+@media print{body{padding:0}}</style></head><body>
+<div class="head">${st.logo ? `<img src="${st.logo}" alt="">` : ""}
+  <div><h1>${esc(st.companyName || "Recibo de venda")}</h1>
+  <div class="sub">${[st.cnpj ? "CNPJ " + st.cnpj : "", st.phone, st.address].filter(Boolean).map(esc).join(" · ")}</div></div></div>
+<div class="meta">
+  <div><b>Recibo nº</b>${esc(recNo)}</div>
+  <div><b>Data e hora da operação</b>${esc(dateTime)}</div>
+  <div><b>Cliente</b>${esc(sale.customer || "Consumidor")}</div>
+  <div><b>Data da venda</b>${fmtDate(sale.date)}</div>
+  <div><b>Forma de pagamento</b>${esc(sale.payment || "—")}</div>
+  <div><b>Condição</b>${sale.settlement === "prazo" ? `A prazo · ${n}x` : "À vista"}</div>
+</div>
+<h2>Itens</h2>
+<table><thead><tr><th>Item</th><th class="right">Qtd</th><th class="right">Preço unit.</th><th class="right">Subtotal</th></tr></thead>
+<tbody>${items.map(i => `<tr><td>${esc(i.name)}</td><td class="right">${num(i.qty)}</td><td class="right">${money(i.price)}</td><td class="right">${money(num(i.price) * num(i.qty))}</td></tr>`).join("")}</tbody></table>
+<h2>Resumo</h2>
+<table><tbody>
+${row("Subtotal dos itens", money(sub))}
+${disc ? row("Desconto", "- " + money(disc)) : ""}
+${fr3 ? row("Frete (entrega por transportadora / terceiros)", money(fr3)) : ""}
+${own ? row("Entrega (" + esc(st.companyName || "nossa entrega") + ")", money(own)) : ""}
+${rate ? row((rate > 0 ? "Juros" : "Desconto") + " cartão de crédito (" + pct(Math.abs(rate)) + ")", (rateVal >= 0 ? "" : "- ") + money(Math.abs(rateVal))) : ""}
+<tr class="tot">${row("TOTAL", money(sale.total), true).slice(4)}
+</tbody></table>
+${parts.length ? `<h2>Parcelas</h2><table><thead><tr><th>Parcela</th><th>Vencimento</th><th class="right">Valor</th></tr></thead>
+<tbody>${parts.map(x => `<tr><td>${x.i}/${n}</td><td>${fmtDate(x.due)}</td><td class="right">${money(x.amount)}</td></tr>`).join("")}</tbody></table>` : ""}
+<div class="foot">Documento emitido em ${esc(dateTime)} por ${esc(st.companyName || "")}. Obrigado pela preferência!</div>
+<script>window.onload=()=>{window.print();}</script></body></html>`);
+  w.document.close();
+  if (sale.id) logAction("recibo", "venda", `Recibo emitido · ${sale.customer || "balcão"} · ${money(sale.total)}`, sale.id);
+}
+
+/* ================= LOG DE OPERAÇÕES (view) ================= */
+const LOG_ACTIONS = { criar: "Criou", editar: "Editou", excluir: "Excluiu", login: "Login", logout: "Logout", recibo: "Recibo", permissoes: "Permissões", config: "Configurações" };
+const LOG_ENTITIES = { venda: "Venda", produto: "Produto", kit: "Kit", entrada: "Entrada de estoque", conta: "Conta financeira", movimento: "Movimento financeiro", despesa: "Despesa", usuario: "Usuário", config: "Configurações", sessao: "Sessão" };
+function viewLogs(root) {
+  if (!STATE.isAdmin) { root.innerHTML = `<div class="card"><div class="empty">Apenas o administrador geral (${ADMIN_EMAIL}) pode ver o log de operações.</div></div>`; return; }
+  const pid = "logP";
+  const users = [...new Set(list(STATE.logs).map(l => l.user).filter(Boolean))].sort();
+  root.innerHTML = `
+  <div class="card">
+    <div class="card-head"><h3>Log de operações</h3><div style="flex:1"></div>
+      <div class="toolbar">
+        ${periodBar(pid, "month")}
+        <select id="lg_user"><option value="">Todos os usuários</option>${users.map(u => `<option>${esc(u)}</option>`).join("")}</select>
+        <select id="lg_ent"><option value="">Todas as operações</option>${Object.entries(LOG_ENTITIES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+        <input id="lg_q" placeholder="Buscar detalhes">
+        <button class="btn" id="lg_csv">CSV</button>
+      </div>
+    </div>
+    <p class="muted">Registro de quem fez o quê no sistema. Visível somente para ${esc(ADMIN_EMAIL)}.</p>
+    <div id="lgBody" style="margin-top:12px"></div>
+  </div>`;
+  let rows = [];
+  const draw = () => {
+    const q = ($("#lg_q").value || "").toLowerCase(), u = $("#lg_user").value, en = $("#lg_ent").value;
+    rows = list(STATE.logs)
+      .map(l => ({ ...l, date: l.ts ? new Date(l.ts).toISOString().slice(0, 10) : "" }))
+      .filter(l => inPeriod(l.date, pid))
+      .filter(l => !u || l.user === u).filter(l => !en || l.entity === en)
+      .filter(l => !q || [l.details, l.user, l.userName, l.action, l.entity].some(v => (v || "").toLowerCase().includes(q)))
+      .sort((a, b) => num(b.ts) - num(a.ts));
+    const fmtTs = ts => ts ? new Date(ts).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—";
+    const actPill = a => `<span class="pill ${a === "excluir" ? "dan" : a === "criar" ? "ok" : a === "editar" ? "warn" : ""}">${LOG_ACTIONS[a] || a}</span>`;
+    $("#lgBody").innerHTML = `
+      <div class="stats" style="margin-bottom:14px">
+        ${stat("Operações no período", String(rows.length), periodLabel(pid))}
+        ${stat("Usuários ativos", String(new Set(rows.map(r => r.user)).size))}
+        ${stat("Exclusões", String(rows.filter(r => r.action === "excluir").length))}
+      </div>
+      ${rows.length ? tbl(["Data / hora", "Usuário", "Ação", "Operação", "Detalhes"],
+        paged("logPg", rows).map(l => `<tr><td>${fmtTs(l.ts)}</td>
+        <td>${esc(l.userName || "")}${l.userName ? "<br>" : ""}<small class="muted">${esc(l.user)}</small></td>
+        <td>${actPill(l.action)}</td><td>${esc(LOG_ENTITIES[l.entity] || l.entity || "")}</td><td>${esc(l.details || "")}</td></tr>`).join("")) + pagerHTML("logPg", rows.length)
+        : `<div class="empty">Nenhuma operação registrada no período.</div>`}`;
+    bindPager("logPg", draw);
+  };
+  ["lg_q"].forEach(i => $("#" + i).oninput = draw);
+  ["lg_user", "lg_ent"].forEach(i => $("#" + i).onchange = draw);
+  $("#lg_csv").onclick = () => downloadCsv(`log_operacoes_${periodOf(pid).from || "tudo"}`,
+    [["Data/hora", "Usuário", "Nome", "Ação", "Operação", "Detalhes"],
+    ...rows.map(l => [l.ts ? new Date(l.ts).toLocaleString("pt-BR") : "", l.user, l.userName || "", LOG_ACTIONS[l.action] || l.action, LOG_ENTITIES[l.entity] || l.entity, l.details || ""])]);
+  bindPeriod(pid, draw);
+  draw();
 }
 
 /* ================= FINANCEIRO ================= */
@@ -1551,7 +1772,8 @@ function accountsView(el) {
       : `<div class="empty">Nenhuma conta cadastrada. Crie sua conta digital (Pix), o caixa em espécie e as contas bancárias.</div>`}`;
     $$("[data-aedit]", el).forEach(b => b.onclick = () => accountEditForm(b.dataset.aedit));
     $$("[data-adel]", el).forEach(b => b.onclick = () => confirmDialog("Excluir esta conta? Os movimentos ligados a ela continuarão registrados.", async () => {
-      await remove(ref(db, "accounts/" + b.dataset.adel)); toast("Conta excluída", "ok");
+      const nm = STATE.accounts[b.dataset.adel]?.name || ""; await remove(ref(db, "accounts/" + b.dataset.adel));
+      await logAction("excluir", "conta", nm, b.dataset.adel); toast("Conta excluída", "ok");
     }));
   };
   $("#accAdd").onclick = () => accountEditForm();
@@ -1581,6 +1803,7 @@ function accountEditForm(id) {
     };
     if (id) await update(ref(db, "accounts/" + id), data);
     else await push(ref(db, "accounts"), { ...data, createdAt: Date.now() });
+    await logAction(id ? "editar" : "criar", "conta", data.name, id || "");
     closeModal(); toast("Conta salva", "ok");
   };
 }
@@ -1708,6 +1931,7 @@ function finForm(kinds, defaultKind, id) {
     };
     if (id) await update(ref(db, "fin/" + id), data);
     else await push(ref(db, "fin"), { ...data, refKind: "manual", refId: "", createdAt: Date.now(), user: STATE.user?.email || "" });
+    await logAction(id ? "editar" : "criar", "movimento", `${kindLabel(kind)} · ${desc} · ${money(amount)}`, id || "");
     closeModal(); toast("Movimento salvo", "ok");
   };
 }
@@ -2050,8 +2274,10 @@ function viewDespesas(root) {
     bindPager("despPg", draw);
     $$("[data-edit]", $("#dBody")).forEach(b => b.onclick = () => expenseForm(b.dataset.edit));
     $$("[data-del]", $("#dBody")).forEach(b => b.onclick = () => confirmDialog("Excluir despesa? O lançamento no saldo também será desfeito.", async () => {
+      const ex = STATE.expenses[b.dataset.del] || {};
       await finRemoveByRef("expense", b.dataset.del);
-      await remove(ref(db, "expenses/" + b.dataset.del)); toast("Excluída", "ok");
+      await remove(ref(db, "expenses/" + b.dataset.del));
+      await logAction("excluir", "despesa", `${ex.description || ""} · ${money(ex.amount)}`, b.dataset.del); toast("Excluída", "ok");
     }));
   };
   $("#dFilter").onchange = draw; $("#dQ").oninput = draw; $("#dNew").onclick = () => expenseForm();
@@ -2097,6 +2323,7 @@ function expenseForm(id) {
     let expId = id;
     if (id) { await update(ref(db, "expenses/" + id), data); await finRemoveByRef("expense", id); }
     else expId = (await push(ref(db, "expenses"), { ...data, createdAt: Date.now(), user: STATE.user.email })).key;
+    await logAction(id ? "editar" : "criar", "despesa", `${data.description} · ${money(data.amount)} · ${data.category || ""}`, expId);
     if (data.accountId) {
       await finAdd({
         date: data.date, kind: "despesa", amount: data.amount, accountId: data.accountId,
@@ -2147,6 +2374,9 @@ function viewRelatorios(root) {
     const buys = list(STATE.entries).filter(e => inRange(e.date, from, to));
     const rev = sales.reduce((s, v) => s + num(v.total), 0);
     const cost = sales.reduce((s, v) => s + num(v.cost), 0);
+    const fr3 = sales.reduce((s, v) => s + num(v.freight), 0); // frete a contratar — total pago a terceiros
+    const frEmp = sales.reduce((s, v) => s + saleFreightCompany(v), 0); // parte bancada pela empresa
+    const profit = sales.reduce((s, v) => s + saleProfit(v), 0);
     const expT = exps.reduce((s, v) => s + num(v.amount), 0);
     const buyT = buys.reduce((s, v) => s + num(v.total), 0);
     cache = sales;
@@ -2171,10 +2401,11 @@ function viewRelatorios(root) {
     <div class="stats">
       ${stat("Faturamento", money(rev), sales.length + " venda(s)")}
       ${stat("Custo das vendas", money(cost))}
-      ${stat("Lucro bruto", money(rev - cost))}
+      ${stat("Frete a contratar (terceiros)", money(fr3), frEmp ? money(frEmp) + " bancado pela empresa (sai do lucro)" : "repasse · não entra no lucro")}
+      ${stat("Lucro bruto", money(profit))}
       ${stat("Despesas", money(expT))}
       ${stat("Compras de mercadoria", money(buyT))}
-      ${stat("Resultado líquido", money(rev - cost - expT))}
+      ${stat("Resultado líquido", money(profit - expT))}
     </div>
     <div class="card"><div class="card-head"><h3>Faturamento por dia</h3></div>
       ${days.length ? `<div class="bars">${days.map(([d, v]) =>
@@ -2217,7 +2448,7 @@ function viewRelatorios(root) {
     const rows = [["Data", "Cliente", "Pagamento", "Itens", "Custo", "Total", "Lucro"]];
     cache.forEach(s => rows.push([s.date, s.customer || "", s.payment || "",
       (s.items || []).map(i => `${num(i.qty)}x ${i.name}`).join(" | "), num(s.cost).toFixed(2), num(s.total).toFixed(2),
-      (num(s.total) - num(s.cost)).toFixed(2)]));
+      (saleProfit(s)).toFixed(2)]));
     const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
@@ -2251,7 +2482,8 @@ function viewUsuarios(root) {
   $("#uNew").onclick = createUserForm;
   $$("[data-perm]", root).forEach(b => b.onclick = () => permsForm(b.dataset.perm));
   $$("[data-del]", root).forEach(b => b.onclick = () => confirmDialog("Remover o perfil e as permissões deste usuário? (A conta de login continua no Firebase Authentication e deve ser excluída pelo console)", async () => {
-    await remove(ref(db, "users/" + b.dataset.del)); toast("Perfil removido", "ok");
+    const em = STATE.users[b.dataset.del]?.email || ""; await remove(ref(db, "users/" + b.dataset.del));
+    await logAction("excluir", "usuario", em, b.dataset.del); toast("Perfil removido", "ok");
   }));
 }
 function createUserForm() {
@@ -2281,6 +2513,7 @@ function createUserForm() {
         phone: $("#u_phone").value.trim(), role: $("#u_role").value.trim() || "colaborador",
         perms, createdAt: Date.now()
       });
+      await logAction("criar", "usuario", `${email} · ${$("#u_role").value.trim() || "colaborador"}`, cred.user.uid);
       closeModal(); toast("Usuário criado com sucesso", "ok");
     } catch (ex) { toast(fbErr(ex), "err"); }
   };
@@ -2299,6 +2532,7 @@ function permsForm(id) {
   $("#mSave").onclick = async () => {
     const perms = {}; $$("[data-p]").forEach(c => perms[c.dataset.p] = c.checked);
     await update(ref(db, "users/" + id), { perms, role: $("#pf_role").value.trim(), phone: $("#pf_phone").value.trim() });
+    await logAction("permissoes", "usuario", `${STATE.users[id]?.email || id} · ${PERMS.filter(p => perms[p[0]]).map(p => p[1]).join(", ") || "nenhuma"}`, id);
     closeModal(); toast("Permissões atualizadas", "ok");
   };
 }
@@ -2430,6 +2664,7 @@ function viewConfig(root) {
       companyName: $("#c_name").value.trim(), cnpj: $("#c_cnpj").value.trim(),
       phone: $("#c_phone").value.trim(), address: $("#c_addr").value.trim(), logo
     });
+    await logAction("config", "config", `Dados da empresa atualizados (${$("#c_name").value.trim()})`);
     toast("Configurações salvas", "ok");
   };
   if ($("#c_rmlogo")) $("#c_rmlogo").onclick = async () => { await update(ref(db, "settings"), { logo: "" }); toast("Logo removida", "ok"); };
@@ -2461,6 +2696,7 @@ function msgClear() {
   MSG.unsubs = [];
   if (MSG.msgUnsub) { try { MSG.msgUnsub(); } catch (e) {} MSG.msgUnsub = null; }
   MSG.mail = {}; MSG.chats = {}; MSG.presence = {}; MSG.msgs = {}; MSG.chatId = null; MSG._mounted = null;
+  MSG._draftText = {}; MSG._seenWrite = {};
 }
 
 function myName(u = STATE.profile, email = STATE.user?.email) {
@@ -2778,11 +3014,15 @@ async function openDirectChat(otherUid) {
   const found = list(MSG.chats).find(c => c.type === "direct" && (c.members || {})[uid] && (c.members || {})[otherUid]);
   let id = found?.id;
   if (!id) {
-    const r = await push(ref(db, "chats"), {
+    const novo = {
       type: "direct", members: { [uid]: true, [otherUid]: true },
       createdBy: uid, createdAt: Date.now(), lastAt: Date.now(), lastText: ""
-    });
+    };
+    const r = await push(ref(db, "chats"), novo);
     id = r.key;
+    // registra localmente: o listener de /chats pode demorar e a conversa
+    // recém-criada era descartada antes de abrir.
+    MSG.chats[id] = { ...novo, id };
   }
   MSG.tab = "chat"; MSG.chatId = id; MSG._mounted = null;
   if (STATE.view !== "mensagens") { STATE.view = "mensagens"; renderView(); } else renderMensagensBody();
@@ -2799,16 +3039,19 @@ function newGroupForm() {
     if (!name) return toast("Informe o nome do grupo", "err");
     const members = { [STATE.user.uid]: true };
     Array.from($("#ng_users").selectedOptions).forEach(o => members[o.value] = true);
-    const r = await push(ref(db, "chats"), {
+    const grupo = {
       type: "group", name, members, createdBy: STATE.user.uid,
       createdAt: Date.now(), lastAt: Date.now(), lastText: ""
-    });
+    };
+    const r = await push(ref(db, "chats"), grupo);
+    MSG.chats[r.key] = { ...grupo, id: r.key };
     MSG.tab = "chat"; MSG.chatId = r.key; MSG._mounted = null; closeModal(); toast("Grupo criado", "ok"); renderMensagensBody();
   };
 }
 function openChat(chatId) {
   const c = MSG.chats[chatId]; const pane = $("#chatPane");
   if (!c || !pane) return;
+  const keepText = ($("#chatInput")?.value) || MSG._draftText?.[chatId] || "";
   MSG._mounted = chatId;
   MSG.msgs = {};
   const canSend = canChat() && !STATE.profile?.chatMuted;
@@ -2850,7 +3093,14 @@ function openChat(chatId) {
     MSG.msgs = snap.val() || {};
     drawChatMessages(chatId);
     refreshMsgBadge();
-    update(ref(db, "users/" + STATE.user.uid + "/chatSeen"), { [chatId]: Date.now() }).catch(() => {});
+    // Marca como lido APENAS quando existe mensagem mais nova que a última vista.
+    // Gravar sempre disparava o listener de /users e recriava a tela em loop.
+    const lastAt = Object.values(MSG.msgs).reduce((m, x) => Math.max(m, x?.at || 0), 0);
+    const seen = STATE.profile?.chatSeen?.[chatId] || 0;
+    if (lastAt && lastAt > seen && MSG._seenWrite?.[chatId] !== lastAt) {
+      (MSG._seenWrite ||= {})[chatId] = lastAt;
+      update(ref(db, "users/" + STATE.user.uid + "/chatSeen"), { [chatId]: lastAt }).catch(() => {});
+    }
   }, err => {
     got = true;
     const b = $("#chatBox");
@@ -2866,11 +3116,14 @@ function openChat(chatId) {
 
   const input = $("#chatInput");
   const form = $("#chatForm");
+  if (input && keepText) input.value = keepText;
+  if (input) input.oninput = () => { (MSG._draftText ||= {})[chatId] = input.value; };
   form.onsubmit = async ev => {
     ev.preventDefault();
     const text = input.value.trim();
     if (!text) { input.focus(); return; }
     input.value = "";
+    if (MSG._draftText) MSG._draftText[chatId] = "";
     input.focus(); // mantém o teclado aberto no celular
     try {
       await push(ref(db, "chatMessages/" + chatId), {
@@ -2879,7 +3132,8 @@ function openChat(chatId) {
       await update(ref(db, "chats/" + chatId), { lastAt: Date.now(), lastText: text.slice(0, 60), lastBy: STATE.user.uid });
     } catch (e) {
       input.value = text;
-      toast("Não foi possível enviar: " + e.message, "err");
+      (MSG._draftText ||= {})[chatId] = text;
+      toast("Não foi possível enviar: " + (e?.message || e), "err");
     }
   };
   if (input) {
