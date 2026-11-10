@@ -446,11 +446,6 @@
                 <h2 style="margin:0;">🕹️ Área de Dados do Jogador</h2>
             </div>
             
-            <h3 style="color: var(--neon-cyan); margin-bottom: 15px;">⭐ Minha Lista de Favoritos</h3>
-            <div id="player-favorites-grid" class="grid-games" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
-                <p style="color: var(--text-gray); font-size: 0.9rem;">Nenhum jogo favoritado ainda.</p>
-            </div>
-
             <h3 style="color: var(--neon-cyan); margin-bottom: 10px;">💾 Gerenciador de Saves (Armazenamento em Nuvem Base64)</h3>
             <div class="table-wrapper">
                 <table>
@@ -526,8 +521,25 @@
                 <p>Todos os melhores jogos de todas as plataformas que mais marcaram!</p>
             </div>
 
+            <div class="catalog-toolbar" id="catalog-toolbar">
+                <input type="search" id="catalog-search" class="input-style catalog-search" placeholder="🔍 Buscar jogo por nome, plataforma ou categoria..." autocomplete="off">
+                <select id="catalog-filter-platform" class="select-style"><option value="">Todas as plataformas</option></select>
+                <select id="catalog-filter-category" class="select-style"><option value="">Todas as categorias</option></select>
+                <select id="catalog-sort" class="select-style">
+                    <option value="az" selected>Ordem alfabética (A–Z)</option>
+                    <option value="za">Ordem alfabética (Z–A)</option>
+                    <option value="plataforma">Por plataforma</option>
+                    <option value="categoria">Por categoria</option>
+                    <option value="recentes">Mais recentes</option>
+                </select>
+                <button type="button" id="catalog-clear-filters" class="btn-home">Limpar</button>
+            </div>
+            <p class="catalog-results-count" id="catalog-results-count"></p>
+
             <div class="grid-games" id="live-catalog-grid">
                 </div>
+
+            <nav class="catalog-pagination" id="catalog-pagination" aria-label="Paginação dos jogos"></nav>
         </main>
     </div>
 

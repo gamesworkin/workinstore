@@ -305,7 +305,7 @@ input[type="file"] { display: none; }
 .game-info h3 { font-size: 1.2rem; margin-bottom: 4px; font-weight: 700; padding-right: 65px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .game-info p { font-size: .85rem; color: var(--text-gray); }
 
-.btn-fav-card, .btn-edit-card {
+.btn-edit-card {
     position: absolute; top: 12px;
     background: rgba(0, 0, 0, .6); backdrop-filter: blur(6px);
     border: 1px solid rgba(255, 255, 255, .15);
@@ -313,10 +313,7 @@ input[type="file"] { display: none; }
     width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%;
     transition: all .25s cubic-bezier(.2,.8,.2,1);
 }
-.btn-fav-card { right: 12px; color: #ffffff; }
-.btn-fav-card:hover { transform: scale(1.15); border-color: var(--danger); }
-.btn-fav-card.active { color: var(--danger); border-color: var(--danger); text-shadow: 0 0 8px var(--danger); animation: pulseRing 1.2s ease 1; }
-.btn-edit-card { right: 48px; color: var(--accent-2); }
+.btn-edit-card { right: 12px; color: var(--accent-2); }
 .btn-edit-card:hover { transform: scale(1.15) rotate(-8deg); border-color: var(--accent); }
 
 .admin-box-nested { background: var(--bg-input); border: 1px solid var(--line); padding: 16px; border-radius: 10px; margin-bottom: 15px; }
@@ -531,3 +528,25 @@ tr:hover { background: rgba(var(--accent-rgb), .05); }
 .img-preview.round { border-radius: 50%; width: 76px; height: 76px; }
 .img-preview.wide { width: 160px; height: 50px; object-fit: contain; }
 body:has(.nav-links.mobile-open) .theme-fab { opacity: 0; pointer-events: none; }
+
+/* ===== Catálogo: busca, filtros e paginação ===== */
+.catalog-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+.catalog-toolbar .catalog-search { flex: 1 1 260px; min-width: 0; margin: 0; }
+.catalog-toolbar .select-style { flex: 0 1 200px; min-width: 0; }
+.catalog-toolbar .btn-home { flex: 0 0 auto; cursor: pointer; }
+.catalog-results-count { color: var(--text-gray); font-size: .85rem; margin: 0 0 16px; min-height: 1em; }
+.catalog-pagination { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 8px; margin: 30px 0 10px; }
+.catalog-pagination .page-btn {
+    min-width: 40px; height: 40px; padding: 0 12px; border-radius: 10px; cursor: pointer;
+    background: var(--bg-card); color: var(--text-main, inherit); border: 1px solid var(--line);
+    font-weight: 700; font-size: .95rem; transition: all .2s ease;
+}
+.catalog-pagination .page-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
+.catalog-pagination .page-btn.active { background: var(--accent); border-color: var(--accent); color: #000; box-shadow: 0 0 14px rgba(var(--accent-rgb), .5); }
+.catalog-pagination .page-btn.arrow { font-size: 1.2rem; }
+.catalog-pagination .page-btn:disabled { opacity: .35; cursor: not-allowed; }
+@media (max-width: 600px) {
+    .catalog-toolbar .select-style, .catalog-toolbar .catalog-search { flex: 1 1 100%; }
+    .catalog-toolbar .btn-home { flex: 1 1 100%; }
+    .catalog-pagination .page-btn { min-width: 36px; height: 36px; padding: 0 8px; }
+}

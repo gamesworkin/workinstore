@@ -433,32 +433,143 @@ onValue(ref(database, 'jogos'), (snapshot) => {
     renderAdminGamesTableList(cachedGames);
 });
 
+// --- CATÁLOGO: BUSCA, FILTROS E PAGINAÇÃO ---
+const CATALOG_PAGE_SIZE = 30;
+const CATALOG_MAX_PAGE_BUTTONS = 5;
+const catalogState = { search: "", plataforma: "", categoria: "", ordem: "az", page: 1 };
+
+function escHtml(v) {
+    return String(v ?? "").replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function normTxt(v) {
+    return String(v ?? "").normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function populateCatalogFilterOptions(jogos) {
+    const selPlat = document.getElementById('catalog-filter-platform');
+    const selCat = document.getElementById('catalog-filter-category');
+    if (!selPlat || !selCat) return;
+    const plats = new Set(), cats = new Set();
+    Object.values(jogos).forEach(j => {
+        if (j.plataforma) plats.add(String(j.plataforma));
+        if (j.categoria) cats.add(String(j.categoria));
+    });
+    const fill = (sel, values, label, current) => {
+        sel.innerHTML = `<option value="">${label}</option>` +
+            [...values].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(v => `<option value="${escHtml(v)}">${escHtml(sel === selPlat ? v.toUpperCase() : v)}</option>`).join('');
+        sel.value = values.has(current) ? current : "";
+    };
+    fill(selPlat, plats, "Todas as plataformas", catalogState.plataforma);
+    fill(selCat, cats, "Todas as categorias", catalogState.categoria);
+    catalogState.plataforma = selPlat.value;
+    catalogState.categoria = selCat.value;
+}
+
+function getFilteredSortedGames(jogos) {
+    const q = normTxt(catalogState.search.trim());
+    let list = Object.entries(jogos).filter(([, j]) => {
+        if (catalogState.plataforma && String(j.plataforma) !== catalogState.plataforma) return false;
+        if (catalogState.categoria && String(j.categoria) !== catalogState.categoria) return false;
+        if (q) {
+            const hay = normTxt([j.titulo, j.plataforma, j.categoria, j.subcategoria].join(' '));
+            if (!hay.includes(q)) return false;
+        }
+        return true;
+    });
+    const byTitle = (a, b) => String(a[1].titulo || "").localeCompare(String(b[1].titulo || ""), 'pt-BR', { sensitivity: 'base', numeric: true });
+    switch (catalogState.ordem) {
+        case 'za': list.sort((a, b) => byTitle(b, a)); break;
+        case 'plataforma': list.sort((a, b) => String(a[1].plataforma || "").localeCompare(String(b[1].plataforma || ""), 'pt-BR') || byTitle(a, b)); break;
+        case 'categoria': list.sort((a, b) => String(a[1].categoria || "").localeCompare(String(b[1].categoria || ""), 'pt-BR') || byTitle(a, b)); break;
+        case 'recentes': list.reverse(); break;
+        default: list.sort(byTitle);
+    }
+    return list;
+}
+
+function renderCatalogPagination(totalPages) {
+    const nav = document.getElementById('catalog-pagination');
+    if (!nav) return;
+    nav.innerHTML = "";
+    if (totalPages <= 1) return;
+    const cur = catalogState.page;
+    let start = Math.max(1, cur - Math.floor(CATALOG_MAX_PAGE_BUTTONS / 2));
+    let end = start + CATALOG_MAX_PAGE_BUTTONS - 1;
+    if (end > totalPages) { end = totalPages; start = Math.max(1, end - CATALOG_MAX_PAGE_BUTTONS + 1); }
+    const mk = (label, page, opts = {}) => {
+        const b = document.createElement('button');
+        b.type = "button";
+        b.className = "page-btn" + (opts.active ? " active" : "") + (opts.arrow ? " arrow" : "");
+        b.innerHTML = label;
+        if (opts.title) b.title = opts.title;
+        if (opts.disabled) b.disabled = true;
+        else b.addEventListener('click', () => goToCatalogPage(page));
+        nav.appendChild(b);
+    };
+    if (totalPages > CATALOG_MAX_PAGE_BUTTONS) {
+        mk('&laquo;', 1, { arrow: true, disabled: cur === 1, title: 'Primeira página' });
+        mk('&lsaquo;', cur - 1, { arrow: true, disabled: cur === 1, title: 'Página anterior' });
+    }
+    for (let p = start; p <= end; p++) mk(String(p), p, { active: p === cur });
+    if (totalPages > CATALOG_MAX_PAGE_BUTTONS) {
+        mk('&rsaquo;', cur + 1, { arrow: true, disabled: cur === totalPages, title: 'Próxima página' });
+        mk('&raquo;', totalPages, { arrow: true, disabled: cur === totalPages, title: 'Última página' });
+    }
+}
+
+function goToCatalogPage(page) {
+    catalogState.page = page;
+    renderCatalogGrid(cachedGames);
+    const top = document.getElementById('catalog-toolbar');
+    if (top) top.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function renderCatalogGrid(jogos) {
     const grid = document.getElementById('live-catalog-grid');
     if (!grid) return;
     grid.innerHTML = "";
+    populateCatalogFilterOptions(jogos);
+    const countEl = document.getElementById('catalog-results-count');
 
     if (Object.keys(jogos).length === 0) {
         grid.innerHTML = `<p style="color:var(--text-gray); padding: 20px;">Nenhum jogo publicado pelo administrador ainda.</p>`;
+        if (countEl) countEl.textContent = "";
+        renderCatalogPagination(0);
         return;
     }
 
-    for (let gameId in jogos) {
-        const jogo = jogos[gameId];
+    const list = getFilteredSortedGames(jogos);
+    const totalPages = Math.max(1, Math.ceil(list.length / CATALOG_PAGE_SIZE));
+    if (catalogState.page > totalPages) catalogState.page = totalPages;
+    if (catalogState.page < 1) catalogState.page = 1;
+    const startIdx = (catalogState.page - 1) * CATALOG_PAGE_SIZE;
+    const pageItems = list.slice(startIdx, startIdx + CATALOG_PAGE_SIZE);
+
+    if (countEl) {
+        countEl.textContent = list.length === 0 ? "" :
+            `Exibindo ${startIdx + 1}–${startIdx + pageItems.length} de ${list.length} jogo${list.length === 1 ? '' : 's'}`;
+    }
+
+    if (list.length === 0) {
+        grid.innerHTML = `<p style="color:var(--text-gray); padding: 20px;">Nenhum jogo encontrado com os filtros atuais.</p>`;
+        renderCatalogPagination(0);
+        return;
+    }
+
+    for (const [gameId, jogo] of pageItems) {
         const card = document.createElement('div');
         card.className = "game-card";
-        
+
         let adminButtonHtml = "";
         if (isAdminMode) {
             adminButtonHtml = `<button class="btn-edit-card" onclick="openQuickEditGameForm('${gameId}')" title="Editar Jogo">⚙️</button>`;
         }
 
         card.innerHTML = `
-            <div class="badge-system">${jogo.plataforma.toUpperCase()}</div>
+            <div class="badge-system">${String(jogo.plataforma || "").toUpperCase()}</div>
             ${adminButtonHtml}
-            <button class="btn-fav-card" data-id="${gameId}">❤</button>
             <div class="cover-wrapper" onclick="openGamePreview('${gameId}')">
-                <img src="${jogo.url_capa}" alt="${jogo.titulo}">
+                <img src="${jogo.url_capa}" alt="${escHtml(jogo.titulo)}" loading="lazy">
             </div>
             <div class="game-info" onclick="openGamePreview('${gameId}')">
                 <h3>${jogo.titulo}</h3>
@@ -467,8 +578,30 @@ function renderCatalogGrid(jogos) {
         `;
         grid.appendChild(card);
     }
-    updateFavoriteButtonsVisuals();
+    renderCatalogPagination(totalPages);
 }
+
+(function setupCatalogControls() {
+    const search = document.getElementById('catalog-search');
+    const plat = document.getElementById('catalog-filter-platform');
+    const cat = document.getElementById('catalog-filter-category');
+    const sort = document.getElementById('catalog-sort');
+    const clear = document.getElementById('catalog-clear-filters');
+    let t;
+    if (search) search.addEventListener('input', () => {
+        clearTimeout(t);
+        t = setTimeout(() => { catalogState.search = search.value; catalogState.page = 1; renderCatalogGrid(cachedGames); }, 200);
+    });
+    if (plat) plat.addEventListener('change', () => { catalogState.plataforma = plat.value; catalogState.page = 1; renderCatalogGrid(cachedGames); });
+    if (cat) cat.addEventListener('change', () => { catalogState.categoria = cat.value; catalogState.page = 1; renderCatalogGrid(cachedGames); });
+    if (sort) sort.addEventListener('change', () => { catalogState.ordem = sort.value; catalogState.page = 1; renderCatalogGrid(cachedGames); });
+    if (clear) clear.addEventListener('click', () => {
+        Object.assign(catalogState, { search: "", plataforma: "", categoria: "", ordem: "az", page: 1 });
+        if (search) search.value = "";
+        if (sort) sort.value = "az";
+        renderCatalogGrid(cachedGames);
+    });
+})();
 
 window.openGamePreview = function(gameId) {
     const jogo = cachedGames[gameId];
@@ -495,61 +628,7 @@ if (btnStartPreviewGame) {
     });
 }
 
-document.addEventListener('click', async (e) => {
-    if (e.target && e.target.classList.contains('btn-fav-card')) {
-        e.stopPropagation();
-        if (!currentUId) { alert("Você precisa estar autenticado para favoritar!"); return; }
-        const gameId = e.target.getAttribute('data-id');
-        const favRef = ref(database, `usuarios/${currentUId}/favoritos/${gameId}`);
-        
-        const snapshot = await get(favRef);
-        if (snapshot.exists()) { await remove(favRef); } 
-        else { await set(favRef, true); }
-    }
-});
-
-function updateFavoriteButtonsVisuals() {
-    if (!currentUId) return;
-    get(ref(database, `usuarios/${currentUId}/favoritos`)).then((snapshot) => {
-        const favs = snapshot.val() || {};
-        document.querySelectorAll('.btn-fav-card').forEach(btn => {
-            const id = btn.getAttribute('data-id');
-            if (favs[id]) btn.classList.add('active');
-            else btn.classList.remove('active');
-        });
-    });
-}
-
 function setupPlayerDashboardObservers() {
-    onValue(ref(database, `usuarios/${currentUId}/favoritos`), (snapshot) => {
-        const favGrid = document.getElementById('player-favorites-grid');
-        if (!favGrid) return;
-        favGrid.innerHTML = "";
-        const favs = snapshot.val() || {};
-
-        let count = 0;
-        for (let gameId in favs) {
-            if (cachedGames[gameId]) {
-                count++;
-                const jogo = cachedGames[gameId];
-                const item = document.createElement('div');
-                item.className = "game-card";
-                item.style.transform = "none";
-                item.innerHTML = `
-                    <div class="cover-wrapper" style="height:110px;" onclick="openGamePreview('${gameId}')">
-                        <img src="${jogo.url_capa}">
-                    </div>
-                    <div class="game-info" style="padding:10px;">
-                        <h4 style="font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${jogo.titulo}</h4>
-                    </div>
-                `;
-                favGrid.appendChild(item);
-            }
-        }
-        if (count === 0) favGrid.innerHTML = `<p style="color:var(--text-gray); font-size:0.85rem;">Nenhum jogo favoritado.</p>`;
-        updateFavoriteButtonsVisuals();
-    });
-
     onValue(ref(database, `usuarios/${currentUId}/saves`), (snapshot) => {
         const tableBody = document.getElementById('player-saves-table-body');
         if (!tableBody) return;
