@@ -43,97 +43,106 @@
 
   <!-- Hero -->
   <section class="hero">
-    <section class="catalogo" id="youtube-section" style="padding-top: 40px;">
-    <!-- Barra de Busca -->
-    <div class="form-group" style="margin-bottom: 2rem;">
-        <input type="text" id="yt-search-input" placeholder="Pesquisar vídeos do canal..." class="form-control">
-    </div>
+    <div class="ytw" id="ytw-root">
+  <style>
+    .ytw{all:initial;display:block;width:100%;max-width:100%;box-sizing:border-box;font-family:inherit;color:inherit;line-height:1.4}
+    .ytw *,.ytw *::before,.ytw *::after{box-sizing:border-box}
+    .ytw .ytw-search{display:block;width:100%;max-width:100%;margin:0 0 16px;padding:10px 14px;font:inherit;font-size:15px;color:inherit;background:transparent;border:1px solid rgba(128,128,128,.45);border-radius:8px;outline:none}
+    .ytw .ytw-search:focus{border-color:#e62117}
+    .ytw .ytw-player{position:relative;width:100%;height:0;padding-top:56.25%;margin:0 0 16px;background:#000;border-radius:8px;overflow:hidden}
+    .ytw .ytw-player iframe,.ytw .ytw-player .ytw-msg{position:absolute;inset:0;width:100%;height:100%;border:0;margin:0}
+    .ytw .ytw-msg{display:flex;align-items:center;justify-content:center;color:#aaa;font-size:14px}
+    .ytw .ytw-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;width:100%;margin:0;padding:0}
+    .ytw .ytw-card{min-width:0;cursor:pointer;border:1px solid rgba(128,128,128,.25);border-radius:8px;overflow:hidden;background:rgba(128,128,128,.06);transition:transform .15s}
+    .ytw .ytw-card:hover{transform:translateY(-2px)}
+    .ytw .ytw-card.ytw-active{border-color:#e62117}
+    .ytw .ytw-thumb{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;background:#111}
+    .ytw .ytw-thumb img{display:block;width:100%;height:100%;object-fit:cover;margin:0;padding:0;border:0;max-width:none}
+    .ytw .ytw-body{padding:8px 10px 10px}
+    .ytw .ytw-title{margin:0 0 4px;padding:0;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ytw .ytw-desc{margin:0;padding:0;font-size:12px;opacity:.75;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis;word-break:break-word}
+    .ytw .ytw-empty{grid-column:1/-1;text-align:center;opacity:.7;font-size:14px;padding:12px}
+    @media (max-width:480px){.ytw .ytw-grid{gap:8px}.ytw .ytw-title{font-size:13px}.ytw .ytw-desc{font-size:11px}.ytw .ytw-body{padding:6px 8px 8px}}
+  </style>
 
-    <!-- Player Ampliado -->
-    <div id="yt-player-wrapper" style="width: 100%; aspect-ratio: 16/9; display: flex; justify-content: center; align-items: center; margin-bottom: 2.5rem; border: 1px solid var(--primary); border-radius: var(--radius); overflow: hidden; background: var(--bg); box-shadow: var(--shadow);">
-        <!-- O player será carregado aqui -->
-        <div style="display: flex; justify-content: center; align-items: center; height: 100%; color: var(--text-muted);">
-            Carregando player...
-        </div>
-    </div>
+  <input type="text" class="ytw-search" placeholder="Pesquisar vídeos do canal..." aria-label="Pesquisar vídeos">
+  <div class="ytw-player"><div class="ytw-msg">Carregando player...</div></div>
+  <div class="ytw-grid"></div>
 
-    <!-- Grid de Vídeos (Forçado 3 por linha) -->
-    <div class="grid" id="yt-grid" style="grid-template-columns: repeat(3, 1fr);">
-        <!-- Os vídeos serão carregados aqui -->
-    </div>
+  <script>
+  (function(){
+    var API_KEY = 'AIzaSyDHkLh2vGgxUJpVo11o1kKqtH1DQ5Toeu4'; // sua chave
+    var CHANNEL_ID = 'UCwgc-ODtpi4OKxnbYGmyTig';           // seu canal
+    var MAX = 16;
 
-        <style>
-        @media (max-width: 240px) {
-            .grid { grid-template-columns: repeat(2, 1fr) !important; }
-        }
-        @media (max-width: 640px) {
-            .grid { grid-template-columns: repeat(2, 1fr) !important; }
-            .card-title {
-                display: -webkit-box;
-                -webkit-line-clamp: 2;
-                -webkit-box-orient: vertical;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                line-clamp: 2;
-            }
-        }
-    </style>
-</section>
+    var scripts = document.getElementsByTagName('script');
+    var root = scripts[scripts.length-1].parentNode;
+    var player = root.querySelector('.ytw-player');
+    var grid = root.querySelector('.ytw-grid');
+    var search = root.querySelector('.ytw-search');
 
-<script>
-    // --- CONFIGURAÇÃO ---
-    const API_KEY = 'AIzaSyDHkLh2vGgxUJpVo11o1kKqtH1DQ5Toeu4'; // <--- INSIRA SUA CHAVE AQUI
-    const CHANNEL_ID = 'UCwgc-ODtpi4OKxnbYGmyTig'; // <--- INSIRA SEU ID DE CANAL AQUI
-    // --------------------
-
-    async function loadVideos() {
-        const url = `https://www.googleapis.com/youtube/v3/search?key=${API_KEY}&channelId=${CHANNEL_ID}&part=snippet,id&order=date&maxResults=15&type=video`;
-        
-        try {
-            const response = await fetch(url);
-            const data = await response.json();
-            const grid = document.getElementById('yt-grid');
-            grid.innerHTML = '';
-            
-            data.items.forEach((video, index) => {
-                const card = document.createElement('div');
-                card.className = 'card';
-                card.innerHTML = `
-                    <img src="${video.snippet.thumbnails.high.url}" alt="${video.snippet.title}" class="card-img">
-                    <div class="card-body">
-                        <h3 class="card-title">${video.snippet.title}</h3>
-                        <p class="card-desc">${video.snippet.description || 'Sem descrição.'}</p>
-                    </div>
-                `;
-                card.onclick = () => playVideo(video.id.videoId);
-                grid.appendChild(card);
-                
-                // Player inicial com o primeiro vídeo
-                if(index === 0) playVideo(video.id.videoId);
-            });
-        } catch (error) {
-            console.error('Erro ao carregar vídeos:', error);
-            document.getElementById('yt-grid').innerHTML = '<p>Erro ao carregar vídeos. Verifique sua chave API.</p>';
-        }
+    function norm(s){
+      return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+        .toLowerCase().replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+    }
+    function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+    function decode(s){var t=document.createElement('textarea');t.innerHTML=s||'';return t.value;}
+    function bestThumb(t){
+      return (t.maxres||t.standard||t.high||t.medium||t.default||{}).url;
     }
 
-    function playVideo(videoId) {
-        const wrapper = document.getElementById('yt-player-wrapper');
-        wrapper.innerHTML = `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/${videoId}?autoplay=1" frameborder="0" allowfullscreen></iframe>`;
-        window.scrollTo({ top: document.getElementById('youtube-section').offsetTop - 100, behavior: 'smooth' });
+    function play(id, card, scroll){
+      player.innerHTML='<iframe src="https://www.youtube.com/embed/'+id+'?rel=0'+(scroll?'&autoplay=1':'')+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+      grid.querySelectorAll('.ytw-card').forEach(function(c){c.classList.remove('ytw-active');});
+      if(card) card.classList.add('ytw-active');
+      if(scroll) player.scrollIntoView({behavior:'smooth',block:'center'});
     }
 
-    // Filtro de busca (Interage com os títulos dos cards)
-    document.getElementById('yt-search-input').addEventListener('input', (e) => {
-        const term = e.target.value.toLowerCase();
-        document.querySelectorAll('.card').forEach(card => {
-            const title = card.querySelector('.card-title').innerText.toLowerCase();
-            card.style.display = title.includes(term) ? '' : 'none';
-        });
+    function render(items){
+      grid.innerHTML='';
+      items.forEach(function(v,i){
+        var id=v.id.videoId, title=decode(v.snippet.title), desc=decode(v.snippet.description)||'Sem descrição.';
+        var maxres='https://i.ytimg.com/vi/'+id+'/maxresdefault.jpg';
+        var fallback=bestThumb(v.snippet.thumbnails)||('https://i.ytimg.com/vi/'+id+'/hqdefault.jpg');
+        var card=document.createElement('div');
+        card.className='ytw-card';
+        card.setAttribute('data-s', norm(title+' '+desc));
+        card.innerHTML='<div class="ytw-thumb"><img loading="lazy" src="'+maxres+'" alt="'+esc(title)+'"></div>'+
+          '<div class="ytw-body"><h3 class="ytw-title" title="'+esc(title)+'">'+esc(title)+'</h3><p class="ytw-desc">'+esc(desc)+'</p></div>';
+        var img=card.querySelector('img');
+        img.onload=function(){ if(img.naturalWidth<=120 && img.src!==fallback) img.src=fallback; };
+        img.onerror=function(){ if(img.src!==fallback) img.src=fallback; };
+        card.onclick=function(){play(id,card,true);};
+        grid.appendChild(card);
+        if(i===0) play(id,card,false);
+      });
+      var e=document.createElement('p');e.className='ytw-empty';e.style.display='none';e.textContent='Nenhum vídeo encontrado.';grid.appendChild(e);
+    }
+
+    search.addEventListener('input',function(){
+      var terms=norm(search.value).split(' ').filter(Boolean), shown=0;
+      grid.querySelectorAll('.ytw-card').forEach(function(c){
+        var s=c.getAttribute('data-s');
+        var ok=terms.every(function(t){return s.indexOf(t)>-1;});
+        c.style.display=ok?'':'none'; if(ok) shown++;
+      });
+      var e=grid.querySelector('.ytw-empty'); if(e) e.style.display=shown?'none':'';
     });
 
-    loadVideos();
-</script>
+    fetch('https://www.googleapis.com/youtube/v3/search?key='+API_KEY+'&channelId='+CHANNEL_ID+'&part=snippet,id&order=date&maxResults='+MAX+'&type=video')
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(!d.items||!d.items.length) throw new Error((d.error&&d.error.message)||'Sem vídeos');
+        render(d.items);
+      })
+      .catch(function(err){
+        console.error('Erro ao carregar vídeos:',err);
+        player.innerHTML='<div class="ytw-msg">Não foi possível carregar o player.</div>';
+        grid.innerHTML='<p class="ytw-empty">Erro ao carregar vídeos. Verifique sua chave API.</p>';
+      });
+  })();
+  </script>
+</div>
 
   </section>
 
