@@ -434,8 +434,8 @@ onValue(ref(database, 'jogos'), (snapshot) => {
 });
 
 // --- CATÁLOGO: BUSCA, FILTROS E PAGINAÇÃO ---
-const CATALOG_PAGE_SIZE = 15;
-const CATALOG_MAX_PAGE_BUTTONS = 5;
+const CATALOG_PAGE_SIZE = 16;
+const CATALOG_MAX_PAGE_BUTTONS = 3;
 const catalogState = { search: "", plataforma: "", categoria: "", ordem: "az", page: 1 };
 
 function escHtml(v) {
