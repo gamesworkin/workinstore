@@ -596,3 +596,34 @@ body:has(.nav-links.mobile-open) .theme-fab { opacity: 0; pointer-events: none; 
     .game-info h3 { font-size: .9rem; }
     .catalog-pagination .page-btn { min-width: 32px; height: 32px; font-size: .85rem; }
 }
+
+/* ===== Capas 1:1 (cards e modal) ===== */
+.cover-wrapper,
+.preview-banner { height: auto !important; aspect-ratio: 1 / 1; }
+.cover-wrapper img,
+.preview-banner img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
+.preview-banner { width: min(100%, 42vh) !important; margin: 0 auto; border-radius: 0 0 14px 14px; }
+@media (max-width: 768px) { .preview-banner { width: min(100%, 36vh) !important; } }
+
+/* ===== Menu mobile: perfil compacto ===== */
+@media (max-width: 768px) {
+    .nav-links .user-profile {
+        display: grid !important;
+        grid-template-columns: 36px 1fr auto;
+        grid-template-areas: "avatar name logout" "perfil perfil admin";
+        align-items: center; gap: 8px 10px;
+        padding: 12px; margin-top: 6px;
+        border-top: 1px solid var(--line); border-radius: 12px;
+        background: rgba(var(--accent-rgb), .05);
+        text-align: left;
+    }
+    .nav-links .user-profile.hidden { display: none !important; }
+    .nav-links .user-profile > * { width: auto; margin: 0; }
+    .nav-links .user-profile #user-avatar { grid-area: avatar; width: 36px; height: 36px; }
+    .nav-links .user-profile #user-name { grid-area: name; font-weight: 600; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .nav-links .user-profile #btn-logout { grid-area: logout; grid-column: auto; padding: 6px 12px; font-size: .8rem; }
+    .nav-links .user-profile #btn-open-profile { grid-area: perfil; width: 100%; padding: 8px 10px; font-size: .82rem; }
+    .nav-links .user-profile #btn-admin-panel { grid-area: admin; width: 100%; padding: 8px 10px; font-size: .82rem; white-space: nowrap; }
+    .nav-links .user-profile #btn-admin-panel.hidden { display: none !important; }
+    .nav-links .user-profile:has(#btn-admin-panel.hidden) { grid-template-areas: "avatar name logout" "perfil perfil perfil"; }
+}
