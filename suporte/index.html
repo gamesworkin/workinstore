@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Central de Suporte Workin'Store</title>
+<meta name="description" content="Central de suporte ao cliente com chat ao vivo, pedidos e links úteis.">
+<link rel="icon" type="image/x-icon" href="fav.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="cyan" data-layout="sidebar">
+
+<!-- Botão flutuante de temas -->
+<div class="theme-switch">
+  <button id="themeBtn" class="theme-fab" aria-label="Trocar tema">◐</button>
+  <div id="themeMenu" class="theme-menu hidden">
+    <button data-set-theme="cyan"><span class="sw sw-cyan"></span>Grafite &amp; Ciano</button>
+    <button data-set-theme="green"><span class="sw sw-green"></span>Preto &amp; Verde</button>
+    <button data-set-theme="light"><span class="sw sw-light"></span>Claro &amp; Azul</button>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<!-- LOGIN -->
+<section id="loginView" class="auth-wrap view hidden">
+  <div class="auth-card">
+    <div class="brand"><span class="logo-dot"></span><span class="site-name">Central de Suporte</span></div>
+    <h1>Entrar</h1>
+    <p class="muted">Acesse sua central de atendimento.</p>
+    <form id="loginForm" autocomplete="off">
+      <label>E-mail<input type="email" id="loginEmail" required autocomplete="off"></label>
+      <label>Senha<input type="password" id="loginPass" required autocomplete="new-password"></label>
+      <button class="btn primary full" type="submit">Entrar</button>
+    </form>
+    <button class="link" id="forgotBtn">Esqueci minha senha</button>
+    <p class="switch">Ainda não tem conta, <a href="#" id="goRegister">cadastre-se.</a></p>
+  </div>
+</section>
+
+<!-- CADASTRO -->
+<section id="registerView" class="auth-wrap view hidden">
+  <div class="auth-card wide">
+    <div class="brand"><span class="logo-dot"></span><span class="site-name">Central de Suporte</span></div>
+    <h1>Criar conta</h1>
+    <p class="muted">Todos os campos são obrigatórios.</p>
+    <form id="registerForm" class="grid2">
+      <label>Nome<input id="rNome" required maxlength="40"></label>
+      <label>Sobrenome<input id="rSobrenome" required maxlength="60"></label>
+      <label class="span2">E-mail<input type="email" id="rEmail" required maxlength="120">
+        <small class="muted">Aceitos: Gmail, Outlook/Hotmail, Yahoo, iCloud, UOL, BOL, Terra e outros principais.</small></label>
+      <label>Senha<input type="password" id="rPass" required minlength="6"></label>
+      <label>Confirmar senha<input type="password" id="rPass2" required minlength="6"></label>
+      <label>WhatsApp<input id="rWhats" required placeholder="(11) 91234-5678" inputmode="numeric"></label>
+      <label>Plataforma da compra
+        <select id="rPlataforma" required>
+          <option value="">Selecione...</option>
+          <option>Shopee</option><option>Mercado Livre</option><option>Facebook Marketplace</option>
+        </select></label>
+      <label class="span2">Número do pedido<input id="rPedido" required maxlength="40"></label>
+      <div id="rProdutosBox" class="span2 hidden">
+        <span class="lbl">Selecione o produto (apenas um)</span>
+        <div id="rProdutos" class="product-pick"></div>
+      </div>
+      <label>Cidade<input id="rCidade" required maxlength="60"></label>
+      <label>Estado<select id="rUF" required></select></label>
+      <button class="btn primary full span2" type="submit">Cadastrar</button>
+    </form>
+    <p class="switch">Já tem conta? <a href="#" id="goLogin">Entrar.</a></p>
+  </div>
+</section>
+
+<!-- APP -->
+<section id="appView" class="app view hidden">
+  <aside class="sidebar">
+    <div class="brand"><span class="logo-dot"></span><span class="site-name">Central de Suporte</span></div>
+    <div class="me" id="meBox">
+      <img id="meAvatar" class="avatar" alt="">
+      <div><strong id="meName"></strong><small id="meRole" class="badge"></small></div>
+    </div>
+    <nav id="nav"></nav>
+    <button class="btn ghost full" id="logoutBtn">Sair</button>
+    <button class="account-gear" id="accountBtn" type="button" aria-label="Conta e sair" aria-haspopup="true" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+    </button>
+    <div class="account-menu hidden" id="accountMenu">
+      <span class="account-label">Conta</span>
+      <!-- no celular, o avatar com o nome e o botão Sair são movidos para cá -->
+    </div>
+  </aside>
+  <main class="content">
+    <!-- Cliente -->
+    <div id="tab-pedidos" class="tab hidden">
+      <h2>Meus pedidos</h2>
+      <div id="ordersList" class="cards"></div>
+      <div class="panel">
+        <h3>Adicionar novo pedido</h3>
+        <form id="newOrderForm" class="grid2">
+          <label>Plataforma<select id="oPlataforma" required><option value="">Selecione...</option><option>Shopee</option><option>Mercado Livre</option><option>Facebook Marketplace</option></select></label>
+          <label>Número do pedido<input id="oPedido" required maxlength="40"></label>
+          <div id="oProdutosBox" class="span2 hidden"><span class="lbl">Produto</span><div id="oProdutos" class="product-pick"></div></div>
+          <button class="btn primary span2" type="submit">Adicionar pedido</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="tab-perfil" class="tab hidden">
+      <h2>Perfil</h2>
+      <div class="panel profile">
+        <img id="pAvatar" class="avatar xl" alt="">
+        <form id="profileForm" class="grid2">
+          <label>Nome<input id="pNome" disabled></label>
+          <label>E-mail<input id="pEmail" disabled></label>
+          <label>WhatsApp<input id="pWhats" required inputmode="numeric"></label>
+          <label>Cidade / UF<input id="pLocal" disabled></label>
+          <label>Foto (upload, até 25 KB após compressão)<input type="file" id="pFile" accept="image/*"></label>
+          <label>ou link externo da foto<input id="pFotoUrl" type="url" placeholder="https://..."></label>
+          <button class="btn primary span2" type="submit">Salvar alterações</button>
+        </form>
+        <button class="link" id="resetPassBtn">Enviar e-mail para trocar senha</button>
+      </div>
+    </div>
+
+    <div id="tab-suporte" class="tab hidden">
+      <h2>Suporte</h2>
+      <p class="muted">Escolha o pedido sobre o qual precisa de ajuda. Cada pedido tem seu próprio chat.</p>
+      <div class="desk">
+        <div id="supOrders" class="ticket-list"></div>
+        <div class="chat">
+          <div class="chat-head"><span id="chatTitle">Selecione um pedido</span><span id="chatStatus" class="badge"></span></div>
+          <div id="chatHistory" class="chat-history"></div>
+          <div id="chatMsgs" class="chat-msgs"></div>
+          <div id="faqBtns" class="faq-btns"></div>
+          <form id="chatForm" class="chat-input">
+            <input id="chatText" placeholder="Digite sua mensagem..." maxlength="2000" autocomplete="off" disabled>
+            <button class="btn primary">Enviar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-links" class="tab hidden">
+      <h2>Links úteis</h2>
+      <div id="linksList" class="cards"></div>
+    </div>
+
+    <!-- Equipe -->
+    <div id="tab-chamados" class="tab hidden">
+      <h2>Chamados</h2>
+      <div class="desk">
+        <div class="ticket-col">
+          <input id="ticketSearch" class="search" placeholder="Buscar cliente, pedido ou produto...">
+          <div id="ticketList" class="ticket-list"></div>
+        </div>
+        <div class="chat">
+          <div class="chat-head"><span id="deskTitle">Selecione um chamado</span>
+            <span><button class="btn small" id="deskTake">Atender</button> <button class="btn small ghost" id="deskClose">Encerrar</button></span></div>
+          <div id="deskInfo" class="desk-info muted"></div>
+          <div id="deskMsgs" class="chat-msgs"></div>
+          <form id="deskForm" class="chat-input">
+            <input id="deskText" placeholder="Responder..." maxlength="2000" autocomplete="off">
+            <button class="btn primary">Enviar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin -->
+    <div id="tab-produtos" class="tab hidden">
+      <h2>Produtos</h2>
+      <form id="prodForm" class="panel grid2">
+        <label>Nome do produto<input id="prodNome" required maxlength="80"></label>
+        <label>Descrição<input id="prodDesc" maxlength="200"></label>
+        <div class="span2 actions"><button id="prodSubmit" class="btn primary">Cadastrar produto</button>
+        <button id="prodCancel" type="button" class="btn ghost hidden">Cancelar edição</button></div>
+      </form>
+      <input id="prodSearch" class="search" placeholder="Buscar produto por nome ou descrição...">
+      <div id="prodList" class="list" data-rerender="renderProdAdmin"></div>
+      <div id="prodPager" class="pager"></div>
+    </div>
+
+    <div id="tab-gerar" class="tab hidden">
+      <h2>Gerar Números</h2>
+      <form id="genForm" class="panel grid2">
+        <label>Nome do cliente<input id="gNome" required maxlength="80"></label>
+        <label>WhatsApp<input id="gWhats" required placeholder="(11) 91234-5678" inputmode="numeric"></label>
+        <label>Endereço<input id="gEnd" required maxlength="120"></label>
+        <label>Número<input id="gNum" required maxlength="10" inputmode="numeric"></label>
+        <label>Bairro<input id="gBairro" required maxlength="60"></label>
+        <label>Cidade<input id="gCidade" required maxlength="60"></label>
+        <div class="span2 actions"><button id="genSubmit" class="btn primary">Gerar</button>
+        <button id="genCancel" type="button" class="btn ghost hidden">Cancelar edição</button></div>
+      </form>
+      <input id="genSearch" class="search" placeholder="Buscar por número, cliente, cidade ou WhatsApp...">
+      <div id="genList" class="list" data-rerender="renderGenerated"></div>
+      <div id="genPager" class="pager"></div>
+    </div>
+
+    <div id="tab-linksadm" class="tab hidden">
+      <h2>Gerenciar links</h2>
+      <form id="linkForm" class="panel grid2">
+        <label>Título<input id="linkTitulo" required maxlength="80"></label>
+        <label>URL<input id="linkUrl" type="url" required></label>
+        <button id="linkSubmit" class="btn primary">Adicionar link</button>
+        <button id="linkCancel" type="button" class="btn ghost hidden">Cancelar edição</button>
+      </form>
+      <input id="linkSearch" class="search" placeholder="Buscar link por título ou URL...">
+      <div id="linkAdmList" class="list" data-rerender="renderLinkAdmin"></div>
+      <div id="linkPager" class="pager"></div>
+    </div>
+
+    <div id="tab-automacao" class="tab hidden">
+      <h2>Automação do chat</h2>
+      <div class="panel">
+        <label>Mensagem de boas-vindas<textarea id="welcomeMsg" rows="3" maxlength="500"></textarea></label>
+        <button class="btn primary" id="saveWelcome">Salvar boas-vindas</button>
+      </div>
+      <form id="faqForm" class="panel grid2">
+        <label class="span2">Pergunta frequente<input id="faqQ" required maxlength="150"></label>
+        <label class="span2">Resposta automática<textarea id="faqA" rows="3" required maxlength="1500"></textarea></label>
+        <div class="span2 actions"><button id="faqSubmit" class="btn primary">Adicionar pergunta</button>
+        <button id="faqCancel" type="button" class="btn ghost hidden">Cancelar edição</button></div>
+      </form>
+      <input id="faqSearch" class="search" placeholder="Buscar pergunta ou resposta...">
+      <div id="faqList" class="list" data-rerender="renderFaqAdmin"></div>
+      <div id="faqPager" class="pager"></div>
+    </div>
+
+    <div id="tab-usuarios" class="tab hidden">
+      <h2>Usuários e equipe</h2>
+      <form id="staffForm" class="panel grid2">
+        <h3 class="span2">Cadastrar moderador ou usuário</h3>
+        <label>Nome<input id="sNome" required></label>
+        <label>Sobrenome<input id="sSobrenome" required></label>
+        <label>E-mail<input id="sEmail" type="email" required></label>
+        <label>Senha provisória<input id="sPass" required minlength="6"></label>
+        <label>WhatsApp<input id="sWhats" required inputmode="numeric"></label>
+        <label>Cidade<input id="sCidade" required maxlength="60"></label>
+        <label>Estado<select id="sUF" required></select></label>
+        <label>Função<select id="sRole"><option value="moderator">Moderador</option><option value="user">Usuário</option></select></label>
+        <button class="btn primary span2">Cadastrar</button>
+      </form>
+      <div class="panel">
+        <h3>Menus dos moderadores</h3>
+        <p class="muted">Marque os menus que os moderadores podem acessar. As mudanças valem na hora.</p>
+        <div id="modMenusBox" class="grid2"></div>
+      </div>
+      <input id="userSearch" class="search" placeholder="Buscar por nome ou e-mail...">
+      <div id="userList" class="list" data-rerender="renderUsers"></div>
+      <div id="userPager" class="pager"></div>
+    </div>
+
+    <div id="tab-aparencia" class="tab hidden">
+      <h2>Aparência e layout</h2>
+      <form id="lookForm" class="panel grid2">
+        <label>Nome do site<input id="lkNome" maxlength="40"></label>
+        <label>Tema padrão<select id="lkTema"><option value="cyan">Grafite &amp; Ciano</option><option value="green">Preto &amp; Verde</option><option value="light">Claro &amp; Azul</option></select></label>
+        <label>Layout<select id="lkLayout"><option value="sidebar">Menu lateral</option><option value="topbar">Menu superior</option></select></label>
+        <label>Cantos<select id="lkRadius"><option value="14px">Arredondados</option><option value="6px">Discretos</option><option value="0px">Retos</option></select></label>
+        <label>Cor de destaque personalizada (opcional)<input id="lkAccent" type="color"></label>
+        <label class="chk"><input type="checkbox" id="lkUseAccent"> Usar cor personalizada</label>
+        <button class="btn primary span2">Salvar aparência</button>
+      </form>
+    </div>
+  </main>
+</section>
+
+<div id="loading" class="loading"><div class="loading-box"><span></span><p>Carregando...</p></div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
