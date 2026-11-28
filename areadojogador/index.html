@@ -349,13 +349,32 @@
                 <form id="form-criar-card">
                     <input type="hidden" id="card-id-edicao" value="">
                     <input type="text" id="card-titulo" placeholder="Título do Jogo" required>
-                    <input type="url" id="card-capa" placeholder="URL da Imagem da Capa" required>
+                    <input type="text" id="card-capa" placeholder="URL da Imagem da Capa (JPG, PNG, WEBP ou GIF)" required>
+                    <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+                        <button type="button" id="btn-escolher-capa-card" class="btn-download-dinamico" style="margin:0; flex:1;">🖼️ Subir capa do computador (aceita GIF animado)</button>
+                        <input type="file" id="input-capa-card" accept="image/*,image/gif,.gif" style="display:none;">
+                    </div>
+                    <p id="status-capa-card" class="mini-status" style="text-align:left;">Cole uma URL ou envie um arquivo. GIFs mantêm a animação (limite 3MB).</p>
                     <textarea id="card-descricao" placeholder="Descrição/Informações do Jogo" rows="3" required></textarea>
 
                     <h4>Comercialização do Patch</h4>
                     <div class="link-group">
                         <input type="text" id="card-preco" placeholder="Preço do Patch (Ex: R$ 10,00)" required>
                         <input type="text" id="card-pix" placeholder="Chave PIX de Recebimento" required>
+                    </div>
+
+                    <h4>⚡ Pix Automático (QR Code e Copia-Cola gerados na compra)</h4>
+                    <p class="mini-status" style="text-align:left;">Preencha estes campos para que cada compra gere um Pix único e o jogo seja liberado sozinho quando o pagamento cair.</p>
+                    <div class="link-group">
+                        <input type="text" id="card-pix-chave-qr" placeholder="Chave Pix usada no QR (CPF, CNPJ, e-mail, telefone +55... ou aleatória)">
+                        <input type="text" id="card-pix-nome-recebedor" placeholder="Nome do destinatário (quem recebe)" maxlength="25">
+                    </div>
+                    <div class="link-group">
+                        <input type="text" id="card-pix-valor" placeholder="Valor do jogo (Ex: 10,00)" inputmode="decimal">
+                        <input type="text" id="card-pix-identificador" placeholder="Identificador (Ex: JOGO01)" maxlength="10">
+                    </div>
+                    <div class="link-group" style="grid-template-columns: 1fr;">
+                        <input type="text" id="card-pix-cidade" placeholder="Cidade do recebedor (Ex: FORTALEZA)" maxlength="15">
                     </div>
 
                     <label class="rotulo-form">Colar Pix Copia-Cola (código BR Code do patch)</label>
@@ -394,7 +413,9 @@
                         <h3>Cards Cadastrados</h3>
                         <button id="btn-exportar-cards" class="btn-visualizar-comprovante" style="width:auto; margin:0; padding:6px 12px;">📥 Exportar (JSON)</button>
                     </div>
+                    <input type="search" id="busca-cards-admin" placeholder="🔎 Pesquisar card pelo título ou preço" style="margin-bottom:12px;">
                     <div id="lista-cards-criados" class="lista-usuarios"></div>
+                    <div id="paginacao-cards" class="paginacao-hub"></div>
                 </div>
             </div>
 
@@ -425,6 +446,7 @@
                 </div>
 
                 <div id="lista-usuarios-admin" class="lista-usuarios"></div>
+                <div id="paginacao-usuarios" class="paginacao-hub"></div>
             </div>
 
             <!-- ABA 4 -->
@@ -633,6 +655,34 @@
         </div>
     </div>
 
+        <!-- MODAL PIX AUTOMÁTICO -->
+    <div id="modal-pix-automatico" class="modal-form">
+        <div class="modal-form-content">
+            <div class="modal-form-header">
+                <h3 id="titulo-pix-automatico">Pagar com Pix</h3>
+                <button type="button" id="btn-fechar-pix-automatico" class="btn-fechar">&times;</button>
+            </div>
+            <form id="form-dados-pagador" autocomplete="off">
+                <p class="instrucao">Para gerar um Pix seguro e exclusivo para você, informe seus dados. Valor: <strong id="texto-valor-pix-automatico">R$ 0,00</strong></p>
+                <input type="text" id="pagador-nome" placeholder="Nome completo" required minlength="5">
+                <input type="text" id="pagador-cpf" placeholder="CPF (somente números)" inputmode="numeric" maxlength="14" required>
+                <p id="erro-pagador" class="mini-status" style="color:#ff5555; display:none;"></p>
+                <button type="submit" id="btn-gerar-pix" class="btn-gamer">GERAR QR CODE PIX</button>
+            </form>
+            <div id="area-pix-gerado" style="display:none; text-align:center;">
+                <div id="status-pix-automatico" class="status-pix pendente">⏳ Aguardando pagamento...</div>
+                <img id="img-qr-pix-automatico" class="img-qrcode" alt="QR Code Pix" src="">
+                <span class="rotulo-mini">PIX Copia e Cola</span>
+                <textarea id="texto-cc-pix-automatico" class="texto-copia-cola" readonly rows="4"></textarea>
+                <button type="button" id="btn-copiar-cc-pix-automatico" class="btn-download-dinamico" style="margin:6px 0 0 0; width:100%;">📋 Copiar código Copia e Cola</button>
+                <p class="mini-status">Identificador da cobrança: <strong id="texto-txid-pix-automatico"></strong></p>
+                <p class="mini-status">Assim que o pagamento for confirmado o jogo aparece na sua biblioteca automaticamente. Pode manter esta janela aberta.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+    <script src="pix.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

@@ -1326,3 +1326,146 @@ body {
 #novidade-comentario-texto::placeholder {
     color: #61707e;
 }
+
+/* ===== PIX AUTOMÁTICO ===== */
+#modal-pix-automatico input { width: 100%; margin-bottom: 10px; }
+.status-pix { padding: 10px; border-radius: 6px; font-weight: bold; margin-bottom: 12px; border: 1px solid; }
+.status-pix.pendente { color: #ffcc00; border-color: #ffcc00; background: rgba(255, 204, 0, 0.06); }
+.status-pix.pago { color: #00ff66; border-color: #00ff66; background: rgba(0, 255, 102, 0.08); }
+.status-pix.expirado { color: #ff5555; border-color: #ff5555; background: rgba(255, 85, 85, 0.06); }
+#img-qr-pix-automatico { background: #fff; padding: 8px; border-radius: 6px; max-width: 240px; width: 100%; margin: 0 auto 10px; display: block; }
+
+/* ==========================================================================
+   CAMPOS GLOBAIS (aplica o estilo do Hub a todo campo sem estilo próprio)
+   :where() mantém especificidade zero, preservando os estilos já existentes.
+   ========================================================================== */
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="color"]), select, textarea) {
+    width: 100%; background: #0b0e14; border: 1px solid #242f41; color: #fff;
+    border-radius: 4px; padding: 10px 12px; font-size: 0.9rem; font-family: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+:where(input, select, textarea):focus {
+    outline: none; border-color: #00ff66; box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.15);
+}
+:where(input, textarea)::placeholder { color: #61707e; }
+:where(textarea) { resize: vertical; line-height: 1.5; }
+:where(input, select, textarea):disabled, :where(input, textarea)[readonly] { opacity: 0.75; cursor: not-allowed; }
+:where(select) {
+    appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 34px;
+    background-image: linear-gradient(45deg, transparent 50%, #00ff66 50%), linear-gradient(135deg, #00ff66 50%, transparent 50%);
+    background-position: calc(100% - 18px) 55%, calc(100% - 13px) 55%;
+    background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+}
+select option, select optgroup { background: #121824; color: #fff; }
+input[type="checkbox"], input[type="radio"], input[type="range"], progress { accent-color: #00ff66; cursor: pointer; }
+input[type="checkbox"], input[type="radio"] { width: 16px; height: 16px; vertical-align: middle; }
+input[type="file"] { color: #8899a6; font-size: 0.85rem; max-width: 100%; }
+input[type="file"]::file-selector-button {
+    background: transparent; color: #00ff66; border: 1px solid #00ff66; border-radius: 4px;
+    padding: 6px 12px; margin-right: 10px; cursor: pointer; font-weight: bold; transition: background 0.2s;
+}
+input[type="file"]::file-selector-button:hover { background: rgba(0, 255, 102, 0.1); }
+input[type="search"]::-webkit-search-cancel-button { filter: invert(1) hue-rotate(180deg); cursor: pointer; }
+input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #fff; -webkit-box-shadow: 0 0 0 1000px #0b0e14 inset; caret-color: #fff;
+}
+::selection { background: rgba(0, 255, 102, 0.3); color: #fff; }
+* { scrollbar-width: thin; scrollbar-color: #242f41 #0b0e14; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #0b0e14; }
+::-webkit-scrollbar-thumb { background: #242f41; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #00ff66; }
+
+/* ==========================================================================
+   AVISOS (TOASTS)
+   ========================================================================== */
+#hub-toast-container {
+    position: fixed; top: 20px; right: 20px; z-index: 100000;
+    display: flex; flex-direction: column; gap: 10px; max-width: min(380px, calc(100vw - 40px));
+    pointer-events: none;
+}
+.hub-toast {
+    pointer-events: auto; display: flex; align-items: flex-start; gap: 10px;
+    background: #121824; border: 1px solid #242f41; border-left: 4px solid #00ff66;
+    border-radius: 6px; padding: 12px 14px; color: #dfe7ee; font-size: 0.9rem; line-height: 1.45;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+    opacity: 0; transform: translateX(30px); transition: opacity 0.25s, transform 0.25s;
+}
+.hub-toast.visivel { opacity: 1; transform: translateX(0); }
+.hub-toast-icone {
+    flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: bold; color: #0b0e14; background: #00ff66;
+}
+.hub-toast-texto { flex: 1; white-space: pre-wrap; word-break: break-word; }
+.hub-toast-fechar { background: none; border: none; color: #8899a6; font-size: 1.2rem; line-height: 1; cursor: pointer; }
+.hub-toast-fechar:hover { color: #fff; }
+.hub-toast-erro { border-left-color: #ff4d4d; } .hub-toast-erro .hub-toast-icone { background: #ff4d4d; color: #fff; }
+.hub-toast-aviso { border-left-color: #ffcc00; } .hub-toast-aviso .hub-toast-icone { background: #ffcc00; }
+.hub-toast-info { border-left-color: #3fa9ff; } .hub-toast-info .hub-toast-icone { background: #3fa9ff; color: #fff; }
+@media (max-width: 600px) { #hub-toast-container { top: auto; bottom: 16px; left: 16px; right: 16px; max-width: none; } }
+
+/* ==========================================================================
+   DIÁLOGOS DE CONFIRMAÇÃO / PERGUNTA
+   ========================================================================== */
+.hub-dialogo-fundo {
+    position: fixed; inset: 0; z-index: 100001; background: rgba(5, 8, 12, 0.75); backdrop-filter: blur(3px);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+    opacity: 0; transition: opacity 0.2s;
+}
+.hub-dialogo-fundo.visivel { opacity: 1; }
+.hub-dialogo {
+    width: 100%; max-width: 420px; background: #121824; border: 1px solid #1f2a3c; border-top: 3px solid #00ff66;
+    border-radius: 8px; padding: 22px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+    transform: scale(0.95); transition: transform 0.2s;
+}
+.hub-dialogo-fundo.visivel .hub-dialogo { transform: scale(1); }
+.hub-dialogo-critico { border-top-color: #ff4d4d; }
+.hub-dialogo-titulo { color: #00ff66; font-weight: bold; letter-spacing: 0.5px; margin-bottom: 10px; }
+.hub-dialogo-critico .hub-dialogo-titulo { color: #ff4d4d; }
+.hub-dialogo-texto { color: #dfe7ee; font-size: 0.92rem; line-height: 1.55; white-space: pre-wrap; word-break: break-word; margin-bottom: 14px; }
+.hub-dialogo-campo { margin-bottom: 14px; min-height: 80px; }
+.hub-dialogo-acoes { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.hub-dialogo-acoes button { padding: 9px 18px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.85rem; transition: all 0.2s; }
+.hub-btn-cancelar { background: transparent; color: #8899a6; border: 1px solid #242f41; }
+.hub-btn-cancelar:hover { color: #fff; border-color: #8899a6; }
+.hub-btn-confirmar { background: #00ff66; color: #0b0e14; border: 1px solid #00ff66; }
+.hub-btn-confirmar:hover { filter: brightness(1.1); box-shadow: 0 0 12px rgba(0, 255, 102, 0.35); }
+.hub-dialogo-critico .hub-btn-confirmar { background: #ff4d4d; border-color: #ff4d4d; color: #fff; }
+
+/* ==========================================================================
+   BALÕES (TOOLTIPS)
+   ========================================================================== */
+.hub-balao {
+    position: absolute; z-index: 100002; max-width: 260px; pointer-events: none;
+    background: #121824; color: #dfe7ee; border: 1px solid #00ff66; border-radius: 5px;
+    padding: 6px 10px; font-size: 0.78rem; line-height: 1.4; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+    opacity: 0; transform: translateY(4px); transition: opacity 0.15s, transform 0.15s;
+}
+.hub-balao.visivel { opacity: 1; transform: translateY(0); }
+.hub-balao::after {
+    content: ""; position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%) rotate(45deg);
+    width: 10px; height: 10px; background: #121824; border-right: 1px solid #00ff66; border-bottom: 1px solid #00ff66;
+}
+.hub-balao.embaixo::after { bottom: auto; top: -6px; border: none; border-left: 1px solid #00ff66; border-top: 1px solid #00ff66; }
+
+/* ===== Paginação (cards e usuários) ===== */
+.paginacao-hub { display:flex; justify-content:center; align-items:center; gap:6px; margin:14px 0 4px; flex-wrap:wrap; }
+.paginacao-hub:empty { display:none; }
+.btn-pagina { min-width:36px; height:36px; padding:0 10px; border-radius:6px; border:1px solid #24334c; background:#141b26; color:#c9d4e0; font-weight:bold; cursor:pointer; transition:all .15s ease; }
+.btn-pagina:hover { border-color:#00ff66; color:#00ff66; }
+.btn-pagina.ativa { background:#00ff66; border-color:#00ff66; color:#0b0f14; cursor:default; }
+.btn-encerrar-temporada-item { margin-top:8px; background:#3d1c1c !important; border-color:#ff3333 !important; color:#ff5555 !important; }
+.btn-encerrar-temporada-item:hover { background:#ff3333 !important; color:#fff !important; }
+
+
+/* ===== Proteção de conteúdo (usuários comuns) ===== */
+body.modo-protegido, body.modo-protegido * {
+    -webkit-user-select: none; -moz-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+}
+body.modo-protegido input, body.modo-protegido textarea, body.modo-protegido select,
+body.modo-protegido [contenteditable="true"], body.modo-protegido .permitir-copia,
+body.modo-protegido .permitir-copia * {
+    -webkit-user-select: text; -moz-user-select: text; user-select: text;
+}
+body.modo-protegido img { -webkit-user-drag: none; }

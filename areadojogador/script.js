@@ -1,3 +1,112 @@
+/* ==========================================================================
+   AVISOS E BALÕES ESTILIZADOS (substituem alert/confirm/prompt nativos)
+   ========================================================================== */
+(function () {
+    function garantirContainerToast() {
+        let c = document.getElementById('hub-toast-container');
+        if (!c) { c = document.createElement('div'); c.id = 'hub-toast-container'; document.body.appendChild(c); }
+        return c;
+    }
+    function tipoDaMensagem(t) {
+        const s = String(t).toLowerCase();
+        if (/erro|falha|inválid|invalid|negad|🚨|❌/.test(s)) return 'erro';
+        if (/⚠️|atenção|preencha|incomplet|selecione|informe|nenhum/.test(s)) return 'aviso';
+        if (/sucesso|✅|🎯|🚀|🔄|enviad|salv|atualizad|cread|criad|copiad|aprovad|liberad/.test(s)) return 'sucesso';
+        return 'info';
+    }
+    const icones = { sucesso: '✔', erro: '✖', aviso: '!', info: 'i' };
+    window.mostrarAvisoHub = function (mensagem, tipo) {
+        const texto = mensagem == null ? '' : String(mensagem);
+        tipo = tipo || tipoDaMensagem(texto);
+        const c = garantirContainerToast();
+        const el = document.createElement('div');
+        el.className = 'hub-toast hub-toast-' + tipo;
+        el.setAttribute('role', tipo === 'erro' ? 'alert' : 'status');
+        const ic = document.createElement('span'); ic.className = 'hub-toast-icone'; ic.textContent = icones[tipo];
+        const tx = document.createElement('div'); tx.className = 'hub-toast-texto'; tx.textContent = texto;
+        const fx = document.createElement('button'); fx.type = 'button'; fx.className = 'hub-toast-fechar'; fx.innerHTML = '&times;'; fx.setAttribute('aria-label', 'Fechar');
+        el.append(ic, tx, fx);
+        c.appendChild(el);
+        requestAnimationFrame(() => el.classList.add('visivel'));
+        const fechar = () => { el.classList.remove('visivel'); setTimeout(() => el.remove(), 300); };
+        fx.onclick = fechar;
+        setTimeout(fechar, Math.min(9000, 3500 + texto.length * 40));
+    };
+    window.alert = function (m) { window.mostrarAvisoHub(m); };
+
+    function abrirDialogo({ mensagem, comCampo, valorPadrao }) {
+        return new Promise(resolve => {
+            const fundo = document.createElement('div');
+            fundo.className = 'hub-dialogo-fundo';
+            const texto = String(mensagem == null ? '' : mensagem);
+            const critico = /🚨|crític|deletar|excluir|apagar|encerr|remover/i.test(texto);
+            fundo.innerHTML = `
+                <div class="hub-dialogo ${critico ? 'hub-dialogo-critico' : ''}" role="dialog" aria-modal="true">
+                    <div class="hub-dialogo-titulo">${comCampo ? '✏️ Informação necessária' : (critico ? '⚠️ Confirmação' : '❔ Confirmação')}</div>
+                    <div class="hub-dialogo-texto"></div>
+                    ${comCampo ? '<textarea class="hub-dialogo-campo" rows="3"></textarea>' : ''}
+                    <div class="hub-dialogo-acoes">
+                        <button type="button" class="hub-btn-cancelar">Cancelar</button>
+                        <button type="button" class="hub-btn-confirmar">${comCampo ? 'Enviar' : 'Confirmar'}</button>
+                    </div>
+                </div>`;
+            fundo.querySelector('.hub-dialogo-texto').textContent = texto;
+            const campo = fundo.querySelector('.hub-dialogo-campo');
+            if (campo) campo.value = valorPadrao || '';
+            document.body.appendChild(fundo);
+            requestAnimationFrame(() => fundo.classList.add('visivel'));
+            const concluir = (valor) => {
+                document.removeEventListener('keydown', teclas);
+                fundo.classList.remove('visivel');
+                setTimeout(() => fundo.remove(), 200);
+                resolve(valor);
+            };
+            const ok = () => concluir(comCampo ? campo.value : true);
+            const cancelar = () => concluir(comCampo ? null : false);
+            function teclas(e) {
+                if (e.key === 'Escape') cancelar();
+                else if (e.key === 'Enter' && !(comCampo && e.shiftKey)) { e.preventDefault(); ok(); }
+            }
+            document.addEventListener('keydown', teclas);
+            fundo.querySelector('.hub-btn-confirmar').onclick = ok;
+            fundo.querySelector('.hub-btn-cancelar').onclick = cancelar;
+            fundo.addEventListener('click', e => { if (e.target === fundo) cancelar(); });
+            (campo || fundo.querySelector('.hub-btn-confirmar')).focus();
+        });
+    }
+    window.confirmarHub = (mensagem) => abrirDialogo({ mensagem, comCampo: false });
+    window.perguntarHub = (mensagem, valorPadrao) => abrirDialogo({ mensagem, comCampo: true, valorPadrao });
+
+    /* Balões (tooltips) estilizados para qualquer elemento com title */
+    let balao = null, alvoAtual = null;
+    function mostrarBalao(alvo) {
+        const t = alvo.getAttribute('title');
+        if (t) { alvo.dataset.hubTitle = t; alvo.removeAttribute('title'); }
+        const texto = alvo.dataset.hubTitle;
+        if (!texto) return;
+        if (!balao) { balao = document.createElement('div'); balao.className = 'hub-balao'; document.body.appendChild(balao); }
+        balao.textContent = texto;
+        balao.classList.add('visivel');
+        const r = alvo.getBoundingClientRect(), b = balao.getBoundingClientRect();
+        let top = r.top - b.height - 8, emBaixo = false;
+        if (top < 4) { top = r.bottom + 8; emBaixo = true; }
+        let left = Math.max(6, Math.min(window.innerWidth - b.width - 6, r.left + r.width / 2 - b.width / 2));
+        balao.style.top = (top + window.scrollY) + 'px';
+        balao.style.left = (left + window.scrollX) + 'px';
+        balao.classList.toggle('embaixo', emBaixo);
+        alvoAtual = alvo;
+    }
+    function esconderBalao() { if (balao) balao.classList.remove('visivel'); alvoAtual = null; }
+    document.addEventListener('mouseover', e => {
+        const alvo = e.target.closest && e.target.closest('[title], [data-hub-title]');
+        if (alvo && alvo !== alvoAtual) mostrarBalao(alvo);
+        else if (!alvo) esconderBalao();
+    });
+    document.addEventListener('focusin', e => { const a = e.target.closest && e.target.closest('[title], [data-hub-title]'); if (a) mostrarBalao(a); });
+    document.addEventListener('focusout', esconderBalao);
+    window.addEventListener('scroll', esconderBalao, true);
+})();
+
 // ==========================================================================
 // CONFIGURAÇÃO DO FIREBASE
 // ==========================================================================
@@ -414,6 +523,10 @@ function abrirModalJogo(card, modoLojaVenda = false, cardId = "") {
             btnAdquirirLoja.style.display = "block";
             btnAdquirirLoja.onclick = () => {
                 fecharModalJogo();
+                if (typeof cardTemPixAutomatico === 'function' && cardTemPixAutomatico(card)) {
+                    abrirModalPixAutomatico(card, cardId);
+                    return;
+                }
                 document.getElementById('id-card-escolhido-compra').value = cardId;
                 document.getElementById('titulo-envio-comprovante-dinamico').innerText = `Adquirir: ${card.titulo}`;
                 document.getElementById('texto-preco-modal-checkout').innerText = precoFinalCard;
@@ -938,8 +1051,8 @@ function removerLinhaSubcategoriaVisual(rowId) {
     renumerarOrdem(pai);
 }
 
-function removerBlocoCategoriaVisual(blocoId) {
-    if (confirm("⚠️ Deseja deletar toda essa categoria?")) {
+async function removerBlocoCategoriaVisual(blocoId) {
+    if (await confirmarHub("⚠️ Deseja deletar toda essa categoria?")) {
         const elem = document.getElementById(blocoId);
         const pai = elem ? elem.parentElement : null;
         if (elem) elem.remove();
@@ -1000,6 +1113,11 @@ if (formCriarCard) {
             preco: document.getElementById('card-preco').value.trim(),
             pix: document.getElementById('card-pix').value.trim(),
             pix_copia_cola: document.getElementById('card-pix-copia-cola').value.trim(),
+            pix_chave_qr: document.getElementById('card-pix-chave-qr').value.trim(),
+            pix_nome_recebedor: document.getElementById('card-pix-nome-recebedor').value.trim(),
+            pix_valor: document.getElementById('card-pix-valor').value.trim(),
+            pix_identificador: document.getElementById('card-pix-identificador').value.trim(),
+            pix_cidade: document.getElementById('card-pix-cidade').value.trim(),
             pix_qr_base64: qrCodeBase64Temp || "",
             senha_patch: document.getElementById('card-senha-patch').value.trim(),
             botoes: botoes
@@ -1021,17 +1139,74 @@ if (formCriarCard) {
     });
 }
 
+// ==========================================================================
+// PAGINAÇÃO GENÉRICA (5 itens por página, 3 números visíveis + setas)
+// ==========================================================================
+const ITENS_POR_PAGINA = 5;
+const paginasAtuais = {};
+function paginarLista(container, paginador, chave, filtroItem) {
+    if (!container || !paginador) return;
+    const todos = Array.from(container.children).filter(el => el.classList.contains('user-item'));
+    const visiveis = todos.filter(el => !filtroItem || filtroItem(el));
+    todos.forEach(el => { el.style.display = "none"; });
+    const vazioBusca = container.querySelector('.vazio-busca');
+    if (vazioBusca) vazioBusca.remove();
+    const total = Math.max(1, Math.ceil(visiveis.length / ITENS_POR_PAGINA));
+    let pagina = Math.min(Math.max(1, paginasAtuais[chave] || 1), total);
+    paginasAtuais[chave] = pagina;
+    visiveis.slice((pagina - 1) * ITENS_POR_PAGINA, pagina * ITENS_POR_PAGINA).forEach(el => { el.style.display = ""; });
+    if (todos.length && !visiveis.length) {
+        const p = document.createElement('p');
+        p.className = 'vazio-lista vazio-busca';
+        p.innerText = 'Nenhum resultado para a pesquisa.';
+        container.appendChild(p);
+    }
+    paginador.innerHTML = "";
+    if (total <= 1) return;
+    const irPara = (n) => { paginasAtuais[chave] = n; paginarLista(container, paginador, chave, filtroItem); };
+    const criarBotao = (rotulo, destino, ativo, titulo) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn-pagina' + (ativo ? ' ativa' : '');
+        b.innerText = rotulo;
+        if (titulo) b.title = titulo;
+        b.addEventListener('click', () => irPara(destino));
+        paginador.appendChild(b);
+    };
+    let inicio = Math.max(1, pagina - 1);
+    let fim = Math.min(total, inicio + 2);
+    inicio = Math.max(1, fim - 2);
+    if (inicio > 1) criarBotao('‹', pagina - 1, false, 'Página anterior');
+    for (let n = inicio; n <= fim; n++) criarBotao(String(n), n, n === pagina);
+    if (fim < total) criarBotao('›', pagina + 1, false, 'Próxima página');
+}
+
+let buscaCardsAdmin = "";
+function aplicarPaginacaoCards() {
+    paginarLista(listaCardsCriados, document.getElementById('paginacao-cards'), 'cards',
+        el => !buscaCardsAdmin || (el.dataset.busca || "").includes(buscaCardsAdmin));
+}
+const buscaCardsInput = document.getElementById('busca-cards-admin');
+if (buscaCardsInput) {
+    buscaCardsInput.addEventListener('input', (e) => {
+        buscaCardsAdmin = e.target.value.trim().toLowerCase();
+        paginasAtuais.cards = 1;
+        aplicarPaginacaoCards();
+    });
+}
+
 function ouvirCardsGlobaisAdmin() {
     if (!listaCardsCriados) return;
     escutar('cards_disponiveis', 'value', snapshot => {
         cacheCardsAdmin = snapshot.val() || {};
         listaCardsCriados.innerHTML = "";
         const cards = snapshot.val();
-        if (!cards) { listaCardsCriados.innerHTML = `<p class="vazio-lista">Nenhum card cadastrado.</p>`; return; }
+        if (!cards) { listaCardsCriados.innerHTML = `<p class="vazio-lista">Nenhum card cadastrado.</p>`; aplicarPaginacaoCards(); return; }
         Object.keys(cards).forEach(id => {
             const div = document.createElement('div');
             div.className = 'user-item';
             div.style.borderLeft = "3px solid #00ff66";
+            div.dataset.busca = `${cards[id].titulo || ""} ${cards[id].preco || ""}`.toLowerCase();
             div.innerHTML = `
                 <div style="display:flex; gap:10px; align-items:center;">
                     <img src="${escapar(cards[id].capa_url)}" style="width:40px; height:50px; object-fit:cover; border-radius:4px;">
@@ -1050,6 +1225,7 @@ function ouvirCardsGlobaisAdmin() {
             `;
             listaCardsCriados.appendChild(div);
         });
+        aplicarPaginacaoCards();
     });
 }
 
@@ -1059,12 +1235,23 @@ function carregarCardParaEdicao(id) {
         if (!card) return;
         abrirAbaAdmin('cards');
         document.getElementById('card-id-edicao').value = id;
+        setTimeout(() => {
+            const alvo = document.getElementById('titulo-form-card') || document.getElementById('form-criar-card');
+            if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const campo = document.getElementById('card-titulo');
+            if (campo) campo.focus({ preventScroll: true });
+        }, 50);
         document.getElementById('card-titulo').value = card.titulo;
         document.getElementById('card-capa').value = card.capa_url;
         document.getElementById('card-descricao').value = card.descricao;
         document.getElementById('card-preco').value = card.preco || "";
         document.getElementById('card-pix').value = card.pix || "";
         document.getElementById('card-pix-copia-cola').value = card.pix_copia_cola || "";
+        document.getElementById('card-pix-chave-qr').value = card.pix_chave_qr || "";
+        document.getElementById('card-pix-nome-recebedor').value = card.pix_nome_recebedor || "";
+        document.getElementById('card-pix-valor').value = card.pix_valor || "";
+        document.getElementById('card-pix-identificador').value = card.pix_identificador || "";
+        document.getElementById('card-pix-cidade').value = card.pix_cidade || "";
         document.getElementById('card-senha-patch').value = card.senha_patch || "";
 
         qrCodeBase64Temp = card.pix_qr_base64 || "";
@@ -1103,7 +1290,7 @@ const btnCancelarEdicao = document.getElementById('btn-cancelar-edicao');
 if (btnCancelarEdicao) btnCancelarEdicao.addEventListener('click', cancelarEdicaoCard);
 
 async function deletarCardDoSistema(id) {
-    if (confirm("⚠️ Deseja apagar este card?")) {
+    if (await confirmarHub("⚠️ Deseja apagar este card?")) {
         await database.ref(`cards_disponiveis/${id}`).remove();
         alert("Card excluído.");
     }
@@ -1329,7 +1516,7 @@ function renderizarConferenciaPagamentos() {
 }
 
 async function marcarPagamentoValido(uid, pedidoId, cardId) {
-    if (!confirm("Confirmar que o comprovante é VÁLIDO e liberar o patch?")) return;
+    if (!await confirmarHub("Confirmar que o comprovante é VÁLIDO e liberar o patch?")) return;
     try {
         const usuario = cacheUsuariosAdmin[uid] || {};
         const card = cacheCardsAdmin[cardId];
@@ -1359,7 +1546,7 @@ async function marcarPagamentoValido(uid, pedidoId, cardId) {
 }
 
 async function marcarPagamentoInvalido(uid, pedidoId) {
-    const motivo = prompt("Descreva o motivo da recusa (será enviado ao jogador):", "Comprovante ilegível ou valor divergente.");
+    const motivo = await perguntarHub("Descreva o motivo da recusa (será enviado ao jogador):", "Comprovante ilegível ou valor divergente.");
     if (motivo === null) return;
     try {
         const usuario = cacheUsuariosAdmin[uid] || {};
@@ -1399,6 +1586,7 @@ const buscaUsuariosInput = document.getElementById('busca-usuarios-admin');
 if (buscaUsuariosInput) {
     buscaUsuariosInput.addEventListener('input', (e) => {
         buscaUsuariosAdmin = e.target.value.trim().toLowerCase();
+        paginasAtuais.usuarios = 1;
         inicializarPainelAdmin();
     });
 }
@@ -1413,7 +1601,7 @@ function inicializarPainelAdmin() {
             listaUsuariosAdmin.innerHTML = "";
             const users = snapshot.val();
             cacheUsuariosAdmin = users || {};
-            if (!users) { listaUsuariosAdmin.innerHTML = `<p class="vazio-lista">Nenhum usuário.</p>`; return; }
+            if (!users) { listaUsuariosAdmin.innerHTML = `<p class="vazio-lista">Nenhum usuário.</p>`; paginarLista(listaUsuariosAdmin, document.getElementById('paginacao-usuarios'), 'usuarios'); return; }
 
             let contagemFiltrados = 0;
 
@@ -1536,6 +1724,7 @@ function inicializarPainelAdmin() {
             if (contagemFiltrados === 0) {
                 listaUsuariosAdmin.innerHTML = `<p class="vazio-lista">Nenhum jogador ou pedido nesta aba.</p>`;
             }
+            paginarLista(listaUsuariosAdmin, document.getElementById('paginacao-usuarios'), 'usuarios');
         });
     });
 }
@@ -1568,7 +1757,7 @@ async function injetarCardDiretoAdmin(uid) {
 }
 
 async function removerAcessoJogo(uid, gameId) {
-    if (confirm("Deseja remover o acesso deste card da conta do jogador?")) {
+    if (await confirmarHub("Deseja remover o acesso deste card da conta do jogador?")) {
         await database.ref(`usuarios/${uid}/jogos_liberados/${gameId}`).remove();
         alert("Acesso removido!");
         inicializarPainelAdmin();
@@ -1576,7 +1765,7 @@ async function removerAcessoJogo(uid, gameId) {
 }
 
 async function excluirSolicitacaoEComprovante(uid) {
-    if (confirm("Deseja arquivar e mover este cliente para a aba de 'Clientes Cadastrados'?")) {
+    if (await confirmarHub("Deseja arquivar e mover este cliente para a aba de 'Clientes Cadastrados'?")) {
         try {
             await database.ref(`usuarios/${uid}/pedidos`).remove();
             await database.ref(`usuarios/${uid}/status_cadastro`).set("cliente_cadastrado");
@@ -1587,7 +1776,7 @@ async function excluirSolicitacaoEComprovante(uid) {
 }
 
 async function deletarUsuarioDoBancoTotal(uid, email) {
-    if (confirm(`🚨 ALERTA CRÍTICO:\nDeseja deletar totalmente a conta e registros de ${email}?`)) {
+    if (await confirmarHub(`🚨 ALERTA CRÍTICO:\nDeseja deletar totalmente a conta e registros de ${email}?`)) {
         try {
             await database.ref(`usuarios/${uid}`).remove();
             await database.ref(`mensagens/${uid}`).remove();
@@ -1600,7 +1789,7 @@ async function deletarUsuarioDoBancoTotal(uid, email) {
 const btnResetGeral = document.getElementById('btn-reset-geral-temporada');
 if (btnResetGeral) {
     btnResetGeral.addEventListener('click', async () => {
-        if (!confirm("⚠️ ATENÇÃO - FIM DA PRÉ-VENDA:\n\nDeseja arquivar todos os aprovados da temporada?")) return;
+        if (!await confirmarHub("⚠️ ATENÇÃO - FIM DA PRÉ-VENDA:\n\nDeseja arquivar todos os aprovados da temporada?")) return;
         try {
             btnResetGeral.innerText = "ARQUIVANDO TEMPORADA..."; btnResetGeral.disabled = true;
             const snapshot = await database.ref('usuarios').once('value');
@@ -1694,7 +1883,7 @@ function ouvirSugestoesAdmin() {
 }
 
 async function responderSugestao(idSugestao, uidDestino, emailDestino) {
-    const resposta = prompt("Escreva a resposta que o jogador receberá na caixa de mensagens:");
+    const resposta = await perguntarHub("Escreva a resposta que o jogador receberá na caixa de mensagens:");
     if (!resposta) return;
     try {
         await enviarMensagemInterna(uidDestino, emailDestino, "Resposta à sua sugestão", resposta);
@@ -1704,7 +1893,7 @@ async function responderSugestao(idSugestao, uidDestino, emailDestino) {
 }
 
 async function removerSugestao(id) {
-    if (confirm("Excluir esta sugestão?")) await database.ref(`sugestoes/${id}`).remove();
+    if (await confirmarHub("Excluir esta sugestão?")) await database.ref(`sugestoes/${id}`).remove();
 }
 
 // ==========================================================================
@@ -1829,7 +2018,7 @@ function caminhoMinhaMensagem(id) {
 
 async function excluirMensagemUsuario(id) {
     if (!usuarioLogadoUid || !cacheMensagensUsuario[id]) return;
-    if (!confirm("Excluir esta mensagem da sua caixa? Esta ação não pode ser desfeita.")) return;
+    if (!await confirmarHub("Excluir esta mensagem da sua caixa? Esta ação não pode ser desfeita.")) return;
     try {
         await database.ref(caminhoMinhaMensagem(id)).remove();
         if (mensagemAbertaId === id) {
@@ -1867,7 +2056,7 @@ async function limparPastaMensagens(pasta) {
     if (!usuarioLogadoUid) return;
     const ids = Object.keys(cacheMensagensUsuario).filter(id => cacheMensagensUsuario[id].pasta === pasta);
     if (!ids.length) return alert("Nenhuma mensagem nesta pasta.");
-    if (!confirm(`Excluir ${ids.length} mensagem(ns) da pasta ${pasta === 'entrada' ? 'Entrada' : 'Enviados'}?`)) return;
+    if (!await confirmarHub(`Excluir ${ids.length} mensagem(ns) da pasta ${pasta === 'entrada' ? 'Entrada' : 'Enviados'}?`)) return;
     const atualizacoes = {};
     ids.forEach(id => { atualizacoes[id] = null; });
     try {
@@ -2032,7 +2221,7 @@ if (formMsgAdmin) {
 // LOGIN / CADASTRO / PERFIL
 // ==========================================================================
 async function deslogar() {
-    if (!confirm("Deseja realmente sair do sistema?")) return;
+    if (!await confirmarHub("Deseja realmente sair do sistema?")) return;
     try { await auth.signOut(); } catch (e) { /* ignore */ }
     restaurarTelaLoginDoZero();
 }
@@ -2249,7 +2438,7 @@ const btnSolicitarExclusaoConta = document.getElementById('btn-solicitar-exclusa
 if (btnSolicitarExclusaoConta) {
     btnSolicitarExclusaoConta.addEventListener('click', async function () {
         if (!usuarioLogadoUid) return;
-        if (confirm("🚨 ATENÇÃO CRÍTICA:\nDeseja realmente solicitar o encerramento dos seus dados? Seu acesso será suspenso imediatamente.")) {
+        if (await confirmarHub("🚨 ATENÇÃO CRÍTICA:\nDeseja realmente solicitar o encerramento dos seus dados? Seu acesso será suspenso imediatamente.")) {
             try {
                 await database.ref(`usuarios/${usuarioLogadoUid}/status_cadastro`).set("solicitou_exclusao");
                 if (modalEditarPerfil) modalEditarPerfil.classList.remove('active');
@@ -2498,6 +2687,7 @@ function renderizarPainelTemporadas() {
                     <p style="font-size:0.75rem; color:#8899a6;">Encerrada em ${formatarData(f.encerrada_em)}</p>` : ""}
                 </div>
                 <button class="btn-visualizar-comprovante" onclick="abrirDetalheTemporada('${id}')">📚 Ver histórico completo</button>
+                ${encerrada ? "" : `<button class="btn-visualizar-comprovante btn-encerrar-temporada-item" onclick="encerrarTemporadaMensal('${id}')">🗓️ Encerrar temporada</button>`}
             </div>`;
     }).join("") : `<p class="vazio-lista">Nenhuma temporada registrada ainda.</p>`;
 }
@@ -2560,9 +2750,13 @@ function exportarHistoricoTemporada() {
 }
 
 // Encerramento mensal: fotografa os números, arquiva os aprovados e abre o mês seguinte
-async function encerrarTemporadaMensal() {
-    const idAtual = idTemporadaDeData();
-    if (!confirm(`⚠️ ENCERRAMENTO DA TEMPORADA ${nomeTemporada(idAtual).toUpperCase()}\n\nOs números serão fotografados e ficarão salvos no histórico, os aprovados serão arquivados e a temporada seguinte será aberta.\n\nConfirmar encerramento?`)) return;
+async function encerrarTemporadaMensal(idEscolhido) {
+    const idMesCorrente = idTemporadaDeData();
+    if (typeof idEscolhido === "string" && idEscolhido && idEscolhido !== idMesCorrente) {
+        return encerrarTemporadaAntiga(idEscolhido);
+    }
+    const idAtual = idMesCorrente;
+    if (!await confirmarHub(`⚠️ ENCERRAMENTO DA TEMPORADA ${nomeTemporada(idAtual).toUpperCase()}\n\nOs números serão fotografados e ficarão salvos no histórico, os aprovados serão arquivados e a temporada seguinte será aberta.\n\nConfirmar encerramento?`)) return;
     const botao = document.getElementById('btn-encerrar-temporada');
     try {
         if (botao) { botao.disabled = true; botao.innerText = "ENCERRANDO TEMPORADA..."; }
@@ -2616,6 +2810,26 @@ async function encerrarTemporadaMensal() {
         alert("Erro ao encerrar a temporada: " + erro.message);
     } finally {
         if (botao) { botao.disabled = false; botao.innerText = "🗓️ ENCERRAR TEMPORADA DO MÊS"; }
+    }
+}
+
+// Encerra uma temporada de mês anterior que ficou em aberto (sem mexer nos jogadores atuais)
+async function encerrarTemporadaAntiga(id) {
+    if (!await confirmarHub(`⚠️ ENCERRAR A TEMPORADA ${nomeTemporada(id).toUpperCase()}?\n\nEla será marcada como encerrada e seus registros continuarão guardados no histórico. Os jogadores e a temporada atual não serão alterados.`)) return;
+    try {
+        const t = cacheTemporadas[id] || {};
+        const agora = Date.now();
+        await database.ref(`temporadas/${id}/fechamento`).update({
+            registros: Object.keys(t.eventos || {}).length,
+            encerrada_em: agora,
+            encerrada_manualmente: true
+        });
+        await database.ref(`temporadas/${id}/info`).update({
+            id, nome: nomeTemporada(id), status: "encerrada", encerrada_em: agora
+        });
+        alert(`🗂️ Temporada ${nomeTemporada(id)} encerrada!`);
+    } catch (erro) {
+        alert("Erro ao encerrar a temporada: " + erro.message);
     }
 }
 
@@ -2747,7 +2961,7 @@ if (btnCancelarNovidade) btnCancelarNovidade.addEventListener('click', cancelarE
 
 async function excluirNovidade(id) {
     const n = cacheNovidades[id] || {};
-    if (!confirm(`Apagar definitivamente a novidade "${n.titulo || ''}" e todos os comentários dela?`)) return;
+    if (!await confirmarHub(`Apagar definitivamente a novidade "${n.titulo || ''}" e todos os comentários dela?`)) return;
     try {
         await database.ref(`novidades/${id}`).remove();
         await registrarEventoTemporada('novidade_excluida', { titulo: n.titulo || "" });
@@ -2761,7 +2975,7 @@ async function alternarComentariosNovidade(id) {
 }
 
 async function excluirComentarioNovidade(idNovidade, idComentario) {
-    if (!confirm("Excluir este comentário?")) return;
+    if (!await confirmarHub("Excluir este comentário?")) return;
     await database.ref(`novidades/${idNovidade}/comentarios/${idComentario}`).remove();
 }
 
@@ -2926,3 +3140,121 @@ const btnEncerrarTemporada = document.getElementById('btn-encerrar-temporada');
 if (btnEncerrarTemporada) btnEncerrarTemporada.addEventListener('click', encerrarTemporadaMensal);
 const btnExportarTemporada = document.getElementById('btn-exportar-temporada');
 if (btnExportarTemporada) btnExportarTemporada.addEventListener('click', exportarHistoricoTemporada);
+
+
+// ==========================================================================
+// CAPA DO CARD: UPLOAD DE ARQUIVO (GIF animado preservado)
+// ==========================================================================
+(function () {
+    const btn = document.getElementById('btn-escolher-capa-card');
+    const input = document.getElementById('input-capa-card');
+    const campo = document.getElementById('card-capa');
+    const status = document.getElementById('status-capa-card');
+    if (!btn || !input || !campo) return;
+    btn.addEventListener('click', () => input.click());
+    input.addEventListener('change', async () => {
+        const arquivo = input.files && input.files[0];
+        input.value = "";
+        if (!arquivo) return;
+        try {
+            let base64;
+            const ehGif = arquivo.type === 'image/gif' || /\.gif$/i.test(arquivo.name);
+            if (ehGif) {
+                if (arquivo.size > 3 * 1024 * 1024) throw new Error("GIF muito grande (limite 3MB).");
+                base64 = await new Promise((res, rej) => {
+                    const l = new FileReader();
+                    l.onload = () => res(l.result);
+                    l.onerror = () => rej(new Error("Falha ao carregar o arquivo."));
+                    l.readAsDataURL(arquivo);
+                });
+            } else {
+                base64 = await converterImagemParaBase64(arquivo, 900, false);
+            }
+            campo.value = base64;
+            if (status) status.textContent = "✅ Capa carregada: " + arquivo.name + (ehGif ? " (GIF animado)" : "");
+        } catch (e) {
+            if (status) status.textContent = "⚠️ " + e.message;
+        }
+    });
+})();
+
+// ==========================================================================
+// PROTEÇÃO DO SITE: atalhos, botão direito, cópia/seleção e links no rodapé
+// Tudo liberado apenas para o administrador.
+// ==========================================================================
+(function () {
+    let ehAdmin = false;
+    const body = document.body;
+    const aplicar = () => body.classList.toggle('modo-protegido', !ehAdmin);
+    aplicar();
+    try {
+        auth.onAuthStateChanged(u => { ehAdmin = !!(u && u.email === EMAIL_ADMIN); aplicar(); });
+    } catch (e) { /* ignore */ }
+
+    const campoEditavel = el => !!(el && el.closest && el.closest('input, textarea, select, [contenteditable="true"]'));
+    const areaPermitida = el => !!(el && el.closest && el.closest('input, textarea, select, [contenteditable="true"], .permitir-copia'));
+
+    // Botão direito
+    document.addEventListener('contextmenu', e => { if (!ehAdmin) e.preventDefault(); }, true);
+
+    // Atalhos do navegador
+    document.addEventListener('keydown', e => {
+        if (ehAdmin) return;
+        const k = (e.key || '').toLowerCase();
+        const fn = /^f\d{1,2}$/.test(k);
+        const mod = e.ctrlKey || e.metaKey || e.altKey;
+        if (fn || k === 'contextmenu') { e.preventDefault(); e.stopPropagation(); return; }
+        if (!mod) return;
+        // Dentro de campos de texto, permite apenas edição básica
+        if (campoEditavel(e.target) && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey &&
+            ['c', 'v', 'x', 'a', 'z', 'y', 'backspace', 'delete', 'arrowleft', 'arrowright', 'home', 'end'].includes(k)) return;
+        e.preventDefault(); e.stopPropagation();
+    }, true);
+
+    // Cópia, recorte e seleção
+    ['copy', 'cut'].forEach(ev => document.addEventListener(ev, e => {
+        if (!ehAdmin && !areaPermitida(e.target)) e.preventDefault();
+    }, true));
+    document.addEventListener('selectstart', e => {
+        if (!ehAdmin && !areaPermitida(e.target)) e.preventDefault();
+    }, true);
+    document.addEventListener('dragstart', e => {
+        if (!ehAdmin && !campoEditavel(e.target)) e.preventDefault();
+    }, true);
+
+    // Esconde URLs dos links (barra de status no rodapé do navegador)
+    const esconderHref = a => {
+        if (!a || !a.hasAttribute('href')) return;
+        const href = a.getAttribute('href');
+        if (!href || href.startsWith('#') || href.startsWith('data:') || href.startsWith('blob:')) return;
+        a.dataset.hrefProtegido = href;
+        a.removeAttribute('href');
+        a.style.cursor = 'pointer';
+        a.setAttribute('role', a.getAttribute('role') || 'link');
+        if (!a.hasAttribute('tabindex')) a.setAttribute('tabindex', '0');
+    };
+    ['mouseover', 'focusin', 'touchstart'].forEach(ev => document.addEventListener(ev, e => {
+        if (ehAdmin) return;
+        const a = e.target.closest && e.target.closest('a[href]');
+        if (a) esconderHref(a);
+    }, true));
+    const abrir = (a, e) => {
+        const href = a.dataset.hrefProtegido;
+        if (!href) return;
+        e.preventDefault();
+        if (a.hasAttribute('download')) {
+            a.setAttribute('href', href); a.click(); a.removeAttribute('href'); return;
+        }
+        if (a.target === '_blank') window.open(href, '_blank', 'noopener');
+        else window.location.href = href;
+    };
+    document.addEventListener('click', e => {
+        const a = e.target.closest && e.target.closest('a[data-href-protegido]');
+        if (a && !a.hasAttribute('href')) abrir(a, e);
+    }, true);
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return;
+        const a = e.target.closest && e.target.closest('a[data-href-protegido]');
+        if (a && !a.hasAttribute('href')) abrir(a, e);
+    });
+})();
